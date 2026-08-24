@@ -19,7 +19,10 @@ requirements.txt fastapi, python-chess, python-multipart
 1. Vercel → Add New → Project → import `AdLgames/chess-opening-leak-analyzer`.
 2. Set **Root Directory** to `vercel`.
 3. Leave the framework preset as Other. `vercel.json` supplies the build command
-   (`python3 prepare.py`), install command and function settings.
+   (`python3 prepare.py`) and the function settings. Leave the install command
+   empty — `prepare.py` only needs the standard library, and the Python runtime
+   installs `requirements.txt` into the function itself. A build-stage
+   `pip3 install` fails on Vercel with PEP 668 `externally-managed-environment`.
 4. Deploy. The build downloads Stockfish 17.1 (`sse41-popcnt`, ~79 MB) and the
    19 MB opening book, so the first build takes a few minutes.
 
@@ -28,8 +31,7 @@ requirements.txt fastapi, python-chess, python-multipart
 ```bash
 git clone https://github.com/AdLgames/chess-opening-leak-analyzer
 cd chess-opening-leak-analyzer/vercel
-pip install -r requirements.txt
-python prepare.py            # engine + book + front-end
+python prepare.py            # engine + book + front-end (standard library only)
 vercel deploy                # first deploy creates the project
 ```
 
@@ -39,6 +41,7 @@ vercel deploy                # first deploy creates the project
 `public/` when it is present, so one command previews exactly what Vercel serves:
 
 ```bash
+pip install -r requirements.txt   # only needed to run it locally
 python -m uvicorn api.index:app --port 8011
 # open http://localhost:8011
 ```

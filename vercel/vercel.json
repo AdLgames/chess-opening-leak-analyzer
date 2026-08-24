@@ -1,7 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "python3 prepare.py",
-  "installCommand": "pip3 install -r requirements.txt",
   "outputDirectory": "public",
   "functions": {
     "api/index.py": {
