@@ -16,7 +16,6 @@ import threading
 import time
 import traceback
 import uuid
-from collections import defaultdict
 from typing import Any
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -34,6 +33,7 @@ from chessopening.analyze import analyze
 from chessopening.engine import find_engine
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase
 from chessopening.pgn_loader import detect_main_player, find_pgn_files
+from chessopening.summary import summarise
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SAMPLE_DIR = os.path.join(ROOT, "sample_pgns")
@@ -105,51 +105,7 @@ def meta() -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- run
-def _summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, Any]:
-    def f(v: str) -> float:
-        try:
-            return float(v)
-        except (TypeError, ValueError):
-            return 0.0
-
-    by_opening: dict[str, dict[str, float]] = defaultdict(
-        lambda: {"lost_points": 0.0, "leaks": 0, "games": 0, "score": 0.0, "db_score": 0.0, "n": 0}
-    )
-    flags: dict[str, int] = defaultdict(int)
-    for r in rows:
-        key = r["opening"] or r["eco"] or "Unclassified"
-        b = by_opening[key]
-        b["lost_points"] += f(r["lost_points"])
-        b["leaks"] += 1
-        b["games"] += int(f(r["your_games"]))
-        b["score"] += f(r["your_score_pct"])
-        b["db_score"] += f(r["db_move_score_pct"]) or f(r["db_position_score_pct"])
-        b["n"] += 1
-        for fl in (r["flag"] or "").split("+"):
-            if fl:
-                flags[fl] += 1
-    openings = [
-        {"opening": k, "lost_points": round(v["lost_points"], 2), "leaks": int(v["leaks"]),
-         "games": int(v["games"]), "your_score": round(v["score"] / max(1, v["n"]), 1),
-         "db_score": round(v["db_score"] / max(1, v["n"]), 1)}
-        for k, v in by_opening.items()
-    ]
-    openings.sort(key=lambda d: -d["lost_points"])
-    worst_white = [r for r in rows if r["player_color"] == "white"]
-    worst_black = [r for r in rows if r["player_color"] == "black"]
-    return {
-        "games": stats["games"],
-        "decisions": stats["nodes"],
-        "judged": stats["repeated"],
-        "leaks": len(rows),
-        "lost_points": round(sum(f(r["lost_points"]) for r in rows), 2),
-        "blunders": sum(1 for r in rows if f(r["eval_drop_pawns"]) >= 0.8),
-        "flags": dict(flags),
-        "by_opening": openings[:12],
-        "white_leaks": len(worst_white),
-        "black_leaks": len(worst_black),
-        "top": rows[0] if rows else None,
-    }
+_summarise = summarise  # shared with the serverless deployment
 
 
 def _run_job(job_id: str, pgn_dir: str, player: str | None, opts: dict[str, Any]) -> None:

@@ -9,6 +9,7 @@ Two ways to use it:
 | | |
 | --- | --- |
 | `chess_opening_analyzer/` | Python package + CLI. Parses PGNs with python-chess, compares every repeated opening decision against the opening database, runs Stockfish over the first N moves, writes a CSV report. |
+| `vercel/` | Hosted deployment of the same dashboard: a Python serverless function that bundles Stockfish and the opening book. See [vercel/README.md](vercel/README.md). |
 | `chess-dashboard/` | Opening Leak Lab — a FastAPI backend and a static front end that wraps the same package: drop PGNs, watch the run log, then browse KPIs, charts, a sortable leak table, and a board view of each flagged position with the engine's alternatives. |
 
 ## Setup
@@ -109,3 +110,11 @@ on each machine, and [CI](.github/workflows/tests.yml) exercises that same path 
 ```bash
 make test        # or: cd chess_opening_analyzer && python -m pytest tests -q
 ```
+
+## Hosting it
+
+`vercel/` deploys the dashboard to Vercel with the engine and the opening book inside the
+serverless function, so a hosted run needs no external API. Import the repo in Vercel with
+**Root Directory** set to `vercel`, or run `python prepare.py && vercel deploy` from that folder.
+Hosted runs are capped (depth 14, 120 games, 8 MB upload, 42s engine budget) to fit the function
+timeout; local runs are uncapped. Details in [vercel/README.md](vercel/README.md).

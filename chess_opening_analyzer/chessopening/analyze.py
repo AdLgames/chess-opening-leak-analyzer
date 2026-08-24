@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import os
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -96,7 +97,13 @@ def build_nodes(
     player: str,
     max_moves: int = 15,
     color: str = "both",
+    max_games: int | None = None,
 ) -> tuple[dict[tuple[str, str], Node], list[GameSummary]]:
+    """Fold the player's games into one Node per (position, move played).
+
+    `max_games` stops after that many of the player's games — used by the hosted
+    deployment to keep a run inside its time budget.
+    """
     nodes: dict[tuple[str, str], Node] = {}
     games: list[GameSummary] = []
     for game in load_games(pgn_dir, player, max_moves=max_moves, color=color):
@@ -119,6 +126,8 @@ def build_nodes(
                     opening=rec.opening,
                 )
             node.add(rec)
+        if max_games is not None and len(games) >= max_games:
+            break
     return nodes, games
 
 
@@ -148,12 +157,18 @@ def analyze(
     ratings: str = "1600,1800,2000",
     offline: bool = False,
     no_engine: bool = False,
+    max_games: int | None = None,
+    engine_budget_s: float | None = None,
     cache_dir: str | None = None,
     log=print,
 ) -> dict:
     os.makedirs(out_dir, exist_ok=True)
     cache_dir = cache_dir or os.path.join(out_dir, ".cache")
-    nodes, games = build_nodes(pgn_dir, player, max_moves=max_moves, color=color)
+    notes: list[str] = []
+    nodes, games = build_nodes(pgn_dir, player, max_moves=max_moves, color=color,
+                              max_games=max_games)
+    if max_games is not None and len(games) >= max_games:
+        notes.append(f"stopped after the first {max_games} games")
     log(f"Parsed {len(games)} games for '{player}' -> {len(nodes)} distinct opening decisions")
     if not games:
         raise SystemExit(f"No games found for player '{player}' in {pgn_dir}")
@@ -200,7 +215,14 @@ def analyze(
             cache_path=os.path.join(cache_dir, "engine_evals.json"),
         ) as eng:
             log(f"Engine: {eng.engine_path} (depth {depth}, MultiPV {multipv})")
+            engine_started = time.monotonic()
             for i, (key, node) in enumerate(repeated.items(), start=1):
+                if engine_budget_s is not None and time.monotonic() - engine_started > engine_budget_s:
+                    skipped = len(repeated) - i + 1
+                    notes.append(f"engine budget of {engine_budget_s:g}s reached: "
+                                 f"{skipped} of {len(repeated)} positions judged on statistics only")
+                    log(f"  engine budget reached, skipping {skipped} positions")
+                    break
                 evals[key] = eng.evaluate_move(node.fen, node.played_uci)
                 if i % 20 == 0:
                     log(f"  engine: {i}/{len(repeated)} positions")
@@ -309,4 +331,5 @@ def analyze(
         "report": report_path,
         "summary": summary_path,
         "explorer_stats": explorer.stats,
+        "notes": notes,
     }

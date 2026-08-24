@@ -1,10 +1,25 @@
-/* Opening Leak Lab — dashboard client. Talks to the FastAPI analyzer on port 8000. */
-const API = '__PORT_8000__'.startsWith('__') ? 'http://localhost:8000' : '__PORT_8000__';
+/* Opening Leak Lab — dashboard client.
+   Talks to a local FastAPI analyzer on :8000, or to a same-origin serverless API
+   when hosted (the backend reports `serverless: true` from /api/meta). */
+const PORT_PROXY = '__PORT_8000__';
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0'];
+// Three ways this page gets served:
+//   1. Perplexity preview  -> the placeholder is rewritten to a proxy URL for port 8000
+//   2. static dev server on :8080 (or opened from disk) -> talk to api_server.py on :8000
+//   3. anything else, including the hosted serverless build -> same origin
+const DETACHED = location.protocol === 'file:' || location.port === '8080';
+const API = PORT_PROXY.startsWith('__')
+  ? ((LOCAL_HOSTS.includes(location.hostname) || location.protocol === 'file:') && DETACHED
+      ? 'http://localhost:8000'
+      : '')
+  : PORT_PROXY;
 
 const $ = (id) => document.getElementById(id);
 const state = {
   files: [],
   jobId: null,
+  serverless: false,
+  csvText: '',
   rows: [],
   summary: null,
   player: null,
@@ -22,11 +37,36 @@ const num = (v) => {
 const fmt = (v, digits = 1, suffix = '') => (num(v) === null ? '—' : num(v).toFixed(digits) + suffix);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* The hosted function has a time budget, so cap the controls it cannot honour. */
+function applyHostedLimits(limits) {
+  const depth = $('optDepth');
+  if (limits.max_depth) {
+    // setting max makes the browser clamp value for us, so mirror it into the label
+    depth.max = String(limits.max_depth);
+    if (Number(depth.value) > limits.max_depth) depth.value = String(limits.max_depth);
+    $('depthOut').textContent = depth.value;
+  }
+  if (limits.max_upload_mb) {
+    $('uploadHint').textContent =
+      `Up to ${limits.max_upload_mb} MB per run · parsed with python-chess`;
+  }
+  $('sideFoot').textContent =
+    'Everything runs inside the deployed function: a bundled Stockfish build and a bundled '
+    + 'SQLite opening book. No API keys, no rate limits.';
+  $('hostedNoticeText').textContent =
+    `Runs here are capped at depth ${limits.max_depth}, ${limits.max_games} games and `
+    + `${limits.max_upload_mb} MB per upload, and the engine pass stops after `
+    + `${limits.time_budget_s}s. Clone the repo for unlimited local runs.`;
+  $('hostedNotice').hidden = false;
+}
+
 /* --------------------------------------------------------------------- meta */
 async function loadMeta() {
   try {
     const meta = await (await fetch(`${API}/api/meta`)).json();
     state.meta = meta;
+    state.serverless = meta.serverless === true;
+    if (state.serverless) applyHostedLimits(meta.limits || {});
     const e = meta.engine || {};
     const d = meta.database || {};
 
@@ -113,11 +153,44 @@ async function startRun(useSample) {
   $('headerSub').textContent = 'Run in progress — engine and book lookups are local.';
 
   try {
+    if (state.serverless) return await runSynchronous(useSample);
     const res = await fetch(`${API}/api/analyze`, { method: 'POST', body: collectOptions(useSample) });
     if (!res.ok) throw new Error((await res.json()).detail || `HTTP ${res.status}`);
     state.jobId = (await res.json()).job_id;
     poll();
   } catch (err) {
+    failRun(err.message);
+  }
+}
+
+/* Hosted deployment: one request returns the finished report, so there is no job
+   to poll. Animate the bar while the function works. */
+async function runSynchronous(useSample) {
+  const started = Date.now();
+  $('log').textContent = 'Running in the hosted function — engine and book are bundled with it.';
+  const tick = setInterval(() => {
+    const secs = (Date.now() - started) / 1000;
+    $('progressElapsed').textContent = `${secs.toFixed(1)}s`;
+    $('barFill').style.width = `${Math.min(90, 8 + secs * 3)}%`;
+  }, 200);
+  try {
+    const res = await fetch(`${API}/api/analyze`, { method: 'POST', body: collectOptions(useSample) });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+    clearInterval(tick);
+    $('barFill').style.width = '100%';
+    $('spinner').className = 'spinner is-done';
+    $('progressTitle').textContent = `Done in ${body.elapsed}s`;
+    $('progressElapsed').textContent = `${body.elapsed}s`;
+    const lines = (body.log || []).slice();
+    (body.notes || []).forEach((n) => lines.push(`note: ${n}`));
+    $('log').textContent = lines.join('\n');
+    $('log').scrollTop = $('log').scrollHeight;
+    state.csvText = body.csv || '';
+    applyReport(body, { options: body.options, source: useSample ? 'sample' : 'upload' });
+    setBusy(false);
+  } catch (err) {
+    clearInterval(tick);
     failRun(err.message);
   }
 }
@@ -167,6 +240,11 @@ function setBusy(busy) {
 /* ------------------------------------------------------------------ reports */
 async function loadReport(job) {
   const data = await (await fetch(`${API}/api/report/${state.jobId}`)).json();
+  state.csvText = '';
+  applyReport(data, job);
+}
+
+function applyReport(data, job) {
   state.rows = data.rows;
   state.summary = data.summary;
   state.player = data.player;
@@ -175,7 +253,9 @@ async function loadReport(job) {
   const engineNote = job.options.no_engine ? 'engine skipped' : `depth ${job.options.depth}`;
   $('headerSub').textContent = `${state.player} · ${s.games} games · ${s.judged} repeated decisions · ${s.leaks} leaks · ${engineNote}`;
   $('overviewHint').textContent = `${job.source === 'sample' ? 'Demo archive' : 'Your upload'} · ${s.games} games`;
-  $('footStatus').textContent = `job ${state.jobId} · ${s.leaks} leaks`;
+  $('footStatus').textContent = state.serverless
+    ? `hosted run · ${s.leaks} leaks`
+    : `job ${state.jobId} · ${s.leaks} leaks`;
   renderKpis(s);
   renderCharts(s);
   renderTable();
@@ -459,7 +539,16 @@ function wire() {
   $('runTop').addEventListener('click', () => (state.files.length ? startRun(false) : startRun(true)));
   $('sampleBtn').addEventListener('click', () => startRun(true));
   $('csvBtn').addEventListener('click', () => {
-    if (state.jobId) window.open(`${API}/api/report/${state.jobId}/csv`, '_blank');
+    if (state.csvText) {
+      const url = URL.createObjectURL(new Blob([state.csvText], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'opening_leaks.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (state.jobId) {
+      window.open(`${API}/api/report/${state.jobId}/csv`, '_blank');
+    }
   });
   $('optDepth').addEventListener('input', (e) => ($('depthOut').textContent = e.target.value));
   $('optMoves').addEventListener('input', (e) => ($('movesOut').textContent = `${e.target.value} moves`));
