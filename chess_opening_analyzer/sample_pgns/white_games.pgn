@@ -1,0 +1,600 @@
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3001"]
+[Date "2026.01.28"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_B"]
+[Result "0-1"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1760"]
+[BlackElo "1799"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3002"]
+[Date "2026.08.15"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_D"]
+[Result "1/2-1/2"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1748"]
+[BlackElo "1790"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3003"]
+[Date "2026.02.22"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_B"]
+[Result "0-1"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1700"]
+[BlackElo "1799"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3004"]
+[Date "2026.04.20"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_B"]
+[Result "0-1"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1809"]
+[BlackElo "1772"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3005"]
+[Date "2026.07.22"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_D"]
+[Result "0-1"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1789"]
+[BlackElo "1746"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3006"]
+[Date "2026.04.22"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_D"]
+[Result "0-1"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1723"]
+[BlackElo "1713"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3007"]
+[Date "2026.01.15"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_E"]
+[Result "0-1"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1687"]
+[BlackElo "1749"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3008"]
+[Date "2026.02.19"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_A"]
+[Result "1-0"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1801"]
+[BlackElo "1774"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3009"]
+[Date "2026.02.18"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_C"]
+[Result "0-1"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1696"]
+[BlackElo "1818"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3010"]
+[Date "2026.02.14"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_C"]
+[Result "1-0"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1756"]
+[BlackElo "1734"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3011"]
+[Date "2026.08.25"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_D"]
+[Result "0-1"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1718"]
+[BlackElo "1809"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/sicilian_f3012"]
+[Date "2026.04.26"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_D"]
+[Result "0-1"]
+[ECO "B50"]
+[Opening "Sicilian Defense: Modern Variations"]
+[WhiteElo "1688"]
+[BlackElo "1739"]
+[TimeControl "300+0"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. f3 e5 6. Nb3 Be7 7. Bg5 O-O 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_ng5001"]
+[Date "2026.04.17"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_F"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Pianissimo"]
+[WhiteElo "1731"]
+[BlackElo "1790"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7 Kxf7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_ng5002"]
+[Date "2026.03.14"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_B"]
+[Result "1-0"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Pianissimo"]
+[WhiteElo "1812"]
+[BlackElo "1682"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7 Kxf7 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_ng5003"]
+[Date "2026.05.11"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_A"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Pianissimo"]
+[WhiteElo "1800"]
+[BlackElo "1705"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7 Kxf7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_ng5004"]
+[Date "2026.02.13"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_A"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Pianissimo"]
+[WhiteElo "1734"]
+[BlackElo "1808"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7 Kxf7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_ng5005"]
+[Date "2026.07.10"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_D"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Pianissimo"]
+[WhiteElo "1693"]
+[BlackElo "1820"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7 Kxf7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_ng5006"]
+[Date "2026.03.13"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_A"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Pianissimo"]
+[WhiteElo "1764"]
+[BlackElo "1717"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7 Kxf7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_ng5007"]
+[Date "2026.01.25"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_F"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Pianissimo"]
+[WhiteElo "1776"]
+[BlackElo "1777"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7 Kxf7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange001"]
+[Date "2026.01.14"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_A"]
+[Result "0-1"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1708"]
+[BlackElo "1718"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange002"]
+[Date "2026.08.10"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_E"]
+[Result "1-0"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1741"]
+[BlackElo "1720"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange003"]
+[Date "2026.07.11"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_C"]
+[Result "1/2-1/2"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1720"]
+[BlackElo "1794"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange004"]
+[Date "2026.01.10"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_A"]
+[Result "1-0"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1688"]
+[BlackElo "1734"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange005"]
+[Date "2026.03.20"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_A"]
+[Result "1/2-1/2"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1748"]
+[BlackElo "1798"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange006"]
+[Date "2026.06.18"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_A"]
+[Result "1-0"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1803"]
+[BlackElo "1702"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange007"]
+[Date "2026.05.11"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_F"]
+[Result "1/2-1/2"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1810"]
+[BlackElo "1818"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange008"]
+[Date "2026.08.12"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_C"]
+[Result "1-0"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1809"]
+[BlackElo "1681"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange009"]
+[Date "2026.06.11"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_F"]
+[Result "1-0"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1789"]
+[BlackElo "1690"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange010"]
+[Date "2026.04.20"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_E"]
+[Result "1-0"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1803"]
+[BlackElo "1794"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange011"]
+[Date "2026.01.21"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_E"]
+[Result "1-0"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1789"]
+[BlackElo "1700"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qgd_exchange012"]
+[Date "2026.07.24"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_C"]
+[Result "0-1"]
+[ECO "D35"]
+[Opening "Queen's Gambit Declined: Exchange Variation"]
+[WhiteElo "1814"]
+[BlackElo "1736"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 c6 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_nxe5001"]
+[Date "2026.05.16"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_F"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Piano"]
+[WhiteElo "1754"]
+[BlackElo "1705"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 Bxd4 6. Nc3 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_nxe5002"]
+[Date "2026.05.12"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_A"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Piano"]
+[WhiteElo "1752"]
+[BlackElo "1700"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 Bxd4 6. Nc3 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_nxe5003"]
+[Date "2026.06.23"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_B"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Piano"]
+[WhiteElo "1778"]
+[BlackElo "1789"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 Bxd4 6. Nc3 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_nxe5004"]
+[Date "2026.05.25"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_F"]
+[Result "1-0"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Piano"]
+[WhiteElo "1723"]
+[BlackElo "1786"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 Bxd4 6. Nc3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_nxe5005"]
+[Date "2026.02.19"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_D"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Piano"]
+[WhiteElo "1780"]
+[BlackElo "1695"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 Bxd4 6. Nc3 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_nxe5006"]
+[Date "2026.03.14"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_D"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Piano"]
+[WhiteElo "1776"]
+[BlackElo "1702"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 Bxd4 6. Nc3 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_nxe5007"]
+[Date "2026.03.23"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_E"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Piano"]
+[WhiteElo "1725"]
+[BlackElo "1757"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 Bxd4 6. Nc3 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_nxe5008"]
+[Date "2026.06.26"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_B"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Piano"]
+[WhiteElo "1719"]
+[BlackElo "1745"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 Bxd4 6. Nc3 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/italian_nxe5009"]
+[Date "2026.04.22"]
+[Round "?"]
+[White "SamplePlayer"]
+[Black "Opponent_E"]
+[Result "0-1"]
+[ECO "C50"]
+[Opening "Italian Game: Giuoco Piano"]
+[WhiteElo "1726"]
+[BlackElo "1760"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 Bxd4 6. Nc3 0-1
+

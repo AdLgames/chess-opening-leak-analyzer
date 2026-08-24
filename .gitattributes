@@ -1,0 +1,2 @@
+chess_opening_analyzer/chessopening/bin/stockfish filter=lfs diff=lfs merge=lfs -text
+chess_opening_analyzer/chessopening/data/openings.sqlite filter=lfs diff=lfs merge=lfs -text

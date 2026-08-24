@@ -1,0 +1,645 @@
+[Event "Rated blitz game"]
+[Site "https://lichess.org/philidor_bg4001"]
+[Date "2026.05.14"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "1/2-1/2"]
+[ECO "C41"]
+[Opening "Philidor Defense"]
+[WhiteElo "1820"]
+[BlackElo "1760"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Qd7 7. Qb3 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/philidor_bg4002"]
+[Date "2026.04.18"]
+[Round "?"]
+[White "Opponent_E"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "C41"]
+[Opening "Philidor Defense"]
+[WhiteElo "1701"]
+[BlackElo "1760"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Qd7 7. Qb3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/philidor_bg4003"]
+[Date "2026.02.26"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "C41"]
+[Opening "Philidor Defense"]
+[WhiteElo "1797"]
+[BlackElo "1779"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Qd7 7. Qb3 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/philidor_bg4004"]
+[Date "2026.05.14"]
+[Round "?"]
+[White "Opponent_B"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "C41"]
+[Opening "Philidor Defense"]
+[WhiteElo "1750"]
+[BlackElo "1763"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Qd7 7. Qb3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/philidor_bg4005"]
+[Date "2026.06.17"]
+[Round "?"]
+[White "Opponent_A"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "C41"]
+[Opening "Philidor Defense"]
+[WhiteElo "1698"]
+[BlackElo "1769"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Qd7 7. Qb3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/philidor_bg4006"]
+[Date "2026.07.17"]
+[Round "?"]
+[White "Opponent_E"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "C41"]
+[Opening "Philidor Defense"]
+[WhiteElo "1816"]
+[BlackElo "1777"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Qd7 7. Qb3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/philidor_bg4007"]
+[Date "2026.03.10"]
+[Round "?"]
+[White "Opponent_B"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "C41"]
+[Opening "Philidor Defense"]
+[WhiteElo "1747"]
+[BlackElo "1796"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Qd7 7. Qb3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/philidor_bg4008"]
+[Date "2026.06.17"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "C41"]
+[Opening "Philidor Defense"]
+[WhiteElo "1802"]
+[BlackElo "1739"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Qd7 7. Qb3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/philidor_bg4009"]
+[Date "2026.04.14"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "C41"]
+[Opening "Philidor Defense"]
+[WhiteElo "1749"]
+[BlackElo "1785"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Qd7 7. Qb3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/philidor_bg4010"]
+[Date "2026.07.27"]
+[Round "?"]
+[White "Opponent_B"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "C41"]
+[Opening "Philidor Defense"]
+[WhiteElo "1789"]
+[BlackElo "1743"]
+[TimeControl "300+0"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Qd7 7. Qb3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main001"]
+[Date "2026.05.22"]
+[Round "?"]
+[White "Opponent_D"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1760"]
+[BlackElo "1759"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main002"]
+[Date "2026.08.15"]
+[Round "?"]
+[White "Opponent_A"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1742"]
+[BlackElo "1747"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main003"]
+[Date "2026.07.10"]
+[Round "?"]
+[White "Opponent_C"]
+[Black "SamplePlayer"]
+[Result "1/2-1/2"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1817"]
+[BlackElo "1809"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main004"]
+[Date "2026.01.10"]
+[Round "?"]
+[White "Opponent_E"]
+[Black "SamplePlayer"]
+[Result "1/2-1/2"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1719"]
+[BlackElo "1791"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main005"]
+[Date "2026.08.26"]
+[Round "?"]
+[White "Opponent_E"]
+[Black "SamplePlayer"]
+[Result "1/2-1/2"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1763"]
+[BlackElo "1809"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main006"]
+[Date "2026.02.19"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1701"]
+[BlackElo "1783"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main007"]
+[Date "2026.05.11"]
+[Round "?"]
+[White "Opponent_B"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1688"]
+[BlackElo "1747"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main008"]
+[Date "2026.01.13"]
+[Round "?"]
+[White "Opponent_A"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1794"]
+[BlackElo "1767"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main009"]
+[Date "2026.05.15"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1794"]
+[BlackElo "1720"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main010"]
+[Date "2026.03.16"]
+[Round "?"]
+[White "Opponent_A"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1685"]
+[BlackElo "1781"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main011"]
+[Date "2026.01.12"]
+[Round "?"]
+[White "Opponent_D"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1746"]
+[BlackElo "1712"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/nimzo_main012"]
+[Date "2026.07.15"]
+[Round "?"]
+[White "Opponent_A"]
+[Black "SamplePlayer"]
+[Result "1/2-1/2"]
+[ECO "E32"]
+[Opening "Nimzo-Indian Defense: Classical Variation"]
+[WhiteElo "1744"]
+[BlackElo "1752"]
+[TimeControl "300+0"]
+
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 b6 7. Bg5 Bb7 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/caro_kann001"]
+[Date "2026.02.16"]
+[Round "?"]
+[White "Opponent_D"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation"]
+[WhiteElo "1762"]
+[BlackElo "1706"]
+[TimeControl "300+0"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Qb6 7. Nc3 Nc6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/caro_kann002"]
+[Date "2026.05.13"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "1/2-1/2"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation"]
+[WhiteElo "1709"]
+[BlackElo "1776"]
+[TimeControl "300+0"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Qb6 7. Nc3 Nc6 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/caro_kann003"]
+[Date "2026.05.13"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation"]
+[WhiteElo "1805"]
+[BlackElo "1710"]
+[TimeControl "300+0"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Qb6 7. Nc3 Nc6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/caro_kann004"]
+[Date "2026.02.25"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation"]
+[WhiteElo "1762"]
+[BlackElo "1707"]
+[TimeControl "300+0"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Qb6 7. Nc3 Nc6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/caro_kann005"]
+[Date "2026.04.23"]
+[Round "?"]
+[White "Opponent_A"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation"]
+[WhiteElo "1682"]
+[BlackElo "1813"]
+[TimeControl "300+0"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Qb6 7. Nc3 Nc6 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/caro_kann006"]
+[Date "2026.06.28"]
+[Round "?"]
+[White "Opponent_A"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation"]
+[WhiteElo "1788"]
+[BlackElo "1701"]
+[TimeControl "300+0"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Qb6 7. Nc3 Nc6 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/caro_kann007"]
+[Date "2026.01.12"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation"]
+[WhiteElo "1809"]
+[BlackElo "1693"]
+[TimeControl "300+0"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Qb6 7. Nc3 Nc6 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/caro_kann008"]
+[Date "2026.06.18"]
+[Round "?"]
+[White "Opponent_C"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation"]
+[WhiteElo "1784"]
+[BlackElo "1740"]
+[TimeControl "300+0"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Qb6 7. Nc3 Nc6 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/caro_kann009"]
+[Date "2026.03.16"]
+[Round "?"]
+[White "Opponent_F"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation"]
+[WhiteElo "1693"]
+[BlackElo "1727"]
+[TimeControl "300+0"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Qb6 7. Nc3 Nc6 0-1
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/caro_kann010"]
+[Date "2026.03.22"]
+[Round "?"]
+[White "Opponent_C"]
+[Black "SamplePlayer"]
+[Result "1/2-1/2"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation"]
+[WhiteElo "1799"]
+[BlackElo "1691"]
+[TimeControl "300+0"]
+
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Qb6 7. Nc3 Nc6 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5001"]
+[Date "2026.01.12"]
+[Round "?"]
+[White "Opponent_C"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1806"]
+[BlackElo "1755"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5002"]
+[Date "2026.07.14"]
+[Round "?"]
+[White "Opponent_A"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1692"]
+[BlackElo "1693"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5003"]
+[Date "2026.04.26"]
+[Round "?"]
+[White "Opponent_C"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1686"]
+[BlackElo "1704"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5004"]
+[Date "2026.02.16"]
+[Round "?"]
+[White "Opponent_C"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1717"]
+[BlackElo "1726"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5005"]
+[Date "2026.05.18"]
+[Round "?"]
+[White "Opponent_C"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1693"]
+[BlackElo "1805"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5006"]
+[Date "2026.03.11"]
+[Round "?"]
+[White "Opponent_A"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1767"]
+[BlackElo "1781"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5007"]
+[Date "2026.05.23"]
+[Round "?"]
+[White "Opponent_D"]
+[Black "SamplePlayer"]
+[Result "1/2-1/2"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1715"]
+[BlackElo "1733"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 1/2-1/2
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5008"]
+[Date "2026.08.17"]
+[Round "?"]
+[White "Opponent_D"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1815"]
+[BlackElo "1805"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5009"]
+[Date "2026.03.11"]
+[Round "?"]
+[White "Opponent_C"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1769"]
+[BlackElo "1769"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5010"]
+[Date "2026.08.17"]
+[Round "?"]
+[White "Opponent_C"]
+[Black "SamplePlayer"]
+[Result "1-0"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1733"]
+[BlackElo "1713"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 1-0
+
+[Event "Rated blitz game"]
+[Site "https://lichess.org/qga_b5011"]
+[Date "2026.01.27"]
+[Round "?"]
+[White "Opponent_A"]
+[Black "SamplePlayer"]
+[Result "0-1"]
+[ECO "D20"]
+[Opening "Queen's Gambit Accepted"]
+[WhiteElo "1796"]
+[BlackElo "1722"]
+[TimeControl "300+0"]
+
+1. d4 d5 2. c4 dxc4 3. e3 b5 4. a4 c6 5. axb5 cxb5 6. Qf3 0-1
+

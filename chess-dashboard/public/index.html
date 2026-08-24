@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Opening Leak Lab — chess opening leak analyzer</title>
+    <meta
+      name="description"
+      content="Upload your PGN archive, cross-reference every opening decision against a local Lichess database, and let bundled Stockfish 17.1 find the moves that quietly cost you points."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1011'/%3E%3Cpath d='M9 23h14M11 20l1.5-7M21 20l-1.5-7M12.5 13h7M16 13V8' stroke='%23e3a44b' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="scrim" id="scrim" hidden></div>
+    <div class="dashboard">
+      <!-- ------------------------------------------------------------ sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <button class="drawer-close only-mobile" id="drawerClose" aria-label="Close navigation">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        </button>
+        <a class="brand" href="#run">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-label="Opening Leak Lab" role="img">
+            <rect x="0.75" y="0.75" width="30.5" height="30.5" rx="7.5" fill="none" stroke="currentColor" stroke-opacity=".28" />
+            <path d="M9 23.5h14" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" />
+            <path d="M11.6 20.6 13 13.6M20.4 20.6 19 13.6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" />
+            <path d="M12.4 13.6h7.2" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" />
+            <path d="M16 13.6V7.5" stroke="var(--accent)" stroke-width="2.1" stroke-linecap="round" />
+            <circle cx="16" cy="6" r="2.4" fill="var(--accent)" />
+          </svg>
+          <span class="brand-text">
+            <strong>Opening Leak Lab</strong>
+            <em>repertoire diagnostics</em>
+          </span>
+        </a>
+
+        <nav class="nav" aria-label="Sections">
+          <a href="#run" class="nav-item is-active"><span class="dot"></span>Run analysis</a>
+          <a href="#overview" class="nav-item"><span class="dot"></span>Overview</a>
+          <a href="#charts" class="nav-item"><span class="dot"></span>Where points go</a>
+          <a href="#leaks" class="nav-item"><span class="dot"></span>Leak table</a>
+          <a href="#position" class="nav-item"><span class="dot"></span>Position detail</a>
+          <a href="#provenance" class="nav-item"><span class="dot"></span>Engine &amp; data</a>
+        </nav>
+
+        <div class="side-card" id="sideStatus">
+          <h3>Local stack</h3>
+          <div class="side-row"><span>Engine</span><b id="sideEngine" class="mono">checking</b></div>
+          <div class="side-row"><span>Book games</span><b id="sideGames" class="mono">—</b></div>
+          <div class="side-row"><span>Positions</span><b id="sidePositions" class="mono">—</b></div>
+          <div class="side-row"><span>Network</span><b class="mono">not required</b></div>
+        </div>
+
+        <p class="side-foot">
+          Everything runs on this machine: bundled Stockfish binary, bundled SQLite opening book. No
+          API keys, no rate limits.
+        </p>
+      </aside>
+
+      <!-- ------------------------------------------------------------- header -->
+      <header class="header">
+        <button class="icon-btn only-mobile" id="menuBtn" aria-label="Toggle navigation">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        </button>
+        <div class="header-title">
+          <h1>Repertoire leak report</h1>
+          <p id="headerSub">No run yet — load the demo archive or drop your own PGN files.</p>
+        </div>
+        <div class="header-actions">
+          <span class="pill" id="pillEngine"><span class="pill-dot"></span>Stockfish</span>
+          <span class="pill" id="pillDb"><span class="pill-dot"></span>Opening book</span>
+          <button class="btn btn-ghost" id="csvBtn" disabled>Export CSV</button>
+          <button class="btn btn-primary" id="runTop">Run analysis</button>
+        </div>
+      </header>
+
+      <!-- --------------------------------------------------------------- main -->
+      <main class="main" id="main">
+        <!-- run -->
+        <section class="section" id="run">
+          <div class="section-head">
+            <h2>1 · Feed it your games</h2>
+            <span class="hint">PGN exports from Lichess, Chess.com, SCID or ChessBase</span>
+          </div>
+
+          <div class="run-grid">
+            <div class="card drop-card">
+              <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose PGN files">
+                <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 17v1.5A2.5 2.5 0 0 0 6.5 21h11A2.5 2.5 0 0 0 20 18.5V17" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <p><b>Drop .pgn files</b> or click to browse</p>
+                <span class="muted">Up to 40 MB per run · parsed with python-chess</span>
+                <input type="file" id="fileInput" accept=".pgn" multiple hidden />
+              </div>
+              <ul class="file-list" id="fileList" hidden></ul>
+              <div class="drop-actions">
+                <button class="btn btn-primary" id="runBtn">Analyse my games</button>
+                <button class="btn btn-ghost" id="sampleBtn">Use demo archive</button>
+                <a class="link" id="sampleDl" href="#">Download demo PGN</a>
+              </div>
+            </div>
+
+            <div class="card opts-card">
+              <h3>Run options</h3>
+              <div class="opts">
+                <label class="field">
+                  <span>Player<i>blank = auto</i></span>
+                  <input id="optPlayer" type="text" placeholder="auto" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Colour</span>
+                  <select id="optColor">
+                    <option value="both">Both</option>
+                    <option value="white">White only</option>
+                    <option value="black">Black only</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Engine depth<i class="mono" id="depthOut">16</i></span>
+                  <input id="optDepth" type="range" min="8" max="22" value="16" />
+                </label>
+                <label class="field">
+                  <span>Opening length<i class="mono" id="movesOut">15 moves</i></span>
+                  <input id="optMoves" type="range" min="6" max="20" value="15" />
+                </label>
+                <label class="field">
+                  <span>Min games per line</span>
+                  <input id="optMinGames" type="number" min="1" max="50" value="3" />
+                </label>
+                <label class="field">
+                  <span>Eval drop flag (pawns)</span>
+                  <input id="optEvalDrop" type="number" min="0.2" max="5" step="0.1" value="0.8" />
+                </label>
+                <label class="field">
+                  <span>Score gap flag (%)</span>
+                  <input id="optScoreGap" type="number" min="1" max="50" step="1" value="6" />
+                </label>
+                <label class="field">
+                  <span>Min book games</span>
+                  <input id="optMinDb" type="number" min="0" max="5000" step="10" value="20" />
+                </label>
+              </div>
+              <label class="check"><input type="checkbox" id="optNoEngine" /><span>Skip engine (statistics only, much faster)</span></label>
+            </div>
+          </div>
+
+          <div class="card progress-card" id="progressCard" hidden>
+            <div class="progress-head">
+              <span class="spinner" id="spinner"></span>
+              <b id="progressTitle">Analysing</b>
+              <span class="mono muted" id="progressElapsed">0.0s</span>
+            </div>
+            <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+            <pre class="log" id="log"></pre>
+          </div>
+        </section>
+
+        <!-- overview -->
+        <section class="section" id="overview">
+          <div class="section-head">
+            <h2>2 · Overview</h2>
+            <span class="hint" id="overviewHint">Awaiting a run</span>
+          </div>
+          <div class="kpis" id="kpis"></div>
+        </section>
+
+        <!-- charts -->
+        <section class="section" id="charts">
+          <div class="section-head">
+            <h2>3 · Where the points go</h2>
+            <span class="hint">Score is win% + half of draw%, as on Lichess</span>
+          </div>
+          <div class="chart-grid">
+            <div class="card chart-card">
+              <h3>Points lost by opening</h3>
+              <p class="muted small">Half-points shed versus the book expectation.</p>
+              <div class="chart-wrap"><p class="chart-empty">Nothing plotted yet — run an analysis to fill this chart.</p><canvas id="chartLost"></canvas></div>
+            </div>
+            <div class="card chart-card">
+              <h3>You vs the book</h3>
+              <p class="muted small">Your score against the same move in the database.</p>
+              <div class="chart-wrap"><p class="chart-empty">Nothing plotted yet — run an analysis to fill this chart.</p><canvas id="chartVs"></canvas></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- leaks -->
+        <section class="section" id="leaks">
+          <div class="section-head">
+            <h2>4 · Leak table</h2>
+            <div class="filters">
+              <div class="segmented" id="flagFilter" role="tablist">
+                <button class="seg is-active" data-flag="all">All</button>
+                <button class="seg" data-flag="EVAL_DROP">Eval drops</button>
+                <button class="seg" data-flag="WINRATE_DECLINE">Win-rate</button>
+                <button class="seg" data-flag="OFFBEAT_MOVE">Offbeat</button>
+              </div>
+              <div class="segmented" id="colorFilter">
+                <button class="seg is-active" data-color="all">Both</button>
+                <button class="seg" data-color="white">White</button>
+                <button class="seg" data-color="black">Black</button>
+              </div>
+              <input id="search" class="search" type="search" placeholder="Filter opening or move" />
+            </div>
+          </div>
+          <div class="card table-card">
+            <div class="table-scroll">
+              <table id="leakTable">
+                <thead>
+                  <tr>
+                    <th data-sort="priority" class="sortable is-sorted">Priority</th>
+                    <th data-sort="flag" class="sortable">Flag</th>
+                    <th>Opening</th>
+                    <th>Line</th>
+                    <th data-sort="your_move" class="sortable">Your move</th>
+                    <th data-sort="your_games" class="sortable num">Games</th>
+                    <th data-sort="your_score_pct" class="sortable num">You</th>
+                    <th data-sort="db_move_score_pct" class="sortable num">Book</th>
+                    <th data-sort="lost_points" class="sortable num">Lost</th>
+                    <th data-sort="eval_drop_pawns" class="sortable num">Eval</th>
+                    <th>Engine says</th>
+                  </tr>
+                </thead>
+                <tbody id="leakBody"></tbody>
+              </table>
+            </div>
+            <div class="empty" id="tableEmpty">
+              <b>Nothing to show yet</b>
+              <span>Run the demo archive, or relax the filters above.</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- position detail -->
+        <section class="section" id="position">
+          <div class="section-head">
+            <h2>5 · Position detail</h2>
+            <span class="hint" id="posHint">Select a row above</span>
+          </div>
+          <div class="card detail-card" id="detailCard">
+            <div class="detail-empty" id="detailEmpty">
+              <b>No position selected</b>
+              <span>Pick a leak to see the board, the engine's alternatives and the book verdict.</span>
+            </div>
+            <div class="detail-body" id="detailBody" hidden>
+              <div class="board-col">
+                <div class="board" id="board" aria-label="Board position"></div>
+                <p class="fen mono" id="fenText"></p>
+                <div class="board-links">
+                  <a class="btn btn-ghost" id="lichessLink" target="_blank" rel="noopener">Open on Lichess board</a>
+                  <button class="btn btn-ghost" id="copyFen">Copy FEN</button>
+                </div>
+              </div>
+              <div class="detail-info">
+                <div class="detail-title">
+                  <span class="chip" id="detailFlag">flag</span>
+                  <h3 id="detailOpening">Opening</h3>
+                  <p class="mono muted" id="detailLine">line</p>
+                </div>
+                <div class="stat-row" id="detailStats"></div>
+                <h4>Your move vs the engine's top choices</h4>
+                <div class="alt-scroll">
+                  <table class="alt-table">
+                    <thead><tr><th>Move</th><th class="num">Engine eval</th><th class="num">Book score</th><th>Verdict</th></tr></thead>
+                    <tbody id="altBody"></tbody>
+                  </table>
+                </div>
+                <p class="muted small" id="detailGames"></p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- provenance -->
+        <section class="section" id="provenance">
+          <div class="section-head">
+            <h2>6 · Engine &amp; data</h2>
+            <span class="hint">Everything bundled, nothing phoning home</span>
+          </div>
+          <div class="prov-grid">
+            <div class="card prov-card">
+              <h3>Bundled engine</h3>
+              <dl id="engineFacts"></dl>
+              <p class="muted small">
+                Stockfish is GPLv3 and ships as a binary in <code>chessopening/bin/</code>; source at
+                <a href="https://github.com/official-stockfish/Stockfish" target="_blank" rel="noopener">official-stockfish/Stockfish</a>.
+              </p>
+            </div>
+            <div class="card prov-card">
+              <h3>Local opening book</h3>
+              <dl id="dbFacts"></dl>
+              <p class="muted small">
+                Built from monthly dumps at
+                <a href="https://database.lichess.org/" target="_blank" rel="noopener">database.lichess.org</a>
+                (CC0), with ECO names from
+                <a href="https://github.com/lichess-org/chess-openings" target="_blank" rel="noopener">lichess-org/chess-openings</a>
+                (CC0). Rebuild any month with <code>tools/build_local_db.py</code>.
+              </p>
+            </div>
+            <div class="card prov-card">
+              <h3>How a leak is flagged</h3>
+              <ul class="flag-legend">
+                <li><span class="chip chip-eval">EVAL_DROP</span> Stockfish eval falls by more than your threshold after your move.</li>
+                <li><span class="chip chip-win">WINRATE_DECLINE</span> your score in that exact position trails the book by more than the score gap.</li>
+                <li><span class="chip chip-off">OFFBEAT_MOVE</span> a move almost nobody plays, and it is not working for you.</li>
+              </ul>
+              <p class="muted small">Priority = points lost + eval drop × games × 0.25.</p>
+            </div>
+          </div>
+          <footer class="foot">
+            <span>Opening Leak Lab · python-chess + Stockfish 17.1 + SQLite book</span>
+            <span class="mono" id="footStatus">idle</span>
+          </footer>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
