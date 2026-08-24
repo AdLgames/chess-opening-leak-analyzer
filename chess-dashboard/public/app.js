@@ -125,13 +125,15 @@ const PROVIDERS = {
   chesscom: { label: 'Chess.com', placeholder: 'e.g. hikaru', hint: 'your Chess.com username' },
   lichess: { label: 'Lichess', placeholder: 'e.g. DrNykterstein', hint: 'your Lichess username' },
 };
-const REMEMBER_KEY = 'leaklab.account';
+/* The last account used, held in memory for this page view. Browser storage is not
+   available in the hosted preview iframe, so persistence waits for user accounts. */
+let lastAccount = null;
 
 function remember(value) {
-  try { localStorage.setItem(REMEMBER_KEY, JSON.stringify(value)); } catch (err) { /* preview sandbox */ }
+  lastAccount = value;
 }
 function recall() {
-  try { return JSON.parse(localStorage.getItem(REMEMBER_KEY) || 'null'); } catch (err) { return null; }
+  return lastAccount;
 }
 
 function setMode(mode) {
