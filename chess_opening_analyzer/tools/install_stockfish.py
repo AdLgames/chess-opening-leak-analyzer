@@ -78,7 +78,11 @@ def _extract_binary(archive: str, into: str) -> str:
             zf.extractall(into)
     else:
         with tarfile.open(archive) as tf:
-            tf.extractall(into)
+            # Python 3.12+ wants an explicit member filter; 'data' is the safe one
+            try:
+                tf.extractall(into, filter="data")
+            except TypeError:
+                tf.extractall(into)
     for root, _dirs, files in os.walk(into):
         for f in sorted(files):
             low = f.lower()
