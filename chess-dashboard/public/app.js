@@ -431,6 +431,7 @@ function applyReport(data, job) {
   renderKpis(s);
   renderCharts(s);
   renderTable();
+  if (window.Study) window.Study.setRows(state.rows);
   const first = sortedRows()[0];
   if (first) selectRow(first);
 }
@@ -589,7 +590,8 @@ function renderTable() {
 
 /* ------------------------------------------------------------------- detail */
 const GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
-function renderBoard(fen) {
+/* Kept for the no-JS-module fallback path: study.js owns the interactive board. */
+function renderBoardStatic(fen) {
   const [placement, turn] = fen.split(' ');
   const files = 'abcdefgh';
   let html = '';
@@ -632,9 +634,10 @@ function selectRow(r) {
   $('detailFlag').outerHTML = `<span class="chip" id="detailFlag">${flagChips(r.flag) || '—'}</span>`;
   $('detailOpening').textContent = r.opening || r.eco || 'Unclassified';
   $('detailLine').textContent = r.variation_line;
-  renderBoard(r.fen);
   $('fenText').textContent = r.fen;
   $('lichessLink').href = `https://lichess.org/analysis/standard/${encodeURIComponent(r.fen.replace(/ /g, '_'))}`;
+  if (window.Study) window.Study.review(r);
+  else renderBoardStatic(r.fen);
 
   const gap = num(r.score_gap_vs_db_pct);
   const stats = [
@@ -837,5 +840,6 @@ function wire() {
 }
 
 wire();
+if (window.Study) window.Study.init(API);
 bootAccount();
 loadMeta();

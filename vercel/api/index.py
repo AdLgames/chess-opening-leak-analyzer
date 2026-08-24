@@ -60,6 +60,8 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse, Response  # noqa: E402
 
 from chessopening.analyze import analyze  # noqa: E402
+from chessopening.board import (BoardError, cp_text, engine_lines,  # noqa: E402
+                                position_payload)
 from chessopening.engine import find_engine  # noqa: E402
 from chessopening.ingest import (FetchOptions, IngestError, fetch_games,  # noqa: E402
                                  lookup_player, provider_label, speeds_from_csv)
@@ -80,7 +82,26 @@ LIMITS = {
     "max_moves": 15,
     "time_budget_s": 42.0,
     "max_fetch_games": 120,
+    "max_board_depth": 12,
+    "max_board_multipv": 3,
 }
+
+# board evaluations are cached in /tmp, the only writable path on the function
+BOARD_CACHE = os.path.join(WORK_ROOT, "board_evals.json")
+_BOARD_DB: LocalOpeningDatabase | None = None
+
+
+def board_db() -> LocalOpeningDatabase | None:
+    """One shared read-only book handle for the board panes, safe across threads."""
+    global _BOARD_DB  # noqa: PLW0603 - deliberate module-level singleton
+    if _BOARD_DB is None and os.path.exists(DEFAULT_DB):
+        import sqlite3
+
+        _BOARD_DB = LocalOpeningDatabase(DEFAULT_DB)
+        _BOARD_DB.con.close()
+        _BOARD_DB.con = sqlite3.connect(DEFAULT_DB, check_same_thread=False)
+        _BOARD_DB.con.row_factory = sqlite3.Row
+    return _BOARD_DB
 
 app = FastAPI(title="Opening Leak Lab API (serverless)")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -344,6 +365,63 @@ def lookup(provider: str = "chesscom", username: str = "") -> dict[str, Any]:
         return {"found": True, "profile": lookup_player(provider, username, timeout=12.0)}
     except IngestError as exc:
         return {"found": False, "error": str(exc), "hint": exc.hint}
+
+
+@app.get("/api/position")
+def position(fen: str = "", moves: str = "", san: str = "", book: str = "true") -> dict[str, Any]:
+    """Legal moves, naming and book statistics for one position.
+
+    `san` replays a report line so the opening name and move numbers are real;
+    `moves` is a comma-separated UCI list applied on top, which keeps legality
+    checking on the server rather than trusting the browser.
+    """
+    try:
+        return position_payload(
+            fen.strip() or None,
+            [m for m in moves.split(",") if m.strip()],
+            db=board_db() if book.lower() != "false" else None,
+            san=[m for m in san.replace(",", " ").split() if m.strip()],
+        )
+    except BoardError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/engine")
+def engine_eval(payload: dict[str, Any]) -> dict[str, Any]:
+    """Stockfish's top continuations for the position on screen, at hosted depth."""
+    fen = str(payload.get("fen") or "").strip()
+    if not fen:
+        raise HTTPException(400, "fen is required")
+    if not ENGINE_PATH:
+        raise HTTPException(503, "No engine available in this deployment")
+    depth = max(6, min(int(payload.get("depth") or 12), LIMITS["max_board_depth"]))
+    multipv = max(1, min(int(payload.get("multipv") or 3), LIMITS["max_board_multipv"]))
+    try:
+        result = engine_lines(
+            fen,
+            depth=depth,
+            multipv=multipv,
+            pv_len=max(1, min(int(payload.get("pv_len") or 6), 8)),
+            engine_path=ENGINE_PATH,
+            cache_path=BOARD_CACHE,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(503, f"No engine available: {exc}") from exc
+    except BoardError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    for line in result.get("lines", []):
+        line["eval"] = cp_text(line.get("cp"))
+    result["capped"] = {"depth": LIMITS["max_board_depth"], "multipv": LIMITS["max_board_multipv"]}
+    return result
+
+
+@app.get("/api/openings")
+def openings(q: str = "", limit: int = 30) -> dict[str, Any]:
+    """Named openings from the bundled book, for the library search box."""
+    db = board_db()
+    if db is None:
+        raise HTTPException(503, "No local opening database installed")
+    return {"query": q, "results": db.search_openings(q, max(1, min(int(limit), 100)))}
 
 
 @app.get("/api/health")

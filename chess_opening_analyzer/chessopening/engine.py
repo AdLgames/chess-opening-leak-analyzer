@@ -130,6 +130,54 @@ class EngineAnalyzer:
             return chess.engine.Limit(time=self.movetime_ms / 1000.0)
         return chess.engine.Limit(depth=self.depth)
 
+    def evaluate_position(self, fen: str, pv_len: int = 6) -> dict:
+        """Top MultiPV continuations for a position, scored from the mover's side.
+
+        Used by the board panes, where there is no "played move" to judge — just a
+        position the user is looking at.
+        """
+        key = f"pos|{fen}|d{self.depth}|t{self.movetime_ms}|pv{self.multipv}|l{pv_len}"
+        if key in self._cache:
+            return dict(self._cache[key])
+        if self._engine is None:
+            raise RuntimeError("EngineAnalyzer must be used as a context manager")
+
+        board = chess.Board(fen)
+        mover = board.turn
+        infos = self._engine.analyse(board, self._limit(), multipv=self.multipv)
+        if isinstance(infos, dict):
+            infos = [infos]
+        lines = []
+        for info in infos:
+            pv = info.get("pv") or []
+            if not pv:
+                continue
+            probe = board.copy()
+            sans = []
+            for move in pv[:pv_len]:
+                sans.append(probe.san(move))
+                probe.push(move)
+            lines.append({
+                "san": sans[0],
+                "uci": pv[0].uci(),
+                "cp": _cp(info["score"], mover),
+                "pv": sans,
+            })
+        for line in lines:
+            after = chess.Board(fen)
+            after.push(chess.Move.from_uci(line["uci"]))
+            line["fen_after"] = after.fen()
+        result = {
+            "fen": fen,
+            "mover": "white" if mover == chess.WHITE else "black",
+            "depth": self.depth,
+            "multipv": self.multipv,
+            "lines": lines,
+            "over": False,
+        }
+        self._cache[key] = result
+        return result
+
     def evaluate_move(self, fen: str, played_uci: str) -> PositionEval:
         """Compare the move actually played against the engine's top choices."""
         key = f"{fen}|{played_uci}|d{self.depth}|t{self.movetime_ms}|pv{self.multipv}"

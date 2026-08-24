@@ -45,7 +45,9 @@
           <a href="#overview" class="nav-item"><span class="dot"></span>Overview</a>
           <a href="#charts" class="nav-item"><span class="dot"></span>Where points go</a>
           <a href="#leaks" class="nav-item"><span class="dot"></span>Leak table</a>
-          <a href="#position" class="nav-item"><span class="dot"></span>Position detail</a>
+          <a href="#position" class="nav-item"><span class="dot"></span>Fix the mistake</a>
+          <a href="#practice" class="nav-item"><span class="dot"></span>Practice</a>
+          <a href="#library" class="nav-item"><span class="dot"></span>Openings library</a>
           <a href="#provenance" class="nav-item"><span class="dot"></span>Engine &amp; data</a>
         </nav>
 
@@ -330,7 +332,7 @@
         <!-- position detail -->
         <section class="section" id="position">
           <div class="section-head">
-            <h2>5 · Position detail</h2>
+            <h2>5 · Fix the mistake</h2>
             <span class="hint" id="posHint">Select a row above</span>
           </div>
           <div class="card detail-card" id="detailCard">
@@ -340,7 +342,21 @@
             </div>
             <div class="detail-body" id="detailBody" hidden>
               <div class="board-col">
+                <div class="board-meta">
+                  <b id="reviewName">—</b>
+                  <span class="mono muted" id="reviewTurn"></span>
+                </div>
                 <div class="board" id="board" aria-label="Board position"></div>
+                <p class="board-status" id="reviewStatus">Play a move on the board to try an alternative.</p>
+                <div class="move-strip mono" id="reviewLine"></div>
+                <div class="board-bar">
+                  <button class="btn btn-ghost" id="reviewMine">Show my move</button>
+                  <button class="btn btn-ghost" id="reviewBest">Show the better moves</button>
+                  <button class="btn btn-ghost" id="reviewReset">Back to the position</button>
+                  <button class="btn btn-ghost" id="reviewFlip">Flip</button>
+                  <button class="btn btn-primary" id="reviewDrill">Drill this one</button>
+                </div>
+                <label class="check"><input type="checkbox" id="reviewAuto" checked /><span>The book answers your moves</span></label>
                 <p class="fen mono" id="fenText"></p>
                 <div class="board-links">
                   <a class="btn btn-ghost" id="lichessLink" target="_blank" rel="noopener">Open on Lichess board</a>
@@ -362,6 +378,106 @@
                   </table>
                 </div>
                 <p class="muted small" id="detailGames"></p>
+
+                <div class="pane-block">
+                  <h4>Book moves from this position</h4>
+                  <p class="muted small">Click any move to play it on the board.</p>
+                  <div id="reviewBook"></div>
+                </div>
+
+                <div class="pane-block">
+                  <div class="pane-head">
+                    <h4>Engine, live</h4>
+                    <button class="btn btn-ghost" id="reviewEngineBtn">Ask the engine</button>
+                  </div>
+                  <div id="reviewEngine"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- practice -->
+        <section class="section" id="practice">
+          <div class="section-head">
+            <h2>6 · Practice the fixes</h2>
+            <span class="hint" id="practiceHint">Run an analysis to build a drill set</span>
+          </div>
+          <div class="card practice-card">
+            <div class="detail-empty" id="practiceEmpty">
+              <b>No drills yet</b>
+              <span>Every leak the report finds becomes a position to solve. Run an analysis first.</span>
+            </div>
+            <div class="practice-body" id="practiceBody" hidden>
+              <div class="board-col">
+                <div class="board-meta">
+                  <b>Find the improvement</b>
+                  <span class="mono muted" id="drillCount">0 / 0</span>
+                </div>
+                <div class="board" id="drillBoard" aria-label="Drill position"></div>
+                <p class="board-status" id="drillPrompt"></p>
+                <div class="drill-feedback" id="drillFeedback" hidden></div>
+                <div class="board-bar">
+                  <button class="btn btn-ghost" id="drillPrev">Previous</button>
+                  <button class="btn btn-ghost" id="drillRetry">Try again</button>
+                  <button class="btn btn-ghost" id="drillAnswer">Show the answer</button>
+                  <button class="btn btn-ghost" id="drillFlip">Flip</button>
+                  <button class="btn btn-primary" id="drillNext">Next position</button>
+                </div>
+              </div>
+              <div class="practice-side">
+                <h4>This session</h4>
+                <div class="stat-row" id="drillScore"></div>
+                <h4>Your drill set</h4>
+                <p class="muted small">Ordered by how many points the move costs you.</p>
+                <ol class="drill-queue" id="drillQueue"></ol>
+                <button class="btn btn-ghost" id="nextBtn" hidden>Next</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- openings library -->
+        <section class="section" id="library">
+          <div class="section-head">
+            <h2>7 · Openings library</h2>
+            <span class="hint">Walk any line and see what the book did with it</span>
+          </div>
+          <div class="card library-card">
+            <div class="library-body">
+              <div class="board-col">
+                <div class="board-meta">
+                  <b id="libName">Starting position</b>
+                  <span class="mono muted" id="libTurn"></span>
+                </div>
+                <div class="board" id="libBoard" aria-label="Explorer board"></div>
+                <p class="board-status" id="libStats"></p>
+                <div class="move-strip mono" id="libLine"></div>
+                <div class="board-bar">
+                  <button class="btn btn-ghost" id="libBack">Back one move</button>
+                  <button class="btn btn-ghost" id="libReset">Start position</button>
+                  <button class="btn btn-ghost" id="libFlip">Flip</button>
+                  <a class="btn btn-ghost" id="libLichess" target="_blank" rel="noopener">Open on Lichess</a>
+                </div>
+                <p class="fen mono" id="libFen"></p>
+              </div>
+              <div class="library-side">
+                <label class="field">
+                  <span>Find an opening<i>by name or ECO code</i></span>
+                  <input id="libSearch" type="search" placeholder="e.g. Sicilian, Nimzo, C50" autocomplete="off" />
+                </label>
+                <ol class="opening-list" id="libResults"></ol>
+                <div class="pane-block">
+                  <h4>Book moves from here</h4>
+                  <div id="libBook"></div>
+                </div>
+                <div class="pane-block">
+                  <div class="pane-head">
+                    <h4>Engine</h4>
+                    <button class="btn btn-ghost" id="libEngineBtn">Ask the engine</button>
+                  </div>
+                  <div id="libEngine"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -370,7 +486,7 @@
         <!-- provenance -->
         <section class="section" id="provenance">
           <div class="section-head">
-            <h2>6 · Engine &amp; data</h2>
+            <h2>8 · Engine &amp; data</h2>
             <span class="hint">Everything bundled, nothing phoning home</span>
           </div>
           <div class="prov-grid">
@@ -412,6 +528,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="./board.js"></script>
+    <script src="./study.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

@@ -30,6 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from chessopening.analyze import analyze
+from chessopening.board import BoardError, cp_text, engine_lines, position_payload
 from chessopening.engine import find_engine
 from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch_games,
                                  lookup_player, provider_label, speeds_from_csv)
@@ -48,6 +49,23 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 JOBS: dict[str, dict[str, Any]] = {}
 LOCK = threading.Lock()
 MAX_UPLOAD_BYTES = 40 * 1024 * 1024
+ENGINE_CACHE = os.path.join(os.path.expanduser("~"), ".cache", "leaklab", "board_evals.json")
+
+# one shared read-only handle for the board panes; SQLite reads are thread safe here
+_BOARD_DB: LocalOpeningDatabase | None = None
+_BOARD_DB_LOCK = threading.Lock()
+
+
+def board_db() -> LocalOpeningDatabase | None:
+    global _BOARD_DB  # noqa: PLW0603 - deliberate module-level singleton
+    if _BOARD_DB is None and os.path.exists(DEFAULT_DB):
+        with _BOARD_DB_LOCK:
+            if _BOARD_DB is None:
+                _BOARD_DB = LocalOpeningDatabase(DEFAULT_DB)
+                _BOARD_DB.con.close()
+                _BOARD_DB.con = __import__("sqlite3").connect(DEFAULT_DB, check_same_thread=False)
+                _BOARD_DB.con.row_factory = __import__("sqlite3").Row
+    return _BOARD_DB
 
 
 # --------------------------------------------------------------------------- meta
@@ -342,6 +360,57 @@ def lookup(provider: str = "chesscom", username: str = "") -> dict[str, Any]:
         return {"found": True, "profile": lookup_player(provider, username)}
     except IngestError as exc:
         return {"found": False, "error": str(exc), "hint": exc.hint}
+
+
+# ------------------------------------------------------------------- board panes
+@app.get("/api/position")
+def position(fen: str = "", moves: str = "", san: str = "", book: str = "true") -> dict[str, Any]:
+    """Legal moves, naming and book statistics for one position.
+
+    `moves` is a comma-separated UCI list applied from `fen` (or the initial position),
+    which is how the explorer walks a line without trusting the browser for legality.
+    """
+    try:
+        return position_payload(
+            fen.strip() or None,
+            [m for m in moves.split(",") if m.strip()],
+            db=board_db() if book.lower() != "false" else None,
+            san=[m for m in san.replace(",", " ").split() if m.strip()],
+        )
+    except BoardError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/engine")
+def engine_eval(payload: dict[str, Any]) -> dict[str, Any]:
+    """Stockfish's top continuations for a position the user is looking at."""
+    fen = str(payload.get("fen") or "").strip()
+    if not fen:
+        raise HTTPException(400, "fen is required")
+    try:
+        result = engine_lines(
+            fen,
+            depth=int(payload.get("depth") or 14),
+            multipv=int(payload.get("multipv") or 3),
+            pv_len=int(payload.get("pv_len") or 6),
+            cache_path=ENGINE_CACHE,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(503, f"No engine available: {exc}") from exc
+    except BoardError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    for line in result.get("lines", []):
+        line["eval"] = cp_text(line.get("cp"))
+    return result
+
+
+@app.get("/api/openings")
+def openings(q: str = "", limit: int = 30) -> dict[str, Any]:
+    """Named openings from the local book, for the library search box."""
+    db = board_db()
+    if db is None:
+        raise HTTPException(503, "No local opening database installed")
+    return {"query": q, "results": db.search_openings(q, max(1, min(int(limit), 100)))}
 
 
 @app.get("/api/health")

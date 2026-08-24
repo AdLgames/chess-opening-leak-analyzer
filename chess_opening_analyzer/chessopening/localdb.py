@@ -75,7 +75,11 @@ class LocalOpeningDatabase:
 
     # -------- lookup --------
     def lookup(self, play_uci_csv: str) -> PositionStats:
-        pos = epd_after(play_uci_csv)
+        return self.lookup_epd(epd_after(play_uci_csv))
+
+    def lookup_epd(self, pos: str) -> PositionStats:
+        """Same as `lookup`, for a board EPD you already have."""
+        pos = pos.split(" 0 1")[0].strip()
         rows = self.con.execute(
             "SELECT uci, san, white, draws, black FROM moves WHERE pos = ? "
             "ORDER BY (white + draws + black) DESC LIMIT 40",
@@ -104,6 +108,37 @@ class LocalOpeningDatabase:
             black=total_b,
             moves=moves,
         )
+
+    # -------- naming and search --------
+    def opening_name(self, pos: str) -> tuple[str, str] | None:
+        """(eco, name) for this exact EPD, or None when the book does not name it."""
+        row = self.con.execute("SELECT eco, name FROM openings WHERE pos = ?", (pos,)).fetchone()
+        return (row["eco"], row["name"]) if row else None
+
+    def search_openings(self, query: str, limit: int = 40) -> list[dict]:
+        """Named openings whose name or ECO code matches `query`, most-played first.
+
+        Each hit carries the EPD, so the board can jump straight to that position.
+        """
+        query = (query or "").strip()
+        if not query:
+            rows = self.con.execute(
+                "SELECT o.eco, o.name, o.pos, "
+                "       (SELECT SUM(white + draws + black) FROM moves m WHERE m.pos = o.pos) AS games "
+                "FROM openings o ORDER BY games DESC NULLS LAST LIMIT ?",
+                (limit,),
+            ).fetchall()
+        else:
+            like = f"%{query}%"
+            rows = self.con.execute(
+                "SELECT o.eco, o.name, o.pos, "
+                "       (SELECT SUM(white + draws + black) FROM moves m WHERE m.pos = o.pos) AS games "
+                "FROM openings o WHERE o.name LIKE ? OR o.eco LIKE ? "
+                "ORDER BY games DESC NULLS LAST LIMIT ?",
+                (like, like, limit),
+            ).fetchall()
+        return [{"eco": r["eco"], "name": r["name"], "epd": r["pos"],
+                 "fen": f"{r['pos']} 0 1", "games": int(r["games"] or 0)} for r in rows]
 
     def close(self) -> None:
         self.con.close()

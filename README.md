@@ -98,6 +98,28 @@ Chess.com or Lichess username, check the profile it finds, pick time controls an
 count, and run. The PGN files tab keeps the offline upload path, and the demo archive tab
 runs the bundled sample games.
 
+## Learning from the report
+
+Every report row opens on an interactive board, so a leak is something you can work on
+rather than only read about:
+
+- **Fix the mistake** — the board sits on the position before the flagged move. *Show my
+  move* draws it in red, *show the better moves* draws the engine's pick in green and the
+  book alternatives in amber. Play any legal move on the board and the local book answers
+  with its most common reply, so you can walk your improvement out a few moves. The book
+  table lists every move played from that position with games, share and win/draw/loss; the
+  engine panel runs Stockfish on demand from whatever position you have reached.
+- **Practice the fixes** — the 15 costliest leaks become a drill queue. You get the
+  position and your own history with it ("you played Nc3 here 9 times, scoring 11%"), you
+  play a move, and Stockfish grades it against the best move: engine's pick, close enough,
+  playable, or gives ground away. Reveal the answer or retry, and a session counter tracks
+  how you did.
+- **Openings library** — search 3,810 named openings by name or ECO code, jump to any of
+  them, and walk the line move by move with book statistics and engine lines at each node.
+
+Move legality, opening naming and book statistics are all decided on the server by
+python-chess and the local SQLite book — the browser never guesses.
+
 ## How a leak is flagged
 
 Score is win% + half of draw%, matching Lichess convention.
@@ -113,8 +135,12 @@ Score is win% + half of draw%, matching Lichess convention.
   dumps filtered to blitz/rapid/classical, Elo 1500-2100, first 15 moves. Rebuild or extend it with
   `python tools/build_local_db.py`.
 - `chess_opening_analyzer/chessopening/data/eco.tsv` — ECO codes and opening names.
-- `chess_opening_analyzer/tests/test_pipeline.py` — 12 tests covering PGN parsing, score math,
-  database keying, engine drop detection, an offline end-to-end run, and the CSV column contract.
+- `chess_opening_analyzer/chessopening/board.py` — the board layer behind the review, drill and
+  library panes: legal moves with SAN and resulting FEN, book statistics per move, opening naming
+  by walking the move history back, and cached Stockfish multi-PV lines from a long-lived engine.
+- `chess_opening_analyzer/tests/` — 39 tests covering PGN parsing, score math, database keying,
+  engine drop detection, username ingestion, the board layer, an offline end-to-end run, and the
+  CSV column contract.
 - `chess_opening_analyzer/sample_pgns/` — synthetic 83-game demo archive (player `SamplePlayer`).
 
 An online mode against the [Lichess Opening Explorer](https://explorer.lichess.ovh/) is still
