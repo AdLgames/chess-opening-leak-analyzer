@@ -57,6 +57,11 @@ async function loadMeta() {
       $('sampleDl').style.display = 'none';
     }
     $('sampleDl').href = `${API}/api/sample-archive`;
+    $('engineNotice').hidden = e.available !== false;
+    if (e.available === false) {
+      $('optNoEngine').checked = true;
+      $('optNoEngine').disabled = true;
+    }
     $('footStatus').textContent = e.available && d.available ? 'engine + book ready' : 'degraded';
   } catch (err) {
     $('pillEngine').className = 'pill bad';

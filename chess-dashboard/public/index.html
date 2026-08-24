@@ -89,6 +89,13 @@
             <span class="hint">PGN exports from Lichess, Chess.com, SCID or ChessBase</span>
           </div>
 
+          <div class="notice" id="engineNotice" hidden>
+            <b>No engine found.</b>
+            <span>Statistics still work, but eval drops need Stockfish. Install it with
+              <code>python chess_opening_analyzer/tools/install_stockfish.py</code>
+              (or <code>make engine</code>), then reload this page.</span>
+          </div>
+
           <div class="run-grid">
             <div class="card drop-card">
               <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose PGN files">

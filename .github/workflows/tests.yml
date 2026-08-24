@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true          # pulls chessopening/data/openings.sqlite
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r chess_opening_analyzer/requirements.txt pytest
+
+      - name: Install Stockfish
+        run: python chess_opening_analyzer/tools/install_stockfish.py
+
+      - name: Verify the engine
+        run: python chess_opening_analyzer/tools/install_stockfish.py --check
+
+      - name: Run tests
+        run: cd chess_opening_analyzer && python -m pytest tests -q
+
+      - name: End-to-end CLI run
+        run: |
+          cd chess_opening_analyzer
+          python -m chessopening --pgn-dir sample_pgns --db local \
+            --min-db-games 20 --depth 10 --out-dir out
+          head -2 out/opening_leaks.csv
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opening_leaks
+          path: chess_opening_analyzer/out/opening_leaks.csv

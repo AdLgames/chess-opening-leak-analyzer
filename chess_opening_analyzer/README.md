@@ -108,9 +108,10 @@ chessopening/localdb.py      offline SQLite opening database, same lookup() API 
 chessopening/engine.py       Stockfish UCI wrapper: MultiPV, eval drops, alternatives
 chessopening/analyze.py      aggregation, flagging, CSV writers
 chessopening/cli.py          argparse entry point (python -m chessopening)
-chessopening/bin/stockfish   bundled engine (installed by tools/install_stockfish.py)
+chessopening/bin/stockfish   engine, fetched per machine by tools/install_stockfish.py (git-ignored)
 chessopening/data/           openings.sqlite (move stats) + eco.tsv (opening names)
-tools/install_stockfish.py   platform-aware engine installer
+tools/install_stockfish.py   platform-aware engine installer (--check, --force, CPU-build fallback)
+tools/setup_env.py           one-command bootstrap: deps, engine, database check, smoke run
 tools/build_local_db.py      builds openings.sqlite from Lichess dumps or your own PGNs
 tools/make_sample_pgns.py    generates a synthetic 83-game archive for demos
 tests/test_pipeline.py       12 tests: PGN, database, engine, end-to-end CSV contract

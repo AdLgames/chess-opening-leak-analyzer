@@ -3,3 +3,7 @@ __pycache__/
 .pytest_cache/
 out/
 /tmp/
+
+# the engine is fetched per machine by tools/install_stockfish.py
+chess_opening_analyzer/chessopening/bin/
+chess-dashboard/chessopening/bin/

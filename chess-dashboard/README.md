@@ -8,7 +8,7 @@ network calls, no rate limits.
 chess-dashboard/
   api_server.py        FastAPI backend (port 8000)
   public/              static front end (index.html, styles.css, app.js)
-  chessopening/        analyzer package + bin/stockfish + data/openings.sqlite
+  chessopening/        analyzer package (or reuse ../chess_opening_analyzer/chessopening)
   sample_pgns/         demo archive (83 games, player "SamplePlayer")
   tools/               install_stockfish.py, build_local_db.py, make_sample_pgns.py
 ```
@@ -16,7 +16,7 @@ chess-dashboard/
 ## Run it
 
 ```bash
-pip install -r ../chess_opening_analyzer/requirements.txt fastapi uvicorn python-multipart
+python ../chess_opening_analyzer/tools/setup_env.py --dashboard   # deps + engine + checks
 python api_server.py                 # serves the API on :8000
 python -m http.server 8080 -d public # or any static server
 ```
@@ -65,3 +65,9 @@ and their eval cache live under `/tmp/leaklab-jobs/`.
   threshold; `offbeat` flags a move played by under 5% of book games.
 - The dashboard shares the analyzer package, so a CLI run and a dashboard run on
   the same PGNs produce the same CSV.
+
+## If the engine is missing
+
+The dashboard degrades instead of failing: the header pill turns red, a notice in section 1 shows
+the install command, and "skip engine" is switched on so statistics-only runs still work. Install
+the engine with `python ../chess_opening_analyzer/tools/install_stockfish.py` and reload.
