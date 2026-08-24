@@ -31,6 +31,8 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 
 from chessopening.analyze import analyze
 from chessopening.engine import find_engine
+from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch_games,
+                                 lookup_player, provider_label, speeds_from_csv)
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase
 from chessopening.pgn_loader import detect_main_player, find_pgn_files
 from chessopening.summary import summarise
@@ -99,6 +101,8 @@ def meta() -> dict[str, Any]:
         "engine": engine_info(),
         "database": db_info(),
         "sample": {"available": bool(files), "files": len(files), "player": players[0] if players else None},
+        "ingest": {"providers": ["chesscom", "lichess"], "default_provider": "chesscom",
+                   "max_games": 400, "speeds": ["bullet", "blitz", "rapid", "classical", "daily"]},
         "defaults": {"depth": 16, "max_moves": 15, "min_games": 3, "eval_drop": 0.8,
                      "score_gap": 6.0, "min_db_games": 20, "multipv": 3},
     }
@@ -122,6 +126,25 @@ def _run_job(job_id: str, pgn_dir: str, player: str | None, opts: dict[str, Any]
 
     try:
         job["status"] = "running"
+        fetch = job.get("fetch")
+        if fetch:
+            log(f"Fetching games for {fetch['username']} from {provider_label(fetch['provider'])}")
+            try:
+                fetched = fetch_games(FetchOptions(**fetch), progress=log)
+            except IngestError as exc:
+                with LOCK:
+                    job["status"] = "error"
+                    job["error"] = str(exc)
+                    job["hint"] = exc.hint
+                    job["download_url"] = exc.download_url
+                    job["log"].append(str(exc))
+                    if exc.hint:
+                        job["log"].append(exc.hint)
+                return
+            pgn_dir = fetched.pgn_dir
+            player = player or fetched.username
+            with LOCK:
+                job["fetched"] = fetched.to_dict()
         if not player:
             player = detect_main_player(find_pgn_files(pgn_dir))
             if not player:
@@ -171,6 +194,16 @@ async def start_analysis(
     background: BackgroundTasks,
     files: list[UploadFile] = File(default=[]),
     use_sample: str = Form("false"),
+    source: str = Form(""),
+    username: str = Form(""),
+    provider: str = Form("chesscom"),
+    max_games: int = Form(200),
+    time_classes: str = Form("blitz,rapid,classical"),
+    include_unrated: str = Form("false"),
+    since: str = Form(""),
+    until: str = Form(""),
+    lichess_token: str = Form(""),
+    refresh: str = Form("false"),
     player: str = Form(""),
     color: str = Form("both"),
     depth: int = Form(16),
@@ -183,9 +216,28 @@ async def start_analysis(
     no_engine: str = Form("false"),
     x_visitor_id: str = Header(default="anon"),
 ) -> dict[str, Any]:
-    sample = use_sample.lower() == "true"
+    sample = use_sample.lower() == "true" or source == "sample"
+    by_username = source == "username" or (bool(username.strip()) and not sample and not source)
     temp_dir = None
-    if sample:
+    fetch_spec: dict[str, Any] | None = None
+    if by_username:
+        try:
+            fetch_spec = FetchOptions(
+                provider=provider,
+                username=username.strip(),
+                max_games=max(1, min(int(max_games), 400)),
+                speeds=speeds_from_csv(time_classes),
+                rated_only=include_unrated.lower() != "true",
+                since=since.strip() or None,
+                until=until.strip() or None,
+                token=lichess_token.strip() or None,
+                cache_dir=os.path.join(DEFAULT_CACHE),
+                refresh=refresh.lower() == "true",
+            ).normalised().__dict__
+        except IngestError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        pgn_dir = ""
+    elif sample:
         pgn_dir = SAMPLE_DIR
         if not os.path.isdir(pgn_dir):
             raise HTTPException(400, "Sample archive is not installed")
@@ -211,7 +263,10 @@ async def start_analysis(
     JOBS[job_id] = {
         "id": job_id, "status": "queued", "log": [], "rows": [], "summary": None,
         "visitor": x_visitor_id, "created": time.time(), "updated": time.time(),
-        "temp_dir": temp_dir, "player": player or None, "source": "sample" if sample else "upload",
+        "temp_dir": temp_dir, "player": player or None,
+        "source": "username" if by_username else ("sample" if sample else "upload"),
+        "fetch": fetch_spec,
+        "account": {"provider": fetch_spec["provider"], "username": fetch_spec["username"]} if fetch_spec else None,
         "options": {"depth": depth, "color": color, "max_moves": max_moves, "min_games": min_games,
                     "eval_drop": eval_drop, "score_gap": score_gap, "min_db_games": min_db_games,
                     "multipv": multipv, "no_engine": no_engine.lower() == "true"},
@@ -239,6 +294,10 @@ def job_status(job_id: str) -> dict[str, Any]:
         "options": job.get("options"),
         "log": job["log"][-14:],
         "error": job.get("error"),
+        "hint": job.get("hint"),
+        "download_url": job.get("download_url"),
+        "account": job.get("account"),
+        "fetched": job.get("fetched"),
         "elapsed": round((job.get("finished") or time.time()) - job["created"], 1),
         "leaks": len(job["rows"]),
     }
@@ -274,6 +333,15 @@ def sample_archive() -> Response:
             buf.write("\n")
     return Response(buf.getvalue(), media_type="application/x-chess-pgn",
                     headers={"Content-Disposition": 'attachment; filename="sample_games.pgn"'})
+
+
+@app.get("/api/lookup")
+def lookup(provider: str = "chesscom", username: str = "") -> dict[str, Any]:
+    """Confirm a username before a run, and show whose games are about to be read."""
+    try:
+        return {"found": True, "profile": lookup_player(provider, username)}
+    except IngestError as exc:
+        return {"found": False, "error": str(exc), "hint": exc.hint}
 
 
 @app.get("/api/health")

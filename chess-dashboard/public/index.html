@@ -70,7 +70,7 @@
         </button>
         <div class="header-title">
           <h1>Repertoire leak report</h1>
-          <p id="headerSub">No run yet — load the demo archive or drop your own PGN files.</p>
+          <p id="headerSub">No run yet — enter your Chess.com or Lichess username to start.</p>
         </div>
         <div class="header-actions">
           <span class="pill" id="pillEngine"><span class="pill-dot"></span>Stockfish</span>
@@ -86,7 +86,7 @@
         <section class="section" id="run">
           <div class="section-head">
             <h2>1 · Feed it your games</h2>
-            <span class="hint">PGN exports from Lichess, Chess.com, SCID or ChessBase</span>
+            <span class="hint">Enter your username, or upload a PGN export</span>
           </div>
 
           <div class="notice is-info" id="hostedNotice" hidden>
@@ -102,18 +102,97 @@
           </div>
 
           <div class="run-grid">
-            <div class="card drop-card">
-              <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose PGN files">
-                <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 17v1.5A2.5 2.5 0 0 0 6.5 21h11A2.5 2.5 0 0 0 20 18.5V17" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <p><b>Drop .pgn files</b> or click to browse</p>
-                <span class="muted" id="uploadHint">Up to 40 MB per run · parsed with python-chess</span>
-                <input type="file" id="fileInput" accept=".pgn" multiple hidden />
+            <div class="card source-card">
+              <div class="tabs" role="tablist" aria-label="Where the games come from">
+                <button class="tab is-active" id="tabAccount" role="tab" aria-selected="true" aria-controls="panelAccount">Your account</button>
+                <button class="tab" id="tabUpload" role="tab" aria-selected="false" aria-controls="panelUpload">PGN files</button>
+                <button class="tab" id="tabDemo" role="tab" aria-selected="false" aria-controls="panelDemo">Demo archive</button>
               </div>
-              <ul class="file-list" id="fileList" hidden></ul>
-              <div class="drop-actions">
-                <button class="btn btn-primary" id="runBtn">Analyse my games</button>
-                <button class="btn btn-ghost" id="sampleBtn">Use demo archive</button>
-                <a class="link" id="sampleDl" href="#">Download demo PGN</a>
+
+              <!-- default path: fetch straight from the site the user plays on -->
+              <div class="tab-panel" id="panelAccount" role="tabpanel" aria-labelledby="tabAccount">
+                <div class="segmented" id="providerSeg" role="radiogroup" aria-label="Chess site">
+                  <button type="button" class="seg-btn is-active" data-provider="chesscom" role="radio" aria-checked="true">Chess.com</button>
+                  <button type="button" class="seg-btn" data-provider="lichess" role="radio" aria-checked="false">Lichess</button>
+                </div>
+
+                <div class="user-row">
+                  <label class="field grow">
+                    <span>Username<i id="userHint">the name you play under</i></span>
+                    <input id="optUser" type="text" placeholder="e.g. hikaru" autocomplete="off" spellcheck="false" />
+                  </label>
+                  <button class="btn btn-ghost" id="checkBtn" type="button">Check</button>
+                </div>
+
+                <div class="profile" id="profileCard" hidden></div>
+
+                <div class="notice is-warn" id="fetchNotice" hidden>
+                  <b id="fetchNoticeTitle">Could not read those games</b>
+                  <span id="fetchNoticeText"></span>
+                  <a class="link" id="fetchNoticeLink" href="#" target="_blank" rel="noopener" hidden>Download your games instead</a>
+                </div>
+
+                <div class="fetch-opts">
+                  <label class="field">
+                    <span>Games to read<i class="mono" id="maxGamesOut">200</i></span>
+                    <input id="optMaxGames" type="range" min="20" max="400" step="20" value="200" />
+                  </label>
+                  <label class="field">
+                    <span>Played from<i>optional</i></span>
+                    <input id="optSince" type="date" />
+                  </label>
+                  <label class="field">
+                    <span>Played to<i>optional</i></span>
+                    <input id="optUntil" type="date" />
+                  </label>
+                </div>
+
+                <fieldset class="chips-field" id="speedChips">
+                  <legend>Time controls</legend>
+                  <label class="chip"><input type="checkbox" value="bullet" /><span>Bullet</span></label>
+                  <label class="chip"><input type="checkbox" value="blitz" checked /><span>Blitz</span></label>
+                  <label class="chip"><input type="checkbox" value="rapid" checked /><span>Rapid</span></label>
+                  <label class="chip"><input type="checkbox" value="classical" checked /><span>Classical</span></label>
+                  <label class="chip"><input type="checkbox" value="daily" /><span>Daily</span></label>
+                </fieldset>
+
+                <label class="check"><input type="checkbox" id="optRated" checked /><span>Rated games only</span></label>
+                <label class="check"><input type="checkbox" id="optRefresh" /><span>Refetch months already cached</span></label>
+
+                <label class="field" id="tokenField" hidden>
+                  <span>Lichess API token<i>only needed if the export is refused</i></span>
+                  <input id="optToken" type="password" placeholder="lip_…" autocomplete="off" />
+                </label>
+
+                <div class="drop-actions">
+                  <button class="btn btn-primary" id="runBtn">Analyse my games</button>
+                  <span class="muted small" id="accountFoot">Fetched games are cached, so a repeat run costs no requests.</span>
+                </div>
+              </div>
+
+              <!-- offline path: the original upload flow, unchanged -->
+              <div class="tab-panel" id="panelUpload" role="tabpanel" aria-labelledby="tabUpload" hidden>
+                <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose PGN files">
+                  <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 17v1.5A2.5 2.5 0 0 0 6.5 21h11A2.5 2.5 0 0 0 20 18.5V17" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <p><b>Drop .pgn files</b> or click to browse</p>
+                  <span class="muted" id="uploadHint">Up to 40 MB per run · parsed with python-chess</span>
+                  <input type="file" id="fileInput" accept=".pgn" multiple hidden />
+                </div>
+                <ul class="file-list" id="fileList" hidden></ul>
+                <div class="drop-actions">
+                  <button class="btn btn-primary" id="runUploadBtn">Analyse my games</button>
+                  <span class="muted small">Exports from Lichess, Chess.com, SCID or ChessBase all work.</span>
+                </div>
+              </div>
+
+              <!-- demo path -->
+              <div class="tab-panel" id="panelDemo" role="tabpanel" aria-labelledby="tabDemo" hidden>
+                <p class="panel-lead">A small archive of club-level games is bundled with the app, so you can
+                  see a finished report before pointing it at your own games.</p>
+                <div class="drop-actions">
+                  <button class="btn btn-primary" id="sampleBtn">Run the demo archive</button>
+                  <a class="link" id="sampleDl" href="#">Download demo PGN</a>
+                </div>
               </div>
             </div>
 

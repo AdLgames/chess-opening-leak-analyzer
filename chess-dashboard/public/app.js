@@ -17,6 +17,10 @@ const API = PORT_PROXY.startsWith('__')
 const $ = (id) => document.getElementById(id);
 const state = {
   files: [],
+  mode: 'username',
+  provider: 'chesscom',
+  profile: null,
+  lookupSeq: 0,
   jobId: null,
   serverless: false,
   csvText: '',
@@ -45,6 +49,12 @@ function applyHostedLimits(limits) {
     depth.max = String(limits.max_depth);
     if (Number(depth.value) > limits.max_depth) depth.value = String(limits.max_depth);
     $('depthOut').textContent = depth.value;
+  }
+  if (limits.max_fetch_games) {
+    const games = $('optMaxGames');
+    games.max = String(limits.max_fetch_games);
+    if (Number(games.value) > limits.max_fetch_games) games.value = String(limits.max_fetch_games);
+    $('maxGamesOut').textContent = games.value;
   }
   if (limits.max_upload_mb) {
     $('uploadHint').textContent =
@@ -110,6 +120,124 @@ async function loadMeta() {
   }
 }
 
+/* ------------------------------------------------------------- source panel */
+const PROVIDERS = {
+  chesscom: { label: 'Chess.com', placeholder: 'e.g. hikaru', hint: 'your Chess.com username' },
+  lichess: { label: 'Lichess', placeholder: 'e.g. DrNykterstein', hint: 'your Lichess username' },
+};
+const REMEMBER_KEY = 'leaklab.account';
+
+function remember(value) {
+  try { localStorage.setItem(REMEMBER_KEY, JSON.stringify(value)); } catch (err) { /* preview sandbox */ }
+}
+function recall() {
+  try { return JSON.parse(localStorage.getItem(REMEMBER_KEY) || 'null'); } catch (err) { return null; }
+}
+
+function setMode(mode) {
+  state.mode = mode;
+  const panels = { username: 'panelAccount', upload: 'panelUpload', sample: 'panelDemo' };
+  const tabs = { username: 'tabAccount', upload: 'tabUpload', sample: 'tabDemo' };
+  Object.entries(panels).forEach(([key, id]) => ($(id).hidden = key !== mode));
+  Object.entries(tabs).forEach(([key, id]) => {
+    $(id).classList.toggle('is-active', key === mode);
+    $(id).setAttribute('aria-selected', key === mode ? 'true' : 'false');
+  });
+}
+
+function setProvider(provider) {
+  state.provider = provider;
+  const conf = PROVIDERS[provider];
+  document.querySelectorAll('#providerSeg .seg-btn').forEach((b) => {
+    const on = b.dataset.provider === provider;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+  $('optUser').placeholder = conf.placeholder;
+  $('userHint').textContent = conf.hint;
+  $('tokenField').hidden = provider !== 'lichess';
+  clearProfile();
+}
+
+function clearProfile() {
+  state.profile = null;
+  $('profileCard').hidden = true;
+  $('profileCard').innerHTML = '';
+  $('fetchNotice').hidden = true;
+  updateRunLabel();
+}
+
+function updateRunLabel() {
+  const name = $('optUser').value.trim();
+  $('runBtn').textContent = name ? `Analyse ${name}'s games` : 'Analyse my games';
+}
+
+function showFetchProblem(message, hint, downloadUrl) {
+  $('fetchNoticeTitle').textContent = message;
+  $('fetchNoticeText').textContent = hint || '';
+  const link = $('fetchNoticeLink');
+  link.hidden = !downloadUrl;
+  if (downloadUrl) link.href = downloadUrl;
+  $('fetchNotice').hidden = false;
+}
+
+const speedList = () =>
+  Array.from(document.querySelectorAll('#speedChips input:checked')).map((c) => c.value);
+
+async function checkAccount({ quiet = false } = {}) {
+  const username = $('optUser').value.trim();
+  if (!username) return null;
+  const seq = ++state.lookupSeq;
+  $('checkBtn').disabled = true;
+  $('checkBtn').textContent = 'Checking…';
+  try {
+    const res = await fetch(
+      `${API}/api/lookup?provider=${encodeURIComponent(state.provider)}&username=${encodeURIComponent(username)}`,
+    );
+    const body = await res.json();
+    if (seq !== state.lookupSeq) return null;          // a newer lookup already ran
+    if (!body.found) {
+      state.profile = null;
+      $('profileCard').hidden = true;
+      if (!quiet) showFetchProblem(body.error || 'Account not found', body.hint || '', '');
+      return null;
+    }
+    renderProfile(body.profile);
+    remember({ provider: state.provider, username: body.profile.username });
+    return body.profile;
+  } catch (err) {
+    if (!quiet) showFetchProblem('Could not reach the lookup service', err.message, '');
+    return null;
+  } finally {
+    $('checkBtn').disabled = false;
+    $('checkBtn').textContent = 'Check';
+  }
+}
+
+function renderProfile(profile) {
+  state.profile = profile;
+  $('fetchNotice').hidden = true;
+  const ratings = Object.entries(profile.ratings || {})
+    .map(([k, v]) => `<span class="rating"><i>${esc(k)}</i><b class="mono">${v}</b></span>`)
+    .join('');
+  const initial = (profile.username || '?').slice(0, 1).toUpperCase();
+  const avatar = profile.avatar
+    ? `<img src="${esc(profile.avatar)}" alt="" width="40" height="40" />`
+    : `<span class="avatar-fallback">${esc(initial)}</span>`;
+  $('profileCard').innerHTML = `
+    <div class="profile-id">
+      ${avatar}
+      <span>
+        <b>${profile.title ? `<i class="title">${esc(profile.title)}</i> ` : ''}${esc(profile.username)}</b>
+        <em>${esc(profile.name || PROVIDERS[profile.provider].label)}${profile.country ? ' · ' + esc(profile.country) : ''}</em>
+      </span>
+    </div>
+    <div class="ratings">${ratings || '<span class="muted small">no rated games yet</span>'}</div>
+    <a class="link" href="${esc(profile.url)}" target="_blank" rel="noopener">Profile</a>`;
+  $('profileCard').hidden = false;
+  updateRunLabel();
+}
+
 /* ---------------------------------------------------------------- run panel */
 function renderFiles() {
   const list = $('fileList');
@@ -117,12 +245,15 @@ function renderFiles() {
   list.innerHTML = state.files
     .map((f) => `<li><span>${esc(f.name)}</span><span>${(f.size / 1024).toFixed(0)} KB</span></li>`)
     .join('');
-  $('runBtn').textContent = state.files.length ? `Analyse ${state.files.length} file${state.files.length > 1 ? 's' : ''}` : 'Analyse my games';
+  $('runUploadBtn').textContent = state.files.length
+    ? `Analyse ${state.files.length} file${state.files.length > 1 ? 's' : ''}`
+    : 'Analyse my games';
 }
 
-function collectOptions(useSample) {
+function collectOptions(mode) {
   const fd = new FormData();
-  fd.append('use_sample', useSample ? 'true' : 'false');
+  fd.append('source', mode);
+  fd.append('use_sample', mode === 'sample' ? 'true' : 'false');
   fd.append('player', $('optPlayer').value.trim());
   fd.append('color', $('optColor').value);
   fd.append('depth', $('optDepth').value);
@@ -132,29 +263,57 @@ function collectOptions(useSample) {
   fd.append('score_gap', $('optScoreGap').value);
   fd.append('min_db_games', $('optMinDb').value);
   fd.append('no_engine', $('optNoEngine').checked ? 'true' : 'false');
-  if (!useSample) state.files.forEach((f) => fd.append('files', f, f.name));
+  if (mode === 'upload') state.files.forEach((f) => fd.append('files', f, f.name));
+  if (mode === 'username') {
+    fd.append('username', $('optUser').value.trim());
+    fd.append('provider', state.provider);
+    fd.append('max_games', $('optMaxGames').value);
+    fd.append('time_classes', speedList().join(','));
+    fd.append('include_unrated', $('optRated').checked ? 'false' : 'true');
+    fd.append('since', $('optSince').value);
+    fd.append('until', $('optUntil').value);
+    fd.append('refresh', $('optRefresh').checked ? 'true' : 'false');
+    if (state.provider === 'lichess') fd.append('lichess_token', $('optToken').value.trim());
+  }
   return fd;
 }
 
-async function startRun(useSample) {
-  if (!useSample && !state.files.length) {
+async function startRun(mode) {
+  if (mode === 'upload' && !state.files.length) {
     $('dropzone').classList.add('is-over');
     setTimeout(() => $('dropzone').classList.remove('is-over'), 700);
     return;
+  }
+  if (mode === 'username') {
+    const username = $('optUser').value.trim();
+    if (!username) {
+      $('optUser').focus();
+      showFetchProblem('Enter a username first', `Whose games should I read from ${PROVIDERS[state.provider].label}?`, '');
+      return;
+    }
+    if (!speedList().length) {
+      showFetchProblem('Pick at least one time control', 'Blitz and rapid are the usual choice.', '');
+      return;
+    }
+    $('fetchNotice').hidden = true;
   }
   setBusy(true);
   showKpiSkeleton();
   $('progressCard').hidden = false;
   $('spinner').className = 'spinner';
-  $('progressTitle').textContent = useSample ? 'Analysing demo archive' : 'Analysing your games';
+  $('progressTitle').textContent = {
+    sample: 'Analysing demo archive',
+    upload: 'Analysing your files',
+    username: `Fetching ${$('optUser').value.trim() || 'your'} games`,
+  }[mode];
   $('log').textContent = 'Queued…';
   $('barFill').style.width = '8%';
   $('barFill').classList.remove('is-error');
   $('headerSub').textContent = 'Run in progress — engine and book lookups are local.';
 
   try {
-    if (state.serverless) return await runSynchronous(useSample);
-    const res = await fetch(`${API}/api/analyze`, { method: 'POST', body: collectOptions(useSample) });
+    if (state.serverless) return await runSynchronous(mode);
+    const res = await fetch(`${API}/api/analyze`, { method: 'POST', body: collectOptions(mode) });
     if (!res.ok) throw new Error((await res.json()).detail || `HTTP ${res.status}`);
     state.jobId = (await res.json()).job_id;
     poll();
@@ -165,7 +324,7 @@ async function startRun(useSample) {
 
 /* Hosted deployment: one request returns the finished report, so there is no job
    to poll. Animate the bar while the function works. */
-async function runSynchronous(useSample) {
+async function runSynchronous(mode) {
   const started = Date.now();
   $('log').textContent = 'Running in the hosted function — engine and book are bundled with it.';
   const tick = setInterval(() => {
@@ -174,7 +333,7 @@ async function runSynchronous(useSample) {
     $('barFill').style.width = `${Math.min(90, 8 + secs * 3)}%`;
   }, 200);
   try {
-    const res = await fetch(`${API}/api/analyze`, { method: 'POST', body: collectOptions(useSample) });
+    const res = await fetch(`${API}/api/analyze`, { method: 'POST', body: collectOptions(mode) });
     const body = await res.json();
     if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
     clearInterval(tick);
@@ -187,7 +346,7 @@ async function runSynchronous(useSample) {
     $('log').textContent = lines.join('\n');
     $('log').scrollTop = $('log').scrollHeight;
     state.csvText = body.csv || '';
-    applyReport(body, { options: body.options, source: useSample ? 'sample' : 'upload' });
+    applyReport(body, { options: body.options, source: body.source || mode, account: body.account });
     setBusy(false);
   } catch (err) {
     clearInterval(tick);
@@ -220,7 +379,13 @@ async function poll() {
     $('log').scrollTop = $('log').scrollHeight;
     $('progressElapsed').textContent = `${job.elapsed}s`;
     $('barFill').style.width = `${Math.min(92, 8 + ticks * 4)}%`;
-    if (job.status === 'error') return failRun(job.error || 'Unknown error');
+    if (job.status === 'error') {
+      if (job.hint || job.download_url) showFetchProblem(job.error || 'Run failed', job.hint || '', job.download_url || '');
+      return failRun([job.error, job.hint].filter(Boolean).join('\n'));
+    }
+    if (job.account && job.fetched) {
+      $('progressTitle').textContent = `Analysing ${job.fetched.games} games for ${job.account.username}`;
+    }
     if (job.status !== 'done') return setTimeout(step, 1200);
 
     $('barFill').style.width = '100%';
@@ -233,7 +398,7 @@ async function poll() {
 }
 
 function setBusy(busy) {
-  ['runBtn', 'sampleBtn', 'runTop'].forEach((id) => ($(id).disabled = busy));
+  ['runBtn', 'runUploadBtn', 'sampleBtn', 'runTop', 'checkBtn'].forEach((id) => ($(id).disabled = busy));
   $('runTop').textContent = busy ? 'Running…' : 'Run analysis';
 }
 
@@ -252,7 +417,12 @@ function applyReport(data, job) {
   const s = data.summary;
   const engineNote = job.options.no_engine ? 'engine skipped' : `depth ${job.options.depth}`;
   $('headerSub').textContent = `${state.player} · ${s.games} games · ${s.judged} repeated decisions · ${s.leaks} leaks · ${engineNote}`;
-  $('overviewHint').textContent = `${job.source === 'sample' ? 'Demo archive' : 'Your upload'} · ${s.games} games`;
+  const sourceLabel = job.source === 'sample'
+    ? 'Demo archive'
+    : job.source === 'username'
+      ? `${(job.account && PROVIDERS[job.account.provider].label) || 'Fetched'} · ${(job.account && job.account.username) || state.player}`
+      : 'Your upload';
+  $('overviewHint').textContent = `${sourceLabel} · ${s.games} games`;
   $('footStatus').textContent = state.serverless
     ? `hosted run · ${s.leaks} leaks`
     : `job ${state.jobId} · ${s.leaks} leaks`;
@@ -508,6 +678,17 @@ function selectRow(r) {
 }
 
 /* -------------------------------------------------------------------- wiring */
+function bootAccount() {
+  const saved = recall();
+  setProvider(saved && PROVIDERS[saved.provider] ? saved.provider : 'chesscom');
+  setMode('username');
+  if (saved && saved.username) {
+    $('optUser').value = saved.username;
+    updateRunLabel();
+    checkAccount({ quiet: true });
+  }
+}
+
 function wire() {
   $('fileInput').addEventListener('change', (e) => {
     state.files = Array.from(e.target.files);
@@ -535,9 +716,38 @@ function wire() {
     renderFiles();
   });
 
-  $('runBtn').addEventListener('click', () => startRun(false));
-  $('runTop').addEventListener('click', () => (state.files.length ? startRun(false) : startRun(true)));
-  $('sampleBtn').addEventListener('click', () => startRun(true));
+  $('runBtn').addEventListener('click', () => startRun('username'));
+  $('runUploadBtn').addEventListener('click', () => startRun('upload'));
+  $('sampleBtn').addEventListener('click', () => startRun('sample'));
+  $('runTop').addEventListener('click', () => startRun(state.mode));
+
+  // source tabs
+  $('tabAccount').addEventListener('click', () => setMode('username'));
+  $('tabUpload').addEventListener('click', () => setMode('upload'));
+  $('tabDemo').addEventListener('click', () => setMode('sample'));
+
+  // account panel
+  document.querySelectorAll('#providerSeg .seg-btn').forEach((b) =>
+    b.addEventListener('click', () => setProvider(b.dataset.provider))
+  );
+  let lookupTimer = null;
+  $('optUser').addEventListener('input', () => {
+    clearProfile();
+    clearTimeout(lookupTimer);
+    const value = $('optUser').value.trim();
+    updateRunLabel();
+    if (value.length >= 3) lookupTimer = setTimeout(() => checkAccount({ quiet: true }), 700);
+  });
+  $('optUser').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      startRun('username');
+    }
+  });
+  $('checkBtn').addEventListener('click', () => checkAccount());
+  $('optMaxGames').addEventListener('input', (e) => ($('maxGamesOut').textContent = e.target.value));
+  $('optSince').max = new Date().toISOString().slice(0, 10);
+  $('optUntil').max = $('optSince').max;
   $('csvBtn').addEventListener('click', () => {
     if (state.csvText) {
       const url = URL.createObjectURL(new Blob([state.csvText], { type: 'text/csv' }));
@@ -625,4 +835,5 @@ function wire() {
 }
 
 wire();
+bootAccount();
 loadMeta();

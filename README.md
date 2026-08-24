@@ -63,11 +63,26 @@ at all? Clone with `GIT_LFS_SKIP_SMUDGE=1` and build your own with
 ```bash
 pip install -r chess_opening_analyzer/requirements.txt
 cd chess_opening_analyzer
+
+# your own games, straight from the site you play on
+python -m chessopening --user hikaru --provider chesscom --max-games 200 --depth 16 --out-dir out
+
+# or a folder of PGN exports, with no network at all
 python -m chessopening --pgn-dir sample_pgns --db local --min-db-games 20 --depth 16 --out-dir out
 ```
 
 `out/opening_leaks.csv` holds one row per flagged decision, sorted by priority, with the
 FEN, your record, the book record, the eval swing, and Stockfish's top three alternatives.
+
+### Fetching by username
+
+`--user` reads games from Chess.com (`--provider chesscom`, no key needed) or Lichess
+(`--provider lichess`). Filters: `--time-classes bullet,blitz,rapid,classical,daily`,
+`--include-unrated`, `--since`/`--until` as `YYYY-MM-DD`, `--max-games`. Each month is
+cached under `~/.cache/leaklab/archives`, so a second run over the same window makes no
+requests; `--refresh` refetches. Lichess sometimes refuses anonymous bulk export — pass
+`--lichess-token` with a token from lichess.org/account/oauth/token, or download the games
+and use `--pgn-dir`.
 
 ## Quick start (dashboard)
 
@@ -78,7 +93,10 @@ python api_server.py                  # API on :8000
 python -m http.server 8080 -d public  # UI on :8080
 ```
 
-Then open `http://localhost:8080`.
+Then open `http://localhost:8080`. The dashboard opens on the account tab: type your
+Chess.com or Lichess username, check the profile it finds, pick time controls and a game
+count, and run. The PGN files tab keeps the offline upload path, and the demo archive tab
+runs the bundled sample games.
 
 ## How a leak is flagged
 

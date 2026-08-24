@@ -61,6 +61,8 @@ from fastapi.responses import JSONResponse, Response  # noqa: E402
 
 from chessopening.analyze import analyze  # noqa: E402
 from chessopening.engine import find_engine  # noqa: E402
+from chessopening.ingest import (FetchOptions, IngestError, fetch_games,  # noqa: E402
+                                 lookup_player, provider_label, speeds_from_csv)
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase  # noqa: E402
 from chessopening.pgn_loader import detect_main_player, find_pgn_files  # noqa: E402
 from chessopening.summary import summarise  # noqa: E402
@@ -77,6 +79,7 @@ LIMITS = {
     "max_multipv": 3,
     "max_moves": 15,
     "time_budget_s": 42.0,
+    "max_fetch_games": 120,
 }
 
 app = FastAPI(title="Opening Leak Lab API (serverless)")
@@ -135,6 +138,9 @@ def meta() -> dict[str, Any]:
                      "score_gap": 6.0, "min_db_games": 20, "multipv": 3},
         "serverless": True,
         "limits": LIMITS,
+        "ingest": {"providers": ["chesscom", "lichess"], "default_provider": "chesscom",
+                   "max_games": LIMITS["max_fetch_games"],
+                   "speeds": ["bullet", "blitz", "rapid", "classical", "daily"]},
     }
 
 
@@ -149,6 +155,16 @@ def _clamp(name: str, value: float, hi: float) -> tuple[float, str | None]:
 async def analyse(
     files: list[UploadFile] = File(default=[]),
     use_sample: str = Form("false"),
+    source: str = Form(""),
+    username: str = Form(""),
+    provider: str = Form("chesscom"),
+    max_games: int = Form(120),
+    time_classes: str = Form("blitz,rapid,classical"),
+    include_unrated: str = Form("false"),
+    since: str = Form(""),
+    until: str = Form(""),
+    lichess_token: str = Form(""),
+    refresh: str = Form("false"),
     player: str = Form(""),
     color: str = Form("both"),
     depth: int = Form(12),
@@ -163,11 +179,47 @@ async def analyse(
     started = time.time()
     log: list[str] = []
     notes: list[str] = []
-    sample = use_sample.lower() == "true"
+    sample = use_sample.lower() == "true" or source == "sample"
+    by_username = source == "username" or (bool(username.strip()) and not sample and not source)
     work = tempfile.mkdtemp(prefix="run-", dir=WORK_ROOT)
+    account: dict[str, Any] | None = None
 
     try:
-        if sample:
+        if by_username:
+            wanted = int(max_games)
+            if wanted > LIMITS["max_fetch_games"]:
+                notes.append(f"games to read clamped to {LIMITS['max_fetch_games']} "
+                             "on the hosted deployment")
+                wanted = int(LIMITS["max_fetch_games"])
+            try:
+                fetched = fetch_games(
+                    FetchOptions(
+                        provider=provider,
+                        username=username.strip(),
+                        max_games=wanted,
+                        speeds=speeds_from_csv(time_classes),
+                        rated_only=include_unrated.lower() != "true",
+                        since=since.strip() or None,
+                        until=until.strip() or None,
+                        token=lichess_token.strip() or None,
+                        # the function filesystem is ephemeral, so /tmp is the only cache
+                        cache_dir=os.path.join(WORK_ROOT, "archives"),
+                        refresh=refresh.lower() == "true",
+                        timeout=15.0,
+                    ),
+                    progress=lambda msg: log.append(str(msg)),
+                )
+            except IngestError as exc:
+                detail = str(exc)
+                if exc.hint:
+                    detail += f" {exc.hint}"
+                raise HTTPException(400, detail) from exc
+            pgn_dir = fetched.pgn_dir
+            player = player or fetched.username
+            account = {"provider": fetched.provider, "username": fetched.username,
+                       "label": provider_label(fetched.provider), "games": fetched.games}
+            notes.extend(fetched.notes)
+        elif sample:
             pgn_dir = SAMPLE_DIR
             if not find_pgn_files(pgn_dir):
                 raise HTTPException(400, "Sample archive is not installed")
@@ -248,6 +300,8 @@ async def analyse(
                         "min_db_games": min_db_games, "multipv": multipv,
                         "no_engine": no_engine.lower() == "true"},
             "csv": _csv_text(rows),
+            "account": account,
+            "source": "username" if by_username else ("sample" if sample else "upload"),
         }
         return JSONResponse(payload)
     except HTTPException:
@@ -282,6 +336,14 @@ def sample_archive() -> Response:
             buf.write("\n")
     return Response(buf.getvalue(), media_type="application/x-chess-pgn",
                     headers={"Content-Disposition": 'attachment; filename="sample_games.pgn"'})
+
+
+@app.get("/api/lookup")
+def lookup(provider: str = "chesscom", username: str = "") -> dict[str, Any]:
+    try:
+        return {"found": True, "profile": lookup_player(provider, username, timeout=12.0)}
+    except IngestError as exc:
+        return {"found": False, "error": str(exc), "hint": exc.hint}
 
 
 @app.get("/api/health")
