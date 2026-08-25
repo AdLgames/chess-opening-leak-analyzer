@@ -804,6 +804,28 @@ Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or 
 After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**. After run-over-run comparison and the second practice mode: **173 passed, 5 skipped**. After locking down the API: **190 passed, 5 skipped**. After the gap actions: **205 passed, 5 skipped**. After the error translation: **216 passed, 5 skipped**. After rating bands: **232 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
-environment. Phase 0 was therefore also verified by hand against a book built from the sample
+environment.
+
+### Against the real book: 237 passed, nothing skipped
+
+CI only fires on pushes to `main` and on pull requests, so nothing had ever run on this
+branch. A manual dispatch against it settles both of the open questions:
+
+- **All five skipped tests ran and passed** — Stockfish 17.1 and the real 157,625-game book
+  (three months of rated Lichess, elo 1500–2100). **237 passed, 0 skipped.**
+- **Flag calibration against the real book is confirmed.** The demo archive produces 24
+  flagged rows there rather than the 8 a 900-game toy book gives, and the sentences hold up
+  on real data:
+
+  > You played 6.Nc3 9 times and scored 11%. Black replies **Bxc3+**, winning a piece.
+  > **Qxd4** keeps the position in hand — 6.1 pawns better than what you played. Based on
+  > few games so far, so treat it as a hint rather than a verdict.
+
+  Every part of Phase 0 and Phase 1 is visible in that one line: the shrunk baseline, the
+  confidence hedge on nine games, the refutation, and the material consequence in words.
+
+- The run also confirms the banding fallback in production conditions: *"This opening book
+  has no rating bands, so the comparison is against all ratings together. Rebuilding it adds
+  them."* Phase 0 was therefore also verified by hand against a book built from the sample
 archive (`tools/build_local_db.py --pgn sample_pgns`), driving the real API and the real dashboard
 in a browser, since the automated end-to-end tests that assert on flags are among the skipped.
