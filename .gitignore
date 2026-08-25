@@ -14,3 +14,8 @@ vercel/public/
 vercel/sample_pgns/
 vercel/engine/
 .vercel/
+
+# Precomputed evaluations: built per machine from the public Lichess dataset
+# (tools/ingest_evals.py), never committed.
+chess_opening_analyzer/chessopening/data/evals.sqlite
+vercel/chessopening/data/evals.sqlite

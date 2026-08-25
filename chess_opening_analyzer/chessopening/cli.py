@@ -7,6 +7,7 @@ import sys
 from .analyze import analyze
 from .engine import bundled_engine
 from .ingest import DEFAULT_CACHE, FetchOptions, IngestError, fetch_games, speeds_from_csv
+from .evalstore import DEFAULT_EVALS
 from .localdb import DEFAULT_DB
 from .pgn_loader import detect_main_player, find_pgn_files
 
@@ -48,6 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--multipv", type=int, default=3, help="How many engine alternatives to report")
     p.add_argument("--threads", type=int, default=2)
     p.add_argument("--no-engine", action="store_true", help="Skip Stockfish, database comparison only")
+    p.add_argument("--eval-store", default=DEFAULT_EVALS,
+                   help="Precomputed evaluations built by tools/ingest_evals.py")
+    p.add_argument("--no-evals", action="store_true",
+                   help="Ignore the precomputed store and evaluate everything with the engine")
     # explorer
     p.add_argument("--db", choices=["local", "lichess", "masters"], default="local",
                    help="local = bundled SQLite database (no network); lichess/masters = Explorer API")
@@ -127,6 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         ratings=args.ratings,
         offline=args.offline,
         no_engine=args.no_engine,
+        no_evals=args.no_evals,
+        eval_store_path=args.eval_store,
     )
     print(
         f"\nDone: {result['games']} games, {result['repeated']} repeated decisions analysed, "

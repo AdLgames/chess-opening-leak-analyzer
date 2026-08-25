@@ -253,6 +253,46 @@ Improving at chess is a months-long habit.
 
 ---
 
+## Phase 3b — Deep evaluation without the compute  ·  `S4`
+
+**Status: ingest built; needs one real run against the published dataset**
+
+Stockfish is already the strongest open-source engine, so the compute problem was never
+which engine to run — it was running it at all, on demand, per user, at a depth the budget
+allows. Lichess publishes Stockfish evaluations for hundreds of millions of positions under
+CC0, and opening positions are the most analysed positions in existence, so most of this
+work has already been done by somebody else at depths worth far more than depth 12.
+
+### Work
+
+- [x] `evalstore.py`: schema, streaming ingest filtered to positions already in the book,
+      and a read side that assembles the same `PositionEval` the engine produces.
+- [x] `tools/ingest_evals.py`: streams `.jsonl`, `.jsonl.gz` or `.jsonl.zst` without
+      unpacking, filtered against the book, same shape as `build_local_db.py`.
+- [x] Sign convention detected from the data rather than assumed — see the note below.
+- [x] `analyze()` consults the store first and runs the engine only on what is left; the
+      store applies even under `--no-engine`, so statistics-only runs still get deep
+      verdicts where the dataset reaches.
+- [x] Optional throughout: no store, or a position it lacks, falls through to the engine.
+      Git-ignored, never shipped in the repo.
+- [x] 20 tests including both sign conventions, mate scores, malformed input and fall-through.
+- [ ] Run the real ingest and record actual book coverage. Needs bandwidth and disk this
+      sandbox does not have.
+- [ ] Once coverage is known, reconsider the drill grader (`S4`): stored depth-40 lines are a
+      far better teacher than a depth-12 search, and may remove the need for a live engine
+      in the drill loop entirely.
+
+### The sign convention note
+
+The dataset's point of view is not clearly documented, and getting it backwards would invert
+every verdict in the report with nothing failing loudly. So `detect_pov` works it out: in
+positions with lopsided material, an evaluation from White's point of view tracks White's
+material, while one from the mover's tracks the mover's. Level positions — which is most of
+the opening — cast no vote, because that is exactly where the two conventions agree.
+Everything is normalised to the mover's point of view, matching `engine._cp`.
+
+---
+
 ## Cross-cutting, do alongside
 
 | Item | Finding | Note |
@@ -275,7 +315,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample

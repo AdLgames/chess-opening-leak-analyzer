@@ -8,6 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from .engine import EngineAnalyzer, PositionEval
+from .evalstore import DEFAULT_EVALS, open_store
 from .explorer import BOOK_PRIOR_GAMES, OpeningExplorer, PositionStats, Z_CONFIDENCE, score_interval
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
 from .pgn_loader import GameSummary, PlyRecord, load_games
@@ -237,6 +238,8 @@ def analyze(
     min_db_move_games: int = 30,
     book_prior_games: int = BOOK_PRIOR_GAMES,
     confidence_z: float = Z_CONFIDENCE,
+    no_evals: bool = False,
+    eval_store_path: str = DEFAULT_EVALS,
     coverage_off: bool = False,
     coverage_min_reach: float = 0.02,
     db: str = "lichess",
@@ -293,8 +296,23 @@ def analyze(
             f"{explorer.stats['errors']} errors")
 
     # ---- Engine pass ----
+    # Precomputed evaluations first: opening positions are the most analysed positions there
+    # are, so a public dataset answers most of this at depths worth far more than anything
+    # affordable on demand. The engine only handles what is left.
     evals: dict[tuple[str, str], PositionEval] = {}
-    if not no_engine:
+    store = open_store(eval_store_path) if not no_evals else None
+    if store is not None:
+        for key, node in repeated.items():
+            found = store.evaluate_move(node.fen, node.played_uci)
+            if found is not None:
+                evals[key] = found
+        deepest = max((e.depth for e in evals.values()), default=0)
+        log(f"Precomputed evaluations: {len(evals)}/{len(repeated)} positions answered from "
+            f"{os.path.basename(store.path)}, deepest {deepest} ply")
+        store.close()
+
+    remaining = {k: n for k, n in repeated.items() if k not in evals}
+    if not no_engine and remaining:
         with EngineAnalyzer(
             engine_path=engine_path,
             depth=depth,
@@ -303,18 +321,19 @@ def analyze(
             threads=threads,
             cache_path=os.path.join(cache_dir, "engine_evals.json"),
         ) as eng:
-            log(f"Engine: {eng.engine_path} (depth {depth}, MultiPV {multipv})")
+            log(f"Engine: {eng.engine_path} (depth {depth}, MultiPV {multipv}) "
+                f"for the remaining {len(remaining)} positions")
             engine_started = time.monotonic()
-            for i, (key, node) in enumerate(repeated.items(), start=1):
+            for i, (key, node) in enumerate(remaining.items(), start=1):
                 if engine_budget_s is not None and time.monotonic() - engine_started > engine_budget_s:
-                    skipped = len(repeated) - i + 1
+                    skipped = len(remaining) - i + 1
                     notes.append(f"engine budget of {engine_budget_s:g}s reached: "
-                                 f"{skipped} of {len(repeated)} positions judged on statistics only")
+                                 f"{skipped} of {len(remaining)} positions judged on statistics only")
                     log(f"  engine budget reached, skipping {skipped} positions")
                     break
                 evals[key] = eng.evaluate_move(node.fen, node.played_uci)
                 if i % 20 == 0:
-                    log(f"  engine: {i}/{len(repeated)} positions")
+                    log(f"  engine: {i}/{len(remaining)} positions")
                     eng.flush()
 
     # ---- Rows ----

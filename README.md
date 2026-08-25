@@ -98,6 +98,35 @@ Chess.com or Lichess username, check the profile it finds, pick time controls an
 count, and run. The PGN files tab keeps the offline upload path, and the demo archive tab
 runs the bundled sample games.
 
+## Deeper analysis for free
+
+Opening positions are the most heavily analysed positions in chess, and Lichess publishes
+the results: a CC0 dataset of Stockfish evaluations at
+[database.lichess.org](https://database.lichess.org/). Ingesting it turns the engine pass
+into a lookup, at depths far beyond anything worth running on demand.
+
+```bash
+# download the evals file once, then keep only the positions our book knows
+python tools/ingest_evals.py --evals lichess_db_eval.jsonl.zst
+```
+
+The dataset is streamed, never unpacked, and everything outside the opening book is
+dropped — the same shape as `build_local_db.py`. The result lands in
+`chessopening/data/evals.sqlite`, which is git-ignored and entirely optional: a position
+the store does not have falls through to the local engine exactly as before.
+
+Two things worth knowing. The store is consulted even with `--no-engine`, so a
+statistics-only run still gets deep verdicts wherever the dataset reaches — useful for the
+hosted build, which has a time budget the engine cannot always fit inside. And the
+dataset's sign convention is not clearly documented, so the ingest works it out from the
+data rather than trusting a guess: in positions with lopsided material, an evaluation from
+White's point of view tracks White's material while one from the mover's tracks the
+mover's. Everything is stored from the mover's point of view, matching the rest of the
+codebase. Override with `--pov white|mover` if you know better.
+
+Reading `.zst` needs `pip install zstandard` or the `zstd` command; plain `.jsonl` and
+`.jsonl.gz` need neither.
+
 ## Learning from the report
 
 Every report row opens on an interactive board, so a leak is something you can work on
