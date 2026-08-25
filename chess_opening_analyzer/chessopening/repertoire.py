@@ -72,6 +72,16 @@ def build_repertoire(nodes: dict[Any, Any], color: str, min_games: int = 2) -> d
     return repertoire
 
 
+def _bare_line(line: str) -> list[str]:
+    """`1.e4 c6 2.Nc3` as `["e4", "c6", "Nc3"]` — move numbers stripped."""
+    out = []
+    for token in line.split():
+        cleaned = token.split(".")[-1].lstrip(".")
+        if cleaned:
+            out.append(cleaned)
+    return out
+
+
 def _describe(line: list[str], first_turn: chess.Color) -> str:
     """A SAN line with real move numbers, e.g. `1.e4 c6 2.d4 d5`."""
     out: list[str] = []
@@ -198,3 +208,119 @@ COVERAGE_FIELDS = [
     "reach_pct", "share_pct", "times_faced", "player_color", "category", "eco", "opening",
     "line", "reply", "book_games", "fen", "explanation",
 ]
+
+
+# ---------------------------------------------------------------- the tree
+
+def _status(node: Any, is_leak: bool, mark_decision: str, score: float | None) -> str:
+    """How a line in the tree should read at a glance.
+
+    Order matters: a committed choice is what the player has decided, and saying "weak"
+    over the top of that is the arguing-back behaviour the marks exist to stop. A flagged
+    move outranks a good score, because the flag already accounts for the score.
+    """
+    if mark_decision == "committed":
+        return "committed"
+    if is_leak:
+        return "weak"
+    if score is not None and node.n >= 5 and score >= 0.55:
+        return "strong"
+    return "played"
+
+
+def build_tree(
+    nodes: dict[Any, Any],
+    color: str,
+    min_games: int = 2,
+    max_plies: int = 12,
+    leak_keys: set[tuple[str, str]] | None = None,
+    marks: dict[tuple[str, str], Any] | None = None,
+    gaps: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """The player's repertoire as a tree, drawn from the lines they actually played.
+
+    Every decision already carries the move list that reached it, so the tree is the trie
+    of those lines — no re-derivation, and opponent moves appear as the edges between the
+    player's own. Each of the player's edges carries its record and how it is doing, so
+    strong lines, weak lines and holes are one colour apart.
+    """
+    leak_keys = leak_keys or set()
+    marks = marks or {}
+    # A gap's line is the player's line plus the opponent reply they have not met, and it
+    # is written with move numbers while a node's is not — so both are reduced to bare SAN
+    # and the reply is dropped before matching.
+    gaps_by_line: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for gap in gaps or []:
+        if gap.get("player_color") != color:
+            continue
+        tokens = _bare_line(gap.get("line", ""))
+        if tokens:
+            gaps_by_line[" ".join(tokens[:-1])].append(gap)
+
+    root: dict[str, Any] = {"children": {}}
+    for node in nodes.values():
+        if node.player_color != color or node.n < min_games:
+            continue
+        ucis = [u for u in node.line_uci.split(",") if u][:max_plies]
+        if not ucis:
+            continue
+
+        board = chess.Board()
+        cursor = root
+        for depth, uci in enumerate(ucis, start=1):
+            try:
+                move = chess.Move.from_uci(uci)
+                san = board.san(move)
+            except (ValueError, AssertionError):
+                break
+            child = cursor["children"].get(uci)
+            if child is None:
+                child = cursor["children"][uci] = {
+                    "uci": uci, "san": san, "ply": depth, "children": {},
+                    "ours": False, "games": 0, "score_pct": None, "status": "played",
+                    "opening": "", "epd": board.epd(), "fen": board.fen(), "gaps": 0,
+                }
+            board.push(move)
+            # The last move of this line is the player's own decision, and the only edge
+            # we have a record for.
+            if depth == len(ucis):
+                mark = marks.get((child["epd"], color))
+                decision = mark.decision if mark and mark.uci == uci else ""
+                child.update({
+                    "ours": True,
+                    "games": node.n,
+                    "score_pct": round(100 * node.score, 1),
+                    "opening": node.opening or node.eco or "",
+                    "status": _status(node, (node.epd, uci) in leak_keys, decision, node.score),
+                    "line": node.line_san,
+                    "gaps": len(gaps_by_line.get(node.line_san, [])),
+                })
+            cursor = child
+
+    def to_list(branch: dict[str, Any]) -> list[dict[str, Any]]:
+        out = []
+        for child in branch["children"].values():
+            item = {k: v for k, v in child.items() if k != "children"}
+            item["children"] = to_list(child)
+            # A branching edge inherits the weight of everything below it, so the trunk
+            # reads as the trunk rather than as whatever leaf happens to be biggest.
+            if not item["ours"]:
+                item["games"] = sum(c["games"] for c in item["children"]) or item["games"]
+            out.append(item)
+        out.sort(key=lambda c: (-c["games"], c["san"]))
+        return out
+
+    return to_list(root)
+
+
+def tree_totals(tree: list[dict[str, Any]]) -> dict[str, int]:
+    """How much of the repertoire is in each state, for a one-line summary."""
+    counts = {"strong": 0, "weak": 0, "committed": 0, "played": 0, "gaps": 0}
+    def walk(branch: list[dict[str, Any]]) -> None:
+        for item in branch:
+            if item.get("ours"):
+                counts[item.get("status", "played")] = counts.get(item.get("status", "played"), 0) + 1
+                counts["gaps"] += item.get("gaps", 0)
+            walk(item.get("children", []))
+    walk(tree)
+    return counts

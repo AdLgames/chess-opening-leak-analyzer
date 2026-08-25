@@ -342,6 +342,35 @@ td.move-cell { font-family: var(--mono); font-weight: 500; }
   .fix-go { grid-column: 2; justify-self: start; }
 }
 
+/* ---- the repertoire, as an indented tree ---- */
+.tree-card { padding: 14px 16px; overflow-x: auto; }
+.tree { min-width: min-content; }
+.tree ul { list-style: none; margin: 0; padding: 0; }
+.tree .tree-level .tree-level { margin-left: 15px; padding-left: 11px; border-left: 1px solid var(--border); }
+.tree li { padding: 1px 0; }
+.tree-move {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 9px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+/* Opponent moves are structure; the player's own are the thing being judged. */
+.tree-move.is-ours { color: var(--text); cursor: pointer; border: 1px solid transparent; }
+.tree-move.is-ours:hover { background: var(--surface-2); }
+.tree-move.is-strong b { color: var(--good); }
+.tree-move.is-weak b { color: var(--bad); }
+.tree-move.is-committed b { color: var(--book); }
+.tree-move.is-played b { color: var(--text); }
+.tree-games { font-size: 11px; color: var(--text-faint); }
+.tree-games::after { content: " games"; }
+.tree-score { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tree-gaps { font-size: 11px; color: var(--book); }
+#repSide { margin-bottom: 10px; }
+
 /* ---- coverage: likely replies the player has barely met ---- */
 .section-lead { margin: 0 0 12px; max-width: 74ch; font-size: 13px; color: var(--text-muted); }
 .gap-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }

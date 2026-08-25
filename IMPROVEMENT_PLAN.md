@@ -301,7 +301,7 @@ Ten items, given as the target shape of the product. Mapped to what exists.
 | --- | --- | --- |
 | 1 | Explain *why* a move is bad, not just which move the engine prefers | **Done.** Every finding names the opponent's reply and what it wins: "Black replies Nxe5, winning a piece." |
 | 2 | Every leak → Learn → Practice → Retest, with spaced repetition | **Done.** `review.py` schedules by SM-2; misses return within the session and again the next day. |
-| 3 | "My Repertoire" as a visual tree with strong lines, weak lines and gaps | Partly. The tree is inferred (`repertoire.build_repertoire`) and gaps are found; it is not yet drawn or editable. |
+| 3 | "My Repertoire" as a visual tree with strong lines, weak lines and gaps | **Done.** `repertoire.build_tree` draws the lines actually played, coloured by how each is doing, with unmet replies hanging off the move that reaches them. |
 | 4 | Four kinds of problem: objective / practical / knowledge gap / low confidence | **Done.** `classify()` decides; the dashboard colours each one. |
 | 5 | "What are you not ready for?" with Learn / Practice / Ignore | Mostly. The section ships; the three actions do not. |
 | 6 | Varied practice: best move, opponent's idea, continue the line, explain why, timed | Open. One mode today. |
@@ -396,6 +396,40 @@ when the engine is unavailable, since the player has already said they could not
 
 ---
 
+## Item 3 — the repertoire, drawn
+
+**Status: done**
+
+Every decision already carries the move list that reached it, so the tree is simply the trie
+of those lines: nothing re-derived, and the opponent's moves fall out as the edges between
+the player's own. Each of the player's edges carries its record, so the shape of the
+repertoire and how it is doing are the same picture.
+
+Four states, one colour apart: **strong** (good results over enough games), **weak** (flagged
+in the report), **committed** (their decision — never shown as weak, because saying so over
+the top of a choice is the arguing-back the marks exist to stop), and **played**, which is
+everything else. Unmet replies hang off the move that reaches them as "+n unmet".
+
+Drawn as an indented list rather than a graph. That is a deliberate choice: it stays readable
+on a phone, it is navigable by keyboard for nothing, it survives a long line without panning,
+and the shape of the trunk is what matters rather than the geometry. An opponent edge inherits
+the weight of everything below it, so the trunk reads as the trunk instead of as whichever
+leaf happens to be biggest.
+
+Verified in the browser against the demo archive: as Black, `1.d4 Nf6` reads green at 58% while
+`1.d4 d5` reads red at 14% with its whole branch below it, opponent moves stay grey as
+structure, and the side switch redraws both trees.
+
+### The bug this shipped with, briefly
+
+Gaps attached to nothing: a gap's line is written with move numbers (`1.e4 c6 2.Nc3`) and a
+node's is not (`e4 c6`), so the two never matched and every repertoire reported zero gaps. Both
+are now reduced to bare SAN, and the gap's own reply is dropped before matching, since a gap
+hangs off the player's move that *reaches* the position. An older test had encoded the wrong
+assumption and has been corrected rather than deleted.
+
+---
+
 ## Cross-cutting, do alongside
 
 | Item | Finding | Note |
@@ -418,7 +452,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample

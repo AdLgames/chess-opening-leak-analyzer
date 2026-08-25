@@ -33,6 +33,7 @@ const state = {
   charts: {},
   meta: null,
   marks: {},
+  treeSide: 'white',
 };
 
 const num = (v) => {
@@ -430,6 +431,7 @@ function applyReport(data, job) {
     ? `hosted run · ${s.leaks} leaks`
     : `job ${state.jobId} · ${s.leaks} leaks`;
   renderFixList(s);
+  renderTree(s);
   renderCoverage(s);
   renderKpis(s);
   renderCharts(s);
@@ -483,6 +485,69 @@ function renderFixList(s) {
       );
       if (target) selectRow(target);
       $('position').scrollIntoView({ behavior: 'smooth' });
+    }),
+  );
+}
+
+/* The repertoire drawn as an indented tree. Deliberately a list rather than a graph: it
+   stays readable on a phone, it is navigable by keyboard for free, and the shape of the
+   trunk is what matters rather than the geometry. */
+const TREE_STATUS = {
+  strong: { cls: 'is-strong', why: 'Good results here.' },
+  weak: { cls: 'is-weak', why: 'This move is flagged in your report.' },
+  committed: { cls: 'is-committed', why: 'You have committed to this move.' },
+  played: { cls: 'is-played', why: 'Played, with nothing to report either way.' },
+};
+
+function treeBranch(items, depth = 0) {
+  if (!items.length) return '';
+  return `<ul class="tree-level"${depth === 0 ? '' : ' role="group"'}>` + items.map((n) => {
+    const meta = TREE_STATUS[n.status] || TREE_STATUS.played;
+    const score = n.score_pct === null || n.score_pct === undefined
+      ? ''
+      : `<span class="tree-score">${Math.round(n.score_pct)}%</span>`;
+    const games = n.games ? `<span class="tree-games">${n.games}</span>` : '';
+    const gaps = n.gaps
+      ? `<span class="tree-gaps" title="Likely replies from here you have barely faced">+${n.gaps} unmet</span>`
+      : '';
+    const cls = n.ours ? `tree-move is-ours ${meta.cls}` : 'tree-move';
+    return `<li>
+      <span class="${cls}" title="${esc(n.ours ? meta.why : "Your opponent's move")}" data-fen="${esc(n.fen || '')}">
+        <b class="mono">${esc(n.san)}</b>${games}${score}${gaps}
+      </span>
+      ${treeBranch(n.children || [], depth + 1)}
+    </li>`;
+  }).join('') + '</ul>';
+}
+
+function renderTree(s) {
+  const tree = s.tree || {};
+  const sides = Object.keys(tree).filter((k) => (tree[k] || []).length);
+  $('repertoire').hidden = sides.length === 0;
+  if (!sides.length) return;
+
+  // Only offer a side the player actually has games for.
+  document.querySelectorAll('#repSide .seg').forEach((b) => {
+    b.hidden = !sides.includes(b.dataset.side);
+  });
+  if (!sides.includes(state.treeSide)) state.treeSide = sides[0];
+  document.querySelectorAll('#repSide .seg').forEach((b) =>
+    b.classList.toggle('is-active', b.dataset.side === state.treeSide),
+  );
+
+  const totals = (s.tree_totals || {})[state.treeSide] || {};
+  $('repHint').textContent =
+    `${totals.strong || 0} doing well · ${totals.weak || 0} needing work · ` +
+    `${totals.committed || 0} yours by choice · ${totals.gaps || 0} unmet replies`;
+  $('repTree').innerHTML = treeBranch(tree[state.treeSide] || []);
+
+  $('repTree').querySelectorAll('.tree-move.is-ours').forEach((el) =>
+    el.addEventListener('click', () => {
+      const row = state.rows.find((r) => r.fen === el.dataset.fen);
+      if (row) {
+        selectRow(row);
+        $('position').scrollIntoView({ behavior: 'smooth' });
+      }
     }),
   );
 }
@@ -965,6 +1030,12 @@ function wire() {
       if (state.sort.dir === 1) th.classList.add('asc');
       renderTable();
     })
+  );
+  document.querySelectorAll('#repSide .seg').forEach((b) =>
+    b.addEventListener('click', () => {
+      state.treeSide = b.dataset.side;
+      renderTree(state.summary || {});
+    }),
   );
   $('commitMove').addEventListener('click', () => decide('committed'));
   $('ignoreFinding').addEventListener('click', () => decide('ignored'));

@@ -14,6 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from chessopening.analyze import Node  # noqa: E402
+from chessopening.marks import Mark  # noqa: E402
 from chessopening.explorer import MoveStats, PositionStats  # noqa: E402
 from chessopening.repertoire import (  # noqa: E402
     build_repertoire,
@@ -212,3 +213,150 @@ def test_the_gap_explains_itself_in_words():
     assert "Caro-Kann Defence" in text
     assert "40% of games" in text
     assert "never faced it" in text
+
+
+# ---------------- Drawing the repertoire ----------------
+from chessopening.repertoire import build_tree, tree_totals  # noqa: E402
+
+
+def line_node(line_uci: str, san: str, color: str = "white", games: int = 10,
+              wins: int | None = None, opening: str = "") -> Node:
+    """A decision at the end of `line_uci`, carrying its own record."""
+    board = chess.Board()
+    for uci in filter(None, line_uci.split(",")):
+        board.push_uci(uci)
+    move = board.parse_san(san)
+    wins = games if wins is None else wins
+    return Node(
+        epd=board.epd(), fen=board.fen(), played_uci=move.uci(), played_san=san,
+        player_color=color, ply=len(board.move_stack) + 1,
+        move_number=board.fullmove_number, line_san="",
+        line_uci=",".join(filter(None, [*line_uci.split(","), move.uci()])),
+        opening=opening, wins=wins, draws=0, losses=games - wins,
+    )
+
+
+def test_shared_moves_become_one_trunk_rather_than_two_lines():
+    """1.e4 e5 2.Nf3 and 1.e4 e5 2.Bc4 are one opening move, then a fork."""
+    nodes = as_nodes(
+        line_node("", "e4", games=30),
+        line_node("e2e4,e7e5", "Nf3", games=20),
+        line_node("e2e4,e7e5", "Bc4", games=10),
+    )
+    tree = build_tree(nodes, "white")
+    assert [t["san"] for t in tree] == ["e4"]
+    after_e5 = tree[0]["children"][0]
+    assert after_e5["san"] == "e5", "the opponent's move is an edge, not a gap in the tree"
+    assert [c["san"] for c in after_e5["children"]] == ["Nf3", "Bc4"], "most played first"
+
+
+def test_only_the_players_own_moves_carry_a_record():
+    nodes = as_nodes(line_node("", "e4", games=30, wins=18))
+    tree = build_tree(nodes, "white")
+    assert tree[0]["ours"] is True
+    assert tree[0]["games"] == 30
+    assert tree[0]["score_pct"] == 60.0
+
+
+def test_an_opponent_edge_carries_the_weight_of_what_is_below_it():
+    """So the trunk reads as the trunk, not as whichever leaf happens to be biggest."""
+    nodes = as_nodes(
+        line_node("", "e4", games=30),
+        line_node("e2e4,e7e5", "Nf3", games=20),
+        line_node("e2e4,e7e5", "Bc4", games=10),
+    )
+    after_e5 = build_tree(nodes, "white")[0]["children"][0]
+    assert after_e5["ours"] is False
+    assert after_e5["games"] == 30
+
+
+def test_a_good_line_reads_as_strong_and_a_flagged_one_as_weak():
+    nodes = as_nodes(
+        line_node("", "e4", games=20, wins=13),                  # 65%
+        line_node("e2e4,e7e5", "Nf3", games=10, wins=2),         # flagged below
+    )
+    nf3 = next(n for n in nodes.values() if n.played_san == "Nf3")
+    tree = build_tree(nodes, "white", leak_keys={(nf3.epd, nf3.played_uci)})
+    assert tree[0]["status"] == "strong"
+    assert tree[0]["children"][0]["children"][0]["status"] == "weak"
+
+
+def test_a_committed_choice_is_never_shown_as_weak():
+    """Saying "weak" over the top of a decision is exactly the arguing-back the marks
+    exist to stop."""
+    nodes = as_nodes(line_node("", "e4", games=20, wins=2))
+    e4 = next(iter(nodes.values()))
+    mark = Mark(epd=e4.epd, color="white", uci=e4.played_uci, san="e4", decision="committed")
+    tree = build_tree(nodes, "white",
+                      leak_keys={(e4.epd, e4.played_uci)},
+                      marks={(e4.epd, "white"): mark})
+    assert tree[0]["status"] == "committed"
+
+
+def test_a_thin_line_is_left_out_of_the_picture():
+    nodes = as_nodes(line_node("", "e4", games=1))
+    assert build_tree(nodes, "white", min_games=2) == []
+
+
+def test_the_tree_stops_at_the_depth_it_is_given():
+    nodes = as_nodes(line_node("e2e4,e7e5,g1f3,b8c6", "Bc4", games=10))
+    shallow = build_tree(nodes, "white", max_plies=2)
+    assert [t["san"] for t in shallow] == ["e4"]
+    assert shallow[0]["children"][0]["children"] == []
+
+
+def test_a_gap_lands_on_the_move_that_leads_to_it_not_a_shallower_one():
+    """A gap hangs off the player's move that reaches the position, so it must count
+    against 2.d4 rather than against 1.e4 further up the same line."""
+    nodes = as_nodes(line_node("", "e4", games=30), line_node("e2e4,c7c6", "d4", games=20))
+    for n in nodes.values():
+        n.line_san = "e4" if n.played_san == "e4" else "e4 c6 d4"
+    gaps = [{"player_color": "white", "line": "1.e4 c6 2.d4 d5"}]
+    tree = build_tree(nodes, "white", gaps=gaps)
+    assert tree[0]["gaps"] == 0, "1.e4 is not where this gap appears"
+    d4 = tree[0]["children"][0]["children"][0]
+    assert d4["san"] == "d4"
+    assert d4["gaps"] == 1
+
+
+def test_the_other_colour_is_a_separate_tree():
+    nodes = as_nodes(
+        line_node("", "e4", color="white", games=10),
+        line_node("e2e4", "c6", color="black", games=10),
+    )
+    assert [t["san"] for t in build_tree(nodes, "white")] == ["e4"]
+    assert [t["san"] for t in build_tree(nodes, "black")] == ["e4"], "the opponent's move first"
+    assert build_tree(nodes, "black")[0]["children"][0]["san"] == "c6"
+
+
+def test_totals_count_each_state_across_the_whole_tree():
+    nodes = as_nodes(
+        line_node("", "e4", games=20, wins=13),
+        line_node("e2e4,e7e5", "Nf3", games=10, wins=1),
+    )
+    nf3 = next(n for n in nodes.values() if n.played_san == "Nf3")
+    tree = build_tree(nodes, "white", leak_keys={(nf3.epd, nf3.played_uci)})
+    totals = tree_totals(tree)
+    assert totals["strong"] == 1
+    assert totals["weak"] == 1
+
+
+def test_an_empty_repertoire_draws_nothing():
+    assert build_tree({}, "white") == []
+    assert tree_totals([]) == {"strong": 0, "weak": 0, "committed": 0, "played": 0, "gaps": 0}
+
+
+def test_a_gap_attaches_to_the_line_it_hangs_off_despite_move_numbers():
+    """A gap's line is written `1.e4 c6 2.Nc3` while a node's is `e4 c6`; matching them
+    naively finds nothing at all, which is how this went unnoticed until the tree said
+    every repertoire had zero gaps."""
+    nodes = as_nodes(line_node("", "e4", games=30))
+    node = next(iter(nodes.values()))
+    node.line_san = "e4"
+    gaps = [
+        {"player_color": "white", "line": "1.e4 c6"},
+        {"player_color": "white", "line": "1.e4 e6"},
+        {"player_color": "white", "line": "1.d4 d5 2.c4"},   # a different line
+        {"player_color": "black", "line": "1.e4 c6"},        # the other colour
+    ]
+    assert build_tree(nodes, "white", gaps=gaps)[0]["gaps"] == 2

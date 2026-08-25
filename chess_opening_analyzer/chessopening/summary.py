@@ -116,6 +116,8 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         # Lines the player will meet but has barely played: absent from `rows` by
         # construction, since the report can only see moves that were actually made.
         "coverage": stats.get("coverage", [])[:12],
+        "tree": stats.get("tree", {}),
+        "tree_totals": stats.get("tree_totals", {}),
         "coverage_total": len(stats.get("coverage", [])),
         "white_leaks": sum(1 for r in rows if r["player_color"] == "white"),
         "black_leaks": sum(1 for r in rows if r["player_color"] == "black"),

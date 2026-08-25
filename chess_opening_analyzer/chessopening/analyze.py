@@ -14,7 +14,7 @@ from .explorer import BOOK_PRIOR_GAMES, OpeningExplorer, PositionStats, Z_CONFID
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
 from .marks import DEFAULT_STATE, filter_flags, load_marks
 from .pgn_loader import GameSummary, PlyRecord, load_games
-from .repertoire import COVERAGE_FIELDS, find_gaps
+from .repertoire import COVERAGE_FIELDS, build_tree, find_gaps, tree_totals
 
 
 @dataclass
@@ -622,7 +622,25 @@ def analyze(
             w.writerows(coverage)
         log(f"Wrote coverage report -> {coverage_path}")
 
+    # ---- The repertoire as a picture ----
+    # Every decision already carries the line that reached it, so the tree is the trie of
+    # those lines. Marks and flags colour it in.
+    flagged = {(r["fen"], r["your_move_uci"]) for r in rows}
+    leak_keys = {(node.epd, node.played_uci) for node in repeated.values()
+                 if (node.fen, node.played_uci) in flagged}
+    tree = {
+        side: build_tree(nodes, side, leak_keys=leak_keys, marks=marks, gaps=coverage)
+        for side in (["white", "black"] if color == "both" else [color])
+    }
+    totals = {side: tree_totals(branch) for side, branch in tree.items()}
+    for side, counts in totals.items():
+        if counts["strong"] or counts["weak"]:
+            log(f"Repertoire as {side}: {counts['strong']} strong, {counts['weak']} weak, "
+                f"{counts['committed']} committed, {counts['gaps']} gaps")
+
     return {
+        "tree": tree,
+        "tree_totals": totals,
         "coverage": coverage,
         "games": len(games),
         "nodes": len(nodes),
