@@ -312,8 +312,8 @@
             <div class="filters">
               <div class="segmented" id="flagFilter" role="tablist">
                 <button class="seg is-active" data-flag="all">All</button>
-                <button class="seg" data-flag="EVAL_DROP">Gives ground</button>
-                <button class="seg" data-flag="WINRATE_DECLINE">Scores badly</button>
+                <button class="seg" data-flag="EVAL_DROP">Loses ground</button>
+                <button class="seg" data-flag="WINRATE_DECLINE">Not working</button>
                 <button class="seg" data-flag="OFFBEAT_MOVE">Rare move</button>
               </div>
               <div class="segmented" id="colorFilter">
@@ -536,9 +536,10 @@
             <div class="card prov-card">
               <h3>How a leak is flagged</h3>
               <ul class="flag-legend">
-                <li><span class="chip chip-eval">gives ground</span> The engine's assessment drops sharply after your move — you have handed over an advantage.</li>
-                <li><span class="chip chip-win">scores badly</span> You score below what this position is worth, by enough games that it is unlikely to be luck.</li>
-                <li><span class="chip chip-off">rare move</span> Almost nobody plays this, and it is not working for you either.</li>
+                <li><span class="chip cat-objective">Loses ground</span> The move itself is the problem: it hands over material or the advantage. Learn the right move.</li>
+                <li><span class="chip cat-practical">Not working for you</span> Playable, but your results are well below what the position is worth. Consider a different line.</li>
+                <li><span class="chip cat-knowledge">Unfamiliar</span> A position you will meet but have barely played. Prepare for it.</li>
+                <li><span class="chip cat-unproven">Worth watching</span> Too few games so far to be sure. Play more before acting on it.</li>
               </ul>
               <p class="muted small">Findings are ordered by what they cost you: how often you make the mistake, multiplied by how much it gives away each time. Where the evidence is thin, the cautious estimate is used, so a habit seen three times never outranks one seen thirty.</p>
             </div>

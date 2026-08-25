@@ -188,3 +188,70 @@ def test_percentages_round_the_same_way_the_browser_does():
     figure appears as 62% in the sentence and 63% in the table beside it."""
     text = explain(_node(wins=1, draws=1, losses=8), 0.625, "position", 200, None, "", "medium")
     assert "63%" in text and "62%" not in text
+
+
+# ---------------- Kinds of problem ----------------
+from chessopening.analyze import CATEGORIES, classify, describe_consequence  # noqa: E402
+
+
+def test_an_engine_drop_is_objective_however_few_games_it_took():
+    """Whether a move throws away a piece is a fact about the position, not about how
+    often it has been played — so a thin sample must not soften it."""
+    assert classify(["EVAL_DROP"], "low", 3.1, 0.8) == "objective"
+    assert classify(["EVAL_DROP", "WINRATE_DECLINE"], "high", 1.2, 0.8) == "objective"
+
+
+def test_a_results_claim_on_thin_evidence_is_only_worth_watching():
+    """The opposite case: a win-rate claim is about the player's results, so few games
+    means it cannot be asserted yet."""
+    assert classify(["WINRATE_DECLINE"], "low", 0.0, 0.8) == "unproven"
+
+
+def test_a_well_evidenced_results_claim_is_a_practical_weakness():
+    assert classify(["WINRATE_DECLINE"], "high", 0.0, 0.8) == "practical"
+    assert classify(["WINRATE_DECLINE"], "medium", 0.2, 0.8) == "practical"
+
+
+def test_every_category_has_a_label_and_an_explanation():
+    for name in ("objective", "practical", "knowledge", "unproven"):
+        label, blurb = CATEGORIES[name]
+        assert label and blurb.endswith(".")
+
+
+# ---------------- Why the move is bad ----------------
+ITALIAN_NXE5 = "r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"
+
+
+def test_the_consequence_names_the_reply_and_what_it_wins():
+    """4.Nxe5?? Nxe5 simply wins a piece — that is what the player needs told, not which
+    move an engine would rather have played."""
+    text = describe_consequence(ITALIAN_NXE5, "f3e5", "c6e5")
+    assert text == "Black replies Nxe5, winning a piece."
+
+
+def test_a_move_that_loses_nothing_material_is_described_without_a_false_claim():
+    text = describe_consequence(ITALIAN_NXE5, "d2d3", "g8f6")
+    assert "winning" not in text
+    assert "Nf6" in text
+
+
+def test_no_refutation_means_no_sentence_rather_than_a_guess():
+    assert describe_consequence(ITALIAN_NXE5, "f3e5", "") == ""
+
+
+def test_an_illegal_refutation_is_survived():
+    assert describe_consequence(ITALIAN_NXE5, "f3e5", "a1a8") == ""
+
+
+def test_the_explanation_leads_with_the_consequence_not_the_engine():
+    from chessopening.engine import PositionEval  # noqa: PLC0415
+
+    ev = PositionEval(
+        fen=ITALIAN_NXE5, played_uci="f3e5", played_san="Nxe5", mover="white",
+        best_cp=30, played_cp=-280, eval_drop_cp=310, played_rank=3,
+        alternatives=[], depth=40, refutation_uci="c6e5", refutation_san="Nxe5",
+    )
+    node = _node(fen=ITALIAN_NXE5, wins=1, draws=0, losses=8)
+    text = explain(node, 0.231, "move", 1000, ev, "O-O", "medium")
+    assert "Black replies Nxe5, winning a piece." in text
+    assert "O-O keeps the position in hand" in text

@@ -293,6 +293,39 @@ Everything is normalised to the mover's point of view, matching `engine._cp`.
 
 ---
 
+## The product spec, and where each piece stands
+
+Ten items, given as the target shape of the product. Mapped to what exists.
+
+| # | Asked for | Status |
+| --- | --- | --- |
+| 1 | Explain *why* a move is bad, not just which move the engine prefers | **Done.** Every finding names the opponent's reply and what it wins: "Black replies Nxe5, winning a piece." |
+| 2 | Every leak → Learn → Practice → Retest, with spaced repetition | Open. Drill queue exists; scheduling and retest do not. |
+| 3 | "My Repertoire" as a visual tree with strong lines, weak lines and gaps | Partly. The tree is inferred (`repertoire.build_repertoire`) and gaps are found; it is not yet drawn or editable. |
+| 4 | Four kinds of problem: objective / practical / knowledge gap / low confidence | **Done.** `classify()` decides; the dashboard colours each one. |
+| 5 | "What are you not ready for?" with Learn / Practice / Ignore | Mostly. The section ships; the three actions do not. |
+| 6 | Varied practice: best move, opponent's idea, continue the line, explain why, timed | Open. One mode today. |
+| 7 | Track improvement: "you fixed this", before/after, weakness score over time | Open. Needs run history (Phase 6). |
+| 8 | Let users commit to their own repertoire choice and stop re-flagging it | Open. The highest-value item left; needs the tree persisted. |
+| 9 | Simplify the UI around Dashboard → My Repertoire → Fix Mistakes → Practice → Progress | Open. Sections are in that order but the navigation still mirrors the pipeline. |
+
+### Item 4 — how the four kinds are decided
+
+An engine drop outranks everything, including a thin sample: whether a move throws away a
+piece is a property of the position, not of how often it has been played. The win-rate flags
+are the opposite — they are claims about the player's *results*, so on thin evidence they are
+downgraded to "worth watching" rather than asserted. Coverage gaps are their own kind:
+nothing has gone wrong yet, and the response is preparation rather than correction.
+
+### Item 1 — where the "why" comes from
+
+The engine already searched the position after the played move in order to score it, and was
+discarding that search's principal variation. That first move is the refutation — the reply
+the player walked into — and comparing material across the two plies turns it into a sentence.
+No extra search, and the precomputed store carries the same thing.
+
+---
+
 ## Cross-cutting, do alongside
 
 | Item | Finding | Note |
@@ -315,7 +348,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample

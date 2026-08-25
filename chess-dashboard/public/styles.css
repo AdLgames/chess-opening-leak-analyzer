@@ -273,6 +273,13 @@ td.move-cell { font-family: var(--mono); font-weight: 500; }
 }
 .chip-eval { color: var(--bad); background: var(--bad-soft); border-color: rgba(224, 106, 95, 0.35); }
 .chip-win { color: var(--accent); background: var(--accent-soft); border-color: rgba(227, 164, 75, 0.35); }
+
+/* The four kinds of problem, each a different colour because each wants a different
+   response: learn the move, reconsider the line, prepare for it, or wait for more games. */
+.chip.cat-objective { color: var(--bad); background: var(--bad-soft); border-color: rgba(224, 106, 95, 0.4); }
+.chip.cat-practical { color: var(--accent); background: var(--accent-soft); border-color: rgba(227, 164, 75, 0.4); }
+.chip.cat-knowledge { color: var(--book); background: var(--book-soft); border-color: rgba(121, 169, 201, 0.4); }
+.chip.cat-unproven  { color: var(--text-faint); background: var(--surface-3); border-color: var(--border); }
 .chip-off { color: var(--book); background: var(--book-soft); border-color: rgba(121, 169, 201, 0.35); }
 
 .empty, .detail-empty { padding: 40px 20px; text-align: center; display: flex; flex-direction: column; gap: 6px; }

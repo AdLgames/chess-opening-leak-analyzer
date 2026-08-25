@@ -67,6 +67,8 @@ class PositionEval:
     played_rank: int | None    # rank of the played move in the engine's MultiPV list
     alternatives: list[Alternative]
     depth: int
+    refutation_uci: str = ""   # the opponent's best reply to the move actually played
+    refutation_san: str = ""
 
     @property
     def eval_drop_pawns(self) -> float:
@@ -208,12 +210,19 @@ class EngineAnalyzer:
         best_cp = alts[0].cp if alts else 0
         played_rank = next((i + 1 for i, a in enumerate(alts) if a.uci == played_uci), None)
 
+        refutation_uci = refutation_san = ""
         if played_rank == 1:
             played_cp = best_cp
         else:
             board.push(move)
             info = self._engine.analyse(board, self._limit())
             played_cp = _cp(info["score"], mover)
+            # The reply the engine expects is what the player actually walked into, and it
+            # is already in this search — worth keeping rather than throwing away.
+            reply = (info.get("pv") or [None])[0]
+            if reply is not None:
+                refutation_uci = reply.uci()
+                refutation_san = board.san(reply)
             board.pop()
 
         result = PositionEval(
@@ -227,6 +236,8 @@ class EngineAnalyzer:
             played_rank=played_rank,
             alternatives=alts,
             depth=self.depth,
+            refutation_uci=refutation_uci,
+            refutation_san=refutation_san,
         )
         self._cache[key] = asdict(result)
         return result

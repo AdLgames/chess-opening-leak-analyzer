@@ -309,6 +309,7 @@ class EvalStore:
             return None
 
         best_cp = alternatives[0].cp
+        refutation_uci = refutation_san = ""
         if played_rank == 1:
             played_cp = best_cp
         else:
@@ -316,6 +317,15 @@ class EvalStore:
             if after is None or not after.pvs:
                 return None
             played_cp = -after.best_cp  # the child is scored for the opponent
+            # The opponent's best reply is the move the player walked into.
+            reply = (after.pvs[0].get("line") or "").split()
+            if reply:
+                try:
+                    reply_move = chess.Move.from_uci(reply[0])
+                    refutation_san = child.san(reply_move)
+                    refutation_uci = reply[0]
+                except (ValueError, AssertionError):
+                    pass
 
         return PositionEval(
             fen=fen,
@@ -328,6 +338,8 @@ class EvalStore:
             played_rank=played_rank,
             alternatives=alternatives,
             depth=here.depth,
+            refutation_uci=refutation_uci,
+            refutation_san=refutation_san,
         )
 
     def close(self) -> None:

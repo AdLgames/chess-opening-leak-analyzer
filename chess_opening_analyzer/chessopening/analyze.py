@@ -1,6 +1,7 @@
 """Aggregate PGN opening decisions, cross-reference Lichess stats, add engine verdicts, write CSVs."""
 from __future__ import annotations
 
+import chess
 import csv
 import os
 import time
@@ -73,7 +74,11 @@ REPORT_FIELDS = [
     "your_score_lo_pct",
     "your_score_hi_pct",
     "confidence",
+    "category",
+    "category_label",
     "explanation",
+    "consequence",
+    "refutation",
     "baseline_pct",
     "baseline_source",
     "baseline_games",
@@ -168,6 +173,85 @@ def _round_pct(fraction: float) -> int:
     return int(100 * fraction + 0.5)
 
 
+# Four kinds of problem, because they need four different responses. An objective mistake is
+# a fact about the position and wants the correct move learned. A practical weakness is a
+# fact about the player's results and may want a different line altogether. A knowledge gap
+# wants preparation for something that has not happened yet. And a finding on thin evidence
+# wants nothing except another month of games.
+CATEGORIES = {
+    "objective": ("Loses ground", "The move itself is the problem: it hands over material or the advantage."),
+    "practical": ("Not working for you", "Playable, but your results with it are well below what the position is worth."),
+    "knowledge": ("Unfamiliar", "A position you will meet but have barely played."),
+    "unproven": ("Worth watching", "Too few games so far to be sure this is real."),
+}
+
+
+def classify(flags: list[str], confidence: str, eval_drop_pawns: float, threshold: float) -> str:
+    """Which of the four kinds of problem this finding is.
+
+    An engine drop outranks everything, including a thin sample: whether a move throws away
+    a piece is a property of the position, not of how many times it has been played. The
+    win-rate flags are the opposite — they are claims about the player's results, so on thin
+    evidence they are downgraded to `unproven` rather than asserted.
+    """
+    if eval_drop_pawns >= threshold:
+        return "objective"
+    if confidence == "low":
+        return "unproven"
+    if "WINRATE_DECLINE" in flags:
+        return "practical"
+    return "practical" if "OFFBEAT_MOVE" in flags else "unproven"
+
+
+def describe_consequence(fen: str, played_uci: str, refutation_uci: str) -> str:
+    """What the opponent's reply actually wins, in words.
+
+    "The engine prefers Bc4" tells a club player nothing. "Black replies Nxe5, winning a
+    piece" tells them what they missed, and it is derivable from the two moves themselves.
+    """
+    if not refutation_uci:
+        return ""
+    try:
+        board = chess.Board(fen)
+        mover = board.turn
+        before = _material(board, mover)
+        played = chess.Move.from_uci(played_uci)
+        # push() does not check legality, so a bad move would otherwise produce a
+        # confident sentence about a position that cannot happen.
+        if played not in board.legal_moves:
+            return ""
+        board.push(played)
+        reply_move = chess.Move.from_uci(refutation_uci)
+        if reply_move not in board.legal_moves:
+            return ""
+        reply_san = board.san(reply_move)
+        board.push(reply_move)
+        lost = before - _material(board, mover)
+    except (ValueError, AssertionError, IndexError):
+        return ""
+
+    side = "Black" if mover == chess.WHITE else "White"
+    # Bands named the way a player would say it. "A piece" starts at 200 so that winning a
+    # knight for a pawn — the commonest opening disaster there is — reads as a piece rather
+    # than being mistaken for the exchange, which is specifically rook for minor.
+    for cost, name in ((800, "the queen"), (400, "a rook"), (200, "a piece"),
+                       (140, "the exchange"), (60, "a pawn")):
+        if lost >= cost:
+            return f"{side} replies {reply_san}, winning {name}."
+    return f"{side} replies {reply_san}, and the position turns against you."
+
+
+def _material(board: chess.Board, color: chess.Color) -> int:
+    """Material in centipawns from `color`'s point of view."""
+    values = {chess.PAWN: 100, chess.KNIGHT: 320, chess.BISHOP: 330,
+              chess.ROOK: 500, chess.QUEEN: 900}
+    total = 0
+    for piece_type, value in values.items():
+        total += value * len(board.pieces(piece_type, color))
+        total -= value * len(board.pieces(piece_type, not color))
+    return total
+
+
 def confidence_label(your_games: int, baseline_games: int, baseline_source: str) -> str:
     """How much weight the reader should put on this row's comparison.
 
@@ -209,11 +293,18 @@ def explain(
             parts.append(f" — about {shed:.1f} points of results given away")
     parts.append(".")
 
-    if ev is not None and ev.eval_drop_pawns > 0:
-        worse = f" Stockfish rates it {ev.eval_drop_pawns:.1f} pawns worse"
-        parts.append(f"{worse} than {best_san}." if best_san else f"{worse} than the best move here.")
-    elif best_san:
-        parts.append(f" {best_san} is the engine's choice instead.")
+    # What actually goes wrong, rather than which move an engine happens to prefer.
+    consequence = describe_consequence(node.fen, node.played_uci, ev.refutation_uci if ev else "")
+    if consequence:
+        parts.append(f" {consequence}")
+    if best_san:
+        instead = f" {best_san} keeps the position in hand"
+        if ev is not None and ev.eval_drop_pawns > 0:
+            parts.append(f"{instead} — {ev.eval_drop_pawns:.1f} pawns better than what you played.")
+        else:
+            parts.append(f"{instead}.")
+    elif ev is not None and ev.eval_drop_pawns > 0:
+        parts.append(f" The engine rates it {ev.eval_drop_pawns:.1f} pawns worse than the best move here.")
 
     if confidence == "low":
         parts.append(" Based on few games so far, so treat it as a hint rather than a verdict.")
@@ -399,6 +490,11 @@ def analyze(
             )
 
         confidence = confidence_label(node.n, baseline_games, baseline_source)
+        category = classify(flags, confidence, ev.eval_drop_pawns if ev else 0.0,
+                            eval_drop_threshold)
+        consequence = describe_consequence(
+            node.fen, node.played_uci, ev.refutation_uci if ev else ""
+        )
         explanation = explain(
             node, baseline, baseline_source, baseline_games, ev,
             alt_cells.get("engine_best_1", ""), confidence,
@@ -423,7 +519,11 @@ def analyze(
             "your_score_lo_pct": _pct(your_lo),
             "your_score_hi_pct": _pct(your_hi),
             "confidence": confidence,
+            "category": category,
+            "category_label": CATEGORIES[category][0],
             "explanation": explanation,
+            "consequence": consequence,
+            "refutation": ev.refutation_san if ev else "",
             "baseline_pct": _pct(baseline),
             "baseline_source": baseline_source,
             "baseline_games": baseline_games or "",

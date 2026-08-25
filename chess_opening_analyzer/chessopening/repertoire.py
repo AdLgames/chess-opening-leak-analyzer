@@ -165,6 +165,10 @@ def find_gaps(
                     "times_faced": seen,
                     "book_games": move.games,
                     "player_color": color,
+                    # A gap is its own kind of problem: nothing has gone wrong yet, and the
+                    # response is preparation rather than correction.
+                    "category": "knowledge",
+                    "category_label": "Unfamiliar",
                     "fen": child.fen(),
                     "explanation": _explain(move.san, line, share, seen, name),
                 })
@@ -191,6 +195,6 @@ def _explain(reply: str, line: list[str], share: float, seen: int, name: str) ->
 
 
 COVERAGE_FIELDS = [
-    "reach_pct", "share_pct", "times_faced", "player_color", "eco", "opening",
+    "reach_pct", "share_pct", "times_faced", "player_color", "category", "eco", "opening",
     "line", "reply", "book_games", "fen", "explanation",
 ]

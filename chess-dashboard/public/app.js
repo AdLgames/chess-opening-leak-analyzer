@@ -632,23 +632,20 @@ function sortedRows() {
     });
 }
 
-/* What each flag means in words. The codes stay in the CSV for anyone parsing it; nobody
-   reading the page should have to learn them. */
-const FLAGS = {
-  EVAL_DROP: { label: 'gives ground', cls: 'chip-eval', why: 'The engine says this move hands over the advantage.' },
-  WINRATE_DECLINE: { label: 'scores badly', cls: 'chip-win', why: 'You score below what this position is worth.' },
-  OFFBEAT_MOVE: { label: 'rare move', cls: 'chip-off', why: "Almost nobody plays this, and it isn't working for you." },
+/* Four kinds of problem, because they call for four different responses: learn the right
+   move, reconsider the line, prepare for something unmet, or simply play more games. The
+   server decides which; this is only how it looks. */
+const CATEGORIES = {
+  objective: { label: 'Loses ground', cls: 'cat-objective', why: 'The move itself is the problem: it hands over material or the advantage.' },
+  practical: { label: 'Not working for you', cls: 'cat-practical', why: 'Playable, but your results with it are well below what the position is worth.' },
+  knowledge: { label: 'Unfamiliar', cls: 'cat-knowledge', why: 'A position you will meet but have barely played.' },
+  unproven: { label: 'Worth watching', cls: 'cat-unproven', why: 'Too few games so far to be sure this is real.' },
 };
 
-function flagChips(flag) {
-  return (flag || '')
-    .split('+')
-    .filter(Boolean)
-    .map((f) => {
-      const meta = FLAGS[f] || { label: f.toLowerCase().replace(/_/g, ' '), cls: 'chip-off', why: '' };
-      return `<span class="chip ${meta.cls}" title="${esc(meta.why)}">${esc(meta.label)}</span>`;
-    })
-    .join(' ');
+function categoryChip(row) {
+  const meta = CATEGORIES[row.category] || CATEGORIES.unproven;
+  const label = row.category_label || meta.label;
+  return `<span class="chip ${meta.cls}" title="${esc(meta.why)}">${esc(label)}</span>`;
 }
 
 function renderTable() {
@@ -662,7 +659,7 @@ function renderTable() {
       const you = num(r.your_score_pct);
       return `<tr data-i="${i}" class="${state.selected && state.selected.fen === r.fen && state.selected.your_move === r.your_move ? 'is-selected' : ''}">
         <td class="num">${fmt(r.priority, 1)}</td>
-        <td>${flagChips(r.flag)}</td>
+        <td>${categoryChip(r)}</td>
         <td class="opening-cell"><span class="truncate" title="${esc(r.opening)}">${esc(r.opening || r.eco || '—')}</span></td>
         <td class="line-cell"><span class="truncate" title="${esc(r.variation_line)}">${esc(r.variation_line)}</span></td>
         <td class="move-cell">${r.move_number}${r.player_color === 'white' ? '.' : '…'} ${esc(r.your_move)}</td>
@@ -723,7 +720,7 @@ function selectRow(r) {
   $('detailEmpty').hidden = true;
   $('detailBody').hidden = false;
   $('posHint').textContent = `${r.eco || '—'} · move ${r.move_number} as ${r.player_color}`;
-  $('detailFlag').outerHTML = `<span class="chip" id="detailFlag">${flagChips(r.flag) || '—'}</span>`;
+  $('detailFlag').outerHTML = categoryChip(r).replace('<span class="chip', '<span id="detailFlag" class="chip');
   $('detailOpening').textContent = r.opening || r.eco || 'Unclassified';
   $('detailLine').textContent = r.variation_line;
   // The server writes one plain sentence per finding, so the CLI, the API and both
