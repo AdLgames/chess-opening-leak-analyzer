@@ -32,6 +32,7 @@ const state = {
   selected: null,
   charts: {},
   meta: null,
+  marks: {},
 };
 
 const num = (v) => {
@@ -520,6 +521,72 @@ function renderCoverage(s) {
     .join('');
 }
 
+/* What the player has decided about their own openings. A tool that keeps arguing with a
+   deliberate choice is one people stop believing, so these decisions are read back on load
+   and sent to the server the moment they are made. */
+const markKey = (row) => `${(row.fen || '').split(' ').slice(0, 4).join(' ')}|${row.player_color}`;
+
+async function loadMarks() {
+  try {
+    const { marks } = await (await fetch(`${API}/api/repertoire`)).json();
+    state.marks = {};
+    (marks || []).forEach((m) => {
+      state.marks[`${m.epd}|${m.color}`] = m;
+    });
+  } catch {
+    state.marks = {}; // no decisions is a perfectly good state
+  }
+}
+
+/* A decision only applies to the move it was made about — if the player has since
+   switched, the old decision is not theirs to hide behind. */
+function currentMark(row) {
+  if (!row) return null;
+  const mark = state.marks[markKey(row)];
+  return mark && mark.uci === row.your_move_uci ? mark : null;
+}
+
+function renderDecision(row) {
+  const mark = currentMark(row);
+  const label = $('decideState');
+  const clear = $('clearDecision');
+  if (!mark) {
+    label.textContent = '';
+    label.className = 'decide-state';
+    clear.hidden = true;
+    return;
+  }
+  label.textContent =
+    mark.decision === 'committed'
+      ? `${mark.san || 'This move'} is yours — only position problems will be reported`
+      : 'Hidden from future reports';
+  label.className = 'decide-state' + (mark.decision === 'ignored' ? ' is-ignored' : '');
+  clear.hidden = false;
+}
+
+async function decide(decision) {
+  const row = state.selected;
+  if (!row) return;
+  const epd = (row.fen || '').split(' ').slice(0, 4).join(' ');
+  try {
+    await fetch(`${API}/api/repertoire`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        epd,
+        color: row.player_color,
+        uci: row.your_move_uci || '',
+        san: row.your_move || '',
+        decision,
+      }),
+    });
+    await loadMarks();
+    renderDecision(row);
+  } catch (err) {
+    $('decideState').textContent = `Could not save that: ${err.message}`;
+  }
+}
+
 function showKpiSkeleton() {
   $('kpis').innerHTML = Array.from({ length: 6 })
     .map(() => '<div class="kpi kpi-skeleton"><div class="kpi-label">loading</div><div class="kpi-value">0.0</div><div class="kpi-note">loading</div></div>')
@@ -728,6 +795,7 @@ function selectRow(r) {
   $('detailExplain').textContent = r.explanation || '';
   $('fenText').textContent = r.fen;
   $('lichessLink').href = `https://lichess.org/analysis/standard/${encodeURIComponent(r.fen.replace(/ /g, '_'))}`;
+  renderDecision(r);
   if (window.Study) window.Study.review(r);
   else renderBoardStatic(r.fen);
 
@@ -898,6 +966,9 @@ function wire() {
       renderTable();
     })
   );
+  $('commitMove').addEventListener('click', () => decide('committed'));
+  $('ignoreFinding').addEventListener('click', () => decide('ignored'));
+  $('clearDecision').addEventListener('click', () => decide('clear'));
   $('copyFen').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText($('fenText').textContent);
@@ -943,3 +1014,4 @@ wire();
 if (window.Study) window.Study.init(API);
 bootAccount();
 loadMeta();
+loadMarks();

@@ -379,6 +379,12 @@
                   <button class="btn btn-ghost" id="reviewFlip">Flip</button>
                   <button class="btn btn-primary" id="reviewDrill">Drill this one</button>
                 </div>
+                <div class="board-bar decide-bar">
+                  <button class="btn btn-ghost" id="commitMove" title="Judge the position, but stop telling me others prefer something else">This is my move</button>
+                  <button class="btn btn-ghost" id="ignoreFinding" title="Never show this finding again">Not interested</button>
+                  <button class="btn btn-ghost" id="clearDecision" hidden>Undo my decision</button>
+                  <span class="decide-state" id="decideState"></span>
+                </div>
                 <label class="check"><input type="checkbox" id="reviewAuto" checked /><span>The book answers your moves</span></label>
                 <p class="fen mono" id="fenText"></p>
                 <div class="board-links">

@@ -35,6 +35,7 @@ from chessopening.engine import find_engine
 from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch_games,
                                  lookup_player, provider_label, speeds_from_csv)
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase
+from chessopening.marks import DEFAULT_STATE, MarkStore
 from chessopening.pgn_loader import detect_main_player, find_pgn_files
 from chessopening.summary import summarise
 
@@ -411,6 +412,48 @@ def openings(q: str = "", limit: int = 30) -> dict[str, Any]:
     if db is None:
         raise HTTPException(503, "No local opening database installed")
     return {"query": q, "results": db.search_openings(q, max(1, min(int(limit), 100)))}
+
+
+@app.get("/api/repertoire")
+def repertoire_marks() -> dict[str, Any]:
+    """Every decision the player has recorded about their own openings."""
+    store = MarkStore(DEFAULT_STATE)
+    try:
+        return {"marks": store.listing()}
+    finally:
+        store.close()
+
+
+@app.post("/api/repertoire")
+def set_repertoire_mark(payload: dict[str, Any]) -> dict[str, Any]:
+    """Commit to a move, ignore a finding, or undo either.
+
+    `decision: "clear"` removes whatever was there, so the player can change their mind
+    without a second endpoint.
+    """
+    epd = str(payload.get("epd") or "").strip()
+    color = str(payload.get("color") or "").strip()
+    decision = str(payload.get("decision") or "").strip()
+    if not epd or color not in ("white", "black"):
+        raise HTTPException(400, "epd and a colour of white or black are required")
+
+    store = MarkStore(DEFAULT_STATE)
+    try:
+        if decision == "clear":
+            return {"ok": True, "cleared": store.clear(epd, color)}
+        try:
+            mark = store.set(
+                epd, color,
+                str(payload.get("uci") or "").strip(),
+                decision,
+                san=str(payload.get("san") or "").strip(),
+                note=str(payload.get("note") or "").strip(),
+            )
+        except ValueError as err:
+            raise HTTPException(400, str(err)) from err
+        return {"ok": True, "mark": mark.__dict__}
+    finally:
+        store.close()
 
 
 @app.get("/api/health")

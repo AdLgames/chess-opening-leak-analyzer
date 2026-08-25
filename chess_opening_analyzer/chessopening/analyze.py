@@ -12,6 +12,7 @@ from .engine import EngineAnalyzer, PositionEval
 from .evalstore import DEFAULT_EVALS, open_store
 from .explorer import BOOK_PRIOR_GAMES, OpeningExplorer, PositionStats, Z_CONFIDENCE, score_interval
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
+from .marks import DEFAULT_STATE, filter_flags, load_marks
 from .pgn_loader import GameSummary, PlyRecord, load_games
 from .repertoire import COVERAGE_FIELDS, find_gaps
 
@@ -65,6 +66,7 @@ REPORT_FIELDS = [
     "ply",
     "player_color",
     "your_move",
+    "your_move_uci",
     "fen",
     "your_games",
     "your_wins",
@@ -76,6 +78,7 @@ REPORT_FIELDS = [
     "confidence",
     "category",
     "category_label",
+    "committed",
     "explanation",
     "consequence",
     "refutation",
@@ -273,6 +276,7 @@ def explain(
     ev: PositionEval | None,
     best_san: str,
     confidence: str,
+    committed: bool = False,
 ) -> str:
     """One plain sentence saying what is wrong, for a reader who does not know what a
     centipawn is. Built from figures already computed, so the CLI, the API and both
@@ -308,6 +312,11 @@ def explain(
 
     if confidence == "low":
         parts.append(" Based on few games so far, so treat it as a hint rather than a verdict.")
+    if committed:
+        # They have already chosen this line. Say why it is still here rather than
+        # repeating an argument they have settled.
+        parts.append(" This is your chosen move, and it is only listed because the position "
+                     "itself goes wrong here — not because others prefer something else.")
     return "".join(parts)
 
 
@@ -331,6 +340,8 @@ def analyze(
     confidence_z: float = Z_CONFIDENCE,
     no_evals: bool = False,
     eval_store_path: str = DEFAULT_EVALS,
+    marks_path: str = DEFAULT_STATE,
+    no_marks: bool = False,
     coverage_off: bool = False,
     coverage_min_reach: float = 0.02,
     db: str = "lichess",
@@ -428,6 +439,12 @@ def analyze(
                     eng.flush()
 
     # ---- Rows ----
+    # What the player has already decided about these positions. A choice they have made
+    # deliberately should not be re-argued every run.
+    marks = {} if no_marks else load_marks(marks_path)
+    if marks:
+        log(f"Repertoire decisions on file: {len(marks)}")
+    suppressed = 0
     rows: list[dict] = []
     for key, node in repeated.items():
         stats = pos_stats.get(node.epd)
@@ -471,6 +488,14 @@ def analyze(
         if not flags:
             continue
 
+        mark = marks.get((node.epd, node.player_color))
+        surviving = filter_flags(flags, mark, node.played_uci)
+        if surviving is None:
+            suppressed += 1
+            continue
+        committed = mark is not None and mark.uci == node.played_uci and mark.decision == "committed"
+        flags = surviving
+
         lost_points = round(-gap * node.n, 2) if gap is not None and gap < 0 else 0.0
         # What is lost even on the most generous reading of the player's record. Ranking on
         # this rather than the observed figure sinks thin evidence without hiding it.
@@ -497,7 +522,7 @@ def analyze(
         )
         explanation = explain(
             node, baseline, baseline_source, baseline_games, ev,
-            alt_cells.get("engine_best_1", ""), confidence,
+            alt_cells.get("engine_best_1", ""), confidence, committed=committed,
         )
 
         rows.append({
@@ -510,6 +535,7 @@ def analyze(
             "ply": node.ply,
             "player_color": node.player_color,
             "your_move": node.played_san,
+            "your_move_uci": node.played_uci,
             "fen": node.fen,
             "your_games": node.n,
             "your_wins": node.wins,
@@ -521,6 +547,7 @@ def analyze(
             "confidence": confidence,
             "category": category,
             "category_label": CATEGORIES[category][0],
+            "committed": "yes" if committed else "",
             "explanation": explanation,
             "consequence": consequence,
             "refutation": ev.refutation_san if ev else "",
@@ -567,6 +594,8 @@ def analyze(
             n = win + draw + loss
             w.writerow([eco, opening, n, win, draw, loss, f"{100 * (win + 0.5 * draw) / n:.1f}"])
 
+    if suppressed:
+        log(f"{suppressed} finding(s) held back by your own repertoire decisions")
     log(f"Wrote {len(rows)} flagged rows -> {report_path}")
     log(f"Wrote variation rollup -> {summary_path}")
 
@@ -597,5 +626,6 @@ def analyze(
         "report": report_path,
         "summary": summary_path,
         "explorer_stats": explorer.stats,
+        "suppressed_by_marks": suppressed,
         "notes": notes,
     }

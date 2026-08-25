@@ -377,6 +377,12 @@ td.move-cell { font-family: var(--mono); font-weight: 500; }
   color: var(--text);
 }
 .explain:empty { display: none; }
+
+/* Deciding about a line, rather than only reading about it. */
+.decide-bar { margin-top: -4px; }
+.decide-state { font-size: 12px; color: var(--good); align-self: center; }
+.decide-state.is-ignored { color: var(--text-faint); }
+.chip.is-committed { color: var(--good); background: var(--good-soft); border-color: rgba(88, 185, 141, 0.4); }
 .confidence { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; }
 .confidence.is-low { color: var(--bad); opacity: 1; }
 

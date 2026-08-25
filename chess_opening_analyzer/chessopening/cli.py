@@ -8,6 +8,7 @@ from .analyze import analyze
 from .engine import bundled_engine
 from .ingest import DEFAULT_CACHE, FetchOptions, IngestError, fetch_games, speeds_from_csv
 from .evalstore import DEFAULT_EVALS
+from .marks import DEFAULT_STATE
 from .localdb import DEFAULT_DB
 from .pgn_loader import detect_main_player, find_pgn_files
 
@@ -51,6 +52,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-engine", action="store_true", help="Skip Stockfish, database comparison only")
     p.add_argument("--eval-store", default=DEFAULT_EVALS,
                    help="Precomputed evaluations built by tools/ingest_evals.py")
+    p.add_argument("--marks-db", default=DEFAULT_STATE,
+                   help="Where your repertoire decisions are kept")
+    p.add_argument("--no-marks", action="store_true",
+                   help="Report everything, ignoring decisions you have recorded")
     p.add_argument("--no-evals", action="store_true",
                    help="Ignore the precomputed store and evaluate everything with the engine")
     # explorer
@@ -133,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
         offline=args.offline,
         no_engine=args.no_engine,
         no_evals=args.no_evals,
+        marks_path=args.marks_db,
+        no_marks=args.no_marks,
         eval_store_path=args.eval_store,
     )
     print(

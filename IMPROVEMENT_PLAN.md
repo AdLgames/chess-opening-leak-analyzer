@@ -306,7 +306,7 @@ Ten items, given as the target shape of the product. Mapped to what exists.
 | 5 | "What are you not ready for?" with Learn / Practice / Ignore | Mostly. The section ships; the three actions do not. |
 | 6 | Varied practice: best move, opponent's idea, continue the line, explain why, timed | Open. One mode today. |
 | 7 | Track improvement: "you fixed this", before/after, weakness score over time | Open. Needs run history (Phase 6). |
-| 8 | Let users commit to their own repertoire choice and stop re-flagging it | Open. The highest-value item left; needs the tree persisted. |
+| 8 | Let users commit to their own repertoire choice and stop re-flagging it | **Done.** `marks.py` records "this is my move" / "not interested"; committing drops the results argument and keeps the objective one. |
 | 9 | Simplify the UI around Dashboard → My Repertoire → Fix Mistakes → Practice → Progress | Open. Sections are in that order but the navigation still mirrors the pipeline. |
 
 ### Item 4 — how the four kinds are decided
@@ -323,6 +323,40 @@ The engine already searched the position after the played move in order to score
 discarding that search's principal variation. That first move is the refutation — the reply
 the player walked into — and comparing material across the two plies turns it into a sentence.
 No extra search, and the precomputed store carries the same thing.
+
+---
+
+## Item 8 — the player's own decisions
+
+**Status: done**
+
+A tool that keeps flagging a move you have deliberately chosen is a tool you stop believing.
+`marks.py` records a decision against a position and side:
+
+- **committed** — this is my move. The *results* argument is dropped: the win-rate comparison
+  and the popularity complaint, both of which really say "most people prefer something else",
+  and the player has already had that argument. What survives is the engine drop, because
+  whether a move loses material is a fact about the position rather than a matter of taste.
+  That is exactly the "unless they're objectively problematic" line.
+- **ignored** — I have seen this and do not want it again. Silences everything.
+
+A decision applies only to the move it was made about: switching to a different move is a new
+choice and gets judged on its own. The two colours decide separately, since the same position
+can be reached from either side. Both are undoable.
+
+Kept in SQLite under `~/.local/share/leaklab/` — deliberately not under `~/.cache`, because a
+cache is by definition something you can throw away and this is what the player told us. The
+schema already carries a `user_id`, so accounts turn a constant into a real column and nothing
+else changes.
+
+Reached from the finding itself: *This is my move* / *Not interested* / *Undo my decision*,
+with `GET`/`POST /api/repertoire` behind them and `--marks-db` / `--no-marks` on the CLI.
+
+Verified end to end: committing to a move with `WINRATE_DECLINE+EVAL_DROP` leaves
+`EVAL_DROP` alone and the finding explains why it is still listed; committing to a
+win-rate-only finding removes it; ignoring removes one outright; and a decision about
+2.Nf3 after 1.e4 e5 correctly leaves 2.Nf3 in the Sicilian alone, because the key is the
+position rather than the move's name.
 
 ---
 
@@ -348,7 +382,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample
