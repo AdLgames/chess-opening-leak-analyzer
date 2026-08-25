@@ -17,6 +17,19 @@
   };
 
   const DEPTH = 12;
+  const CLOCK_SECONDS = 30;
+  // How deep "play the line" goes before calling it held. Four of the player's moves is
+  // about where a club repertoire actually stops being memorised.
+  const LINE_PLIES = 4;
+
+  const TASKS = {
+    best: 'Find the improvement',
+    punish: 'Punish the mistake',
+    line: 'Play the line',
+    why: 'Explain the mistake',
+  };
+
+  const clockText = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
   let apiBase = '';
   const state = {
     rows: [],
@@ -346,46 +359,120 @@
       const row = this.queue[this.index];
       this.row = row;
       this.answered = false;
-      // "Find the punishment" asks from the other side of the board, after the mistake has
-      // been played — which is the position the player kept walking into.
-      this.punishing = this.mode === 'punish' && !!row.refutation;
-      const side = this.punishing
+      this.stopClock();
+      this.linePlies = [];
+
+      // Each mode asks a different question about the same mistake, and two of them ask it
+      // from the other side of the board or with the mistake already on it. Working out
+      // what to show is kept here so `attempt` only has to grade.
+      const usable = this.usableMode(row);
+      this.punishing = usable === 'punish';
+      this.explaining = usable === 'why';
+      this.playingLine = usable === 'line';
+      const fromOpponentSide = this.punishing || this.explaining;
+      const side = fromOpponentSide
         ? (row.player_color === 'black' ? 'white' : 'black')
         : (row.player_color === 'black' ? 'black' : 'white');
       if (!this.board) {
         this.board = new LB.Board($('drillBoard'), { orientation: side, onMove: (m) => this.attempt(m) });
       }
       this.board.setOrientation(side);
-      this.pos = this.punishing
+      // Punish and explain both show the position *after* the mistake — that is the one the
+      // player keeps walking into, and the one worth recognising.
+      this.pos = fromOpponentSide
         ? await LB.position(row.fen, [row.your_move_uci])
         : await LB.position(row.fen);
-      this.board.setPosition(this.pos.fen, { legal: this.pos.legal });
-      $('drillTask').textContent = this.punishing
-        ? 'Punish the mistake'
-        : 'Find the improvement';
-      if (this.punishing) {
-        $('drillPrompt').innerHTML =
-          `<b>${esc(row.opening || row.eco || 'Unnamed opening')}</b><br />` +
-          `<span class="mono">${esc(row.variation_line || '')}</span><br />` +
-          `You have played <b>${esc(row.your_move)}</b> here ${row.your_games} time` +
-          `${+row.your_games === 1 ? '' : 's'}. Take the other side and show why it does not work.`;
-        $('drillFeedback').hidden = true;
-        $('drillFeedback').className = 'drill-feedback';
-        $('drillCount').textContent = `${this.index + 1} / ${this.queue.length}`;
-        $('nextBtn').disabled = this.index >= this.queue.length - 1;
-        this.renderQueue();
-        return;
-      }
-      const scored = num(row.your_score_pct);
-      $('drillPrompt').innerHTML =
-        `<b>${esc(row.opening || row.eco || 'Unnamed opening')}</b> · move ${row.move_number} as ${esc(side)}<br />` +
-        `<span class="mono">${esc(row.variation_line || '')}</span><br />` +
-        `You have played <b>${esc(row.your_move)}</b> here ${row.your_games} time${+row.your_games === 1 ? '' : 's'}` +
-        `${scored === null ? '' : `, scoring ${scored.toFixed(0)}%`}. Find something better.`;
+      this.board.setPosition(this.pos.fen, { legal: this.explaining ? [] : this.pos.legal });
+
+      $('drillTask').textContent = TASKS[usable];
+      $('drillPrompt').innerHTML = this.promptFor(usable, row, side);
       $('drillFeedback').hidden = true;
       $('drillFeedback').className = 'drill-feedback';
+      $('drillSelfGrade').hidden = !this.explaining;
+      $('whyAnswer').hidden = true;
+      $('whyButtons').hidden = true;
+      $('whyReveal').hidden = false;
       $('drillCount').textContent = `${this.index + 1} / ${this.queue.length}`;
       $('nextBtn').disabled = this.index >= this.queue.length - 1;
+      this.renderQueue();
+      // No clock on "explain why": there is nothing to type, and the honest answer to
+      // "did you know this" is not improved by rushing it.
+      if ($('drillClock').checked && !this.explaining) this.startClock();
+    },
+
+    /* A row may not support the mode that is selected — nothing to punish without a
+       refutation, nothing to explain without one either. Falling back is better than an
+       empty board, and the prompt says which question is actually being asked. */
+    usableMode(row) {
+      if ((this.mode === 'punish' || this.mode === 'why') && !row.refutation) return 'best';
+      return this.mode || 'best';
+    },
+
+    promptFor(mode, row, side) {
+      const head = `<b>${esc(row.opening || row.eco || 'Unnamed opening')}</b>`;
+      const line = `<span class="mono">${esc(row.variation_line || '')}</span>`;
+      const played = `You have played <b>${esc(row.your_move)}</b> here ${row.your_games} ` +
+        `time${+row.your_games === 1 ? '' : 's'}`;
+      if (mode === 'punish') {
+        return `${head}<br />${line}<br />${played}. Take the other side and show why it does not work.`;
+      }
+      if (mode === 'why') {
+        return `${head}<br />${line}<br />${played}, and it is the move the report flagged. ` +
+          'Before looking: what does your opponent get out of it?';
+      }
+      if (mode === 'line') {
+        return `${head}<br />${line}<br />${played}. Play the improvement, and keep going — ` +
+          'your opponent will answer from the book after each move.';
+      }
+      const scored = num(row.your_score_pct);
+      return `${head} · move ${row.move_number} as ${esc(side)}<br />${line}<br />${played}` +
+        `${scored === null ? '' : `, scoring ${scored.toFixed(0)}%`}. Find something better.`;
+    },
+
+    /* ---------------------------------------------------------------- the clock */
+    startClock() {
+      const el = $('drillCountdown');
+      el.hidden = false;
+      this.remaining = CLOCK_SECONDS;
+      el.textContent = clockText(this.remaining);
+      el.classList.remove('is-low');
+      this.clock = setInterval(() => {
+        this.remaining -= 1;
+        el.textContent = clockText(Math.max(0, this.remaining));
+        el.classList.toggle('is-low', this.remaining <= 10);
+        if (this.remaining <= 0) this.timeOut();
+      }, 1000);
+    },
+
+    stopClock() {
+      clearInterval(this.clock);
+      this.clock = null;
+      $('drillCountdown').hidden = true;
+      $('drillCountdown').classList.remove('is-low');
+    },
+
+    /* Running out counts as a miss. In a real game a move you cannot find in thirty
+       seconds is a move you do not have, and pretending otherwise makes the schedule
+       optimistic about what you know. */
+    async timeOut() {
+      this.stopClock();
+      if (this.answered) return;
+      this.answered = true;
+      const fb = $('drillFeedback');
+      fb.hidden = false;
+      fb.className = 'drill-feedback is-bad';
+      fb.innerHTML = '<b>Out of time</b><span>A move you cannot find in thirty seconds is ' +
+        'not one you have yet. Use "Show the answer", then it will come back sooner.</span>';
+      state.session.seen += 1;
+      state.session.missed += 1;
+      this.renderScore();
+      const res = await reviewSchedule.attempt(this.row, '', 400, true);
+      if (res) {
+        this.progress = res.progress;
+        fb.innerHTML += `<span class="muted">You will see this ${esc(res.due)}.</span>`;
+        this.renderScore();
+      }
+      this.queue = requeue(this.queue, this.index);
       this.renderQueue();
     },
 
@@ -422,7 +509,9 @@
     },
 
     async attempt(move) {
+      this.stopClock();
       if (this.punishing) return this.attemptPunish(move);
+      if (this.playingLine) return this.attemptLine(move);
       const fb = $('drillFeedback');
       fb.hidden = false;
       fb.className = 'drill-feedback';
@@ -496,6 +585,134 @@
 
     /* Graded against the refutation the report already found, so no engine call is needed
        and the verdict matches the sentence the finding gave. */
+    /* ------------------------------------------------- play the line
+       Knowing the one better move is not the same as knowing the line. Here the player
+       keeps going and the opponent answers from the book, which is what will actually
+       happen — and it is where most club repertoires quietly run out. */
+    async attemptLine(move) {
+      const fb = $('drillFeedback');
+      fb.hidden = false;
+      const book = this.pos.book && this.pos.book.moves ? this.pos.book.moves : [];
+      // Anything the book plays often enough to have an opinion about counts. This is a
+      // repertoire drill, not an engine test: the point is staying in known territory.
+      const approved = book.slice(0, 3).map((m) => m.uci);
+      const flagged = this.linePlies.length === 0 && move.uci === this.row.your_move_uci;
+      const ok = !flagged && (approved.includes(move.uci) ||
+        (this.linePlies.length === 0 && move.uci === this.row.engine_best_1_uci));
+
+      if (!ok) {
+        fb.className = 'drill-feedback is-bad';
+        const held = this.linePlies.length;
+        fb.innerHTML = flagged
+          ? `<b>That is the move being drilled</b><span>${esc(move.san)} is the one the ` +
+            'report flagged. Play something else here.</span>'
+          : `<b>Out of book after ${held} move${held === 1 ? '' : 's'}</b>` +
+            `<span>${esc(move.san)} is not one the book plays from here. ` +
+            (book.length
+              ? `It answers with ${esc(book.slice(0, 3).map((m) => m.san).join(', '))}.</span>`
+              : 'The book has nothing from this position at all.</span>');
+        this.board.setPosition(this.pos.fen, {
+          legal: this.pos.legal, arrows: [{ from: move.from, to: move.to, kind: 'played' }],
+        });
+        return this.gradeLine(false, move);
+      }
+
+      this.linePlies.push(move.san);
+      // The opponent answers with what opponents actually play: the book's most common
+      // reply, not the engine's best. Preparation has to survive ordinary opposition.
+      const after = await LB.position(move.fen_after);
+      const reply = after.book && after.book.moves && after.book.moves.length
+        ? after.book.moves[0] : null;
+      if (this.linePlies.length >= LINE_PLIES || !reply) {
+        this.pos = after;
+        this.board.setPosition(after.fen, { legal: [], lastMove: move });
+        fb.className = 'drill-feedback is-best';
+        fb.innerHTML = `<b>Held the line</b><span class="mono">${esc(this.linePlies.join(' '))}</span>` +
+          `<span>${reply ? 'That is as far as this drill goes.'
+            : 'The book runs out here — past this point you are on your own, which is worth knowing.'}</span>`;
+        return this.gradeLine(true, move);
+      }
+
+      const replyMove = after.legal.find((m) => m.uci === reply.uci);
+      this.pos = await LB.position(replyMove ? replyMove.fen_after : after.fen);
+      this.board.setPosition(this.pos.fen, {
+        legal: this.pos.legal,
+        lastMove: replyMove ? { from: replyMove.from, to: replyMove.to } : null,
+      });
+      this.linePlies.push(reply.san);
+      fb.className = 'drill-feedback is-good';
+      fb.innerHTML = `<b>${esc(move.san)} — in book</b>` +
+        `<span>Your opponent replies <b>${esc(reply.san)}</b>, the most common answer ` +
+        `(${reply.games.toLocaleString()} games). Keep going.</span>`;
+      if ($('drillClock').checked) this.startClock();
+    },
+
+    async gradeLine(held, move) {
+      if (this.answered) return;
+      this.answered = true;
+      this.stopClock();
+      state.session.seen += 1;
+      if (held) state.session.best += 1;
+      else state.session.missed += 1;
+      this.row.solved = held;
+      this.renderScore();
+      const res = await reviewSchedule.attempt(this.row, move.uci, held ? 0 : 400, false);
+      if (res) {
+        this.progress = res.progress;
+        $('drillFeedback').innerHTML += `<span class="muted">You will see this ${esc(res.due)}.</span>`;
+        this.renderScore();
+      }
+      if (!held) {
+        this.queue = requeue(this.queue, this.index);
+      }
+      this.renderQueue();
+    },
+
+    /* ------------------------------------------------- explain why
+       No move to grade, so the player grades themselves — which is how every
+       spaced-repetition system handles recall a machine cannot mark. */
+    revealWhy() {
+      const row = this.row;
+      $('whyReveal').hidden = true;
+      $('whyAnswer').hidden = false;
+      $('whyButtons').hidden = false;
+      $('whyAnswer').innerHTML =
+        `<b>${esc(row.refutation || '—')}</b> ` +
+        `<span>${esc(row.consequence || row.explanation || 'This is the reply that punishes it.')}</span>`;
+      const refutation = this.pos.legal.find((m) => m.san === row.refutation);
+      if (refutation) {
+        this.board.setPosition(this.pos.fen, {
+          legal: [], arrows: [{ from: refutation.from, to: refutation.to, kind: 'best' }],
+        });
+      }
+    },
+
+    async selfGrade(knew) {
+      if (this.answered) return;
+      this.answered = true;
+      $('whyButtons').hidden = true;
+      state.session.seen += 1;
+      if (knew) state.session.best += 1;
+      else state.session.missed += 1;
+      this.row.solved = knew;
+      this.renderScore();
+      const fb = $('drillFeedback');
+      fb.hidden = false;
+      fb.className = `drill-feedback is-${knew ? 'best' : 'ok'}`;
+      fb.innerHTML = knew
+        ? '<b>Known</b><span>Then the next step is not walking into it — try "Find the move".</span>'
+        : '<b>Worth knowing</b><span>This is the reason the move is flagged, rather than just ' +
+          'a number saying it scores badly.</span>';
+      const res = await reviewSchedule.attempt(this.row, '', knew ? 0 : 400, !knew);
+      if (res) {
+        this.progress = res.progress;
+        fb.innerHTML += `<span class="muted">You will see this ${esc(res.due)}.</span>`;
+        this.renderScore();
+      }
+      if (!knew) this.queue = requeue(this.queue, this.index);
+      this.renderQueue();
+    },
+
     async attemptPunish(move) {
       const fb = $('drillFeedback');
       fb.hidden = false;
@@ -741,12 +958,24 @@
     $('drillFlip').addEventListener('click', () => drill.board && drill.board.flip());
     document.querySelectorAll('#drillMode .seg').forEach((b) =>
       b.addEventListener('click', () => {
-        document.querySelectorAll('#drillMode .seg').forEach((x) => x.classList.remove('is-active'));
+        document.querySelectorAll('#drillMode .seg').forEach((x) => {
+          x.classList.remove('is-active');
+          x.setAttribute('aria-selected', 'false');
+        });
         b.classList.add('is-active');
+        b.setAttribute('aria-selected', 'true');
         drill.mode = b.dataset.mode;
         if (drill.queue.length) drill.load(drill.index);
       }),
     );
+    $('drillClock').addEventListener('change', () => {
+      if (drill.queue.length) drill.load(drill.index);
+    });
+    $('whyReveal').addEventListener('click', () => drill.revealWhy());
+    $('whyButtons').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-knew]');
+      if (btn) drill.selfGrade(btn.dataset.knew === 'yes');
+    });
 
     $('libBack').addEventListener('click', () => library.back());
     $('libReset').addEventListener('click', () => library.reset());

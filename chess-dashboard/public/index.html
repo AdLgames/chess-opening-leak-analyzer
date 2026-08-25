@@ -442,10 +442,17 @@
             </div>
             <div class="practice-body" id="practiceBody" hidden>
               <div class="board-col">
-                    <div class="segmented" id="drillMode" role="tablist" aria-label="What to practise">
-                  <button class="seg is-active" data-mode="best">Find the move</button>
-                  <button class="seg" data-mode="punish">Find the punishment</button>
+                <div class="segmented" id="drillMode" role="tablist" aria-label="What to practise">
+                  <button class="seg is-active" data-mode="best" role="tab" aria-selected="true">Find the move</button>
+                  <button class="seg" data-mode="punish" role="tab" aria-selected="false">Find the punishment</button>
+                  <button class="seg" data-mode="line" role="tab" aria-selected="false">Play the line</button>
+                  <button class="seg" data-mode="why" role="tab" aria-selected="false">Explain why</button>
                 </div>
+                <label class="drill-timer">
+                  <input type="checkbox" id="drillClock" />
+                  <span>Against a clock</span>
+                  <b class="mono" id="drillCountdown" hidden>0:30</b>
+                </label>
                 <div class="board-meta">
                   <b id="drillTask" role="status" aria-live="polite">Find the improvement</b>
                   <span class="mono muted" id="drillCount">0 / 0</span>
@@ -453,6 +460,18 @@
                 <div class="board" id="drillBoard" aria-label="Drill position"></div>
                 <p class="board-status" id="drillPrompt" role="status" aria-live="polite"></p>
                 <div class="drill-feedback" id="drillFeedback" role="status" aria-live="polite" hidden></div>
+                <!-- "Explain why" cannot be graded from a move, so the player grades
+                     themselves — which is how every spaced-repetition system handles
+                     recall that a machine cannot mark. -->
+                <div class="self-grade" id="drillSelfGrade" hidden>
+                  <button class="btn btn-ghost" id="whyReveal">Show me what happens</button>
+                  <div class="self-grade-answer" id="whyAnswer" hidden></div>
+                  <div class="self-grade-buttons" id="whyButtons" hidden>
+                    <span>Did you see that?</span>
+                    <button class="btn btn-ghost" data-knew="yes">Yes, I knew it</button>
+                    <button class="btn btn-ghost" data-knew="no">No, that is new</button>
+                  </div>
+                </div>
                 <div class="board-bar">
                   <button class="btn btn-ghost" id="drillPrev">Previous</button>
                   <button class="btn btn-ghost" id="drillRetry">Try again</button>

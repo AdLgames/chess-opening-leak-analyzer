@@ -304,7 +304,7 @@ Ten items, given as the target shape of the product. Mapped to what exists.
 | 3 | "My Repertoire" as a visual tree with strong lines, weak lines and gaps | **Done.** `repertoire.build_tree` draws the lines actually played, coloured by how each is doing, with unmet replies hanging off the move that reaches them. |
 | 4 | Four kinds of problem: objective / practical / knowledge gap / low confidence | **Done.** `classify()` decides; the dashboard colours each one. |
 | 5 | "What are you not ready for?" with Learn / Practice / Ignore | **Done.** All three, persisted in `gap_decisions`; Practise enrols against a book-derived answer, and ignored gaps stay gone across runs. |
-| 6 | Varied practice: best move, opponent's idea, continue the line, explain why, timed | Partly. Two modes ship — find the move, and find the punishment — both feeding one schedule. Continue-the-line, explain-why and timed remain open. |
+| 6 | Varied practice: best move, opponent's idea, continue the line, explain why, timed | **Done.** All five: four modes plus a clock that applies to any of them, all feeding one schedule. |
 | 7 | Track improvement: "you fixed this", before/after, weakness score over time | **Done.** `history.py` stores each run and diffs it per position: cleared, new, better, worse — and refuses to compare runs over very different game counts. |
 | 8 | Let users commit to their own repertoire choice and stop re-flagging it | **Done.** `marks.py` records "this is my move" / "not interested"; committing drops the results argument and keeps the objective one. |
 | 9 | Simplify the UI around Dashboard → My Repertoire → Fix Mistakes → Practice → Progress | **Done.** Five destinations; each shows only the sections that answer its question. |
@@ -462,7 +462,7 @@ tracked yet" beside eight tracked positions.
 
 ---
 
-## Item 6 — more than one way to be asked
+## Item 6 — four ways to be asked
 
 **Status: done**
 
@@ -471,20 +471,39 @@ worth having, but it is not the same skill as understanding *why* the move is wr
 player who can produce `Bc5` on cue may still walk into `Ng5` next week without seeing it
 coming.
 
-Practice now has two modes, chosen from a control above the board:
+Practice now has four modes, chosen above the board, plus a clock that applies to any of them:
 
 | Mode | The question | Graded against |
 | --- | --- | --- |
 | Find the move | You played `Nf6` here and scored 31%. Find something better. | the engine's pick, with partial credit |
 | Find the punishment | Take the other side, after `Nf6`. Show why it does not work. | the refutation |
+| Play the line | Play the improvement and keep going; the opponent answers from the book. | staying in book for four moves |
+| Explain why | Before looking: what does your opponent get out of this? | the player's own honest answer |
 
-The second mode is close to free: the refutation is already captured from the child search's
-principal variation during analysis, which the engine used to discard. So the board flips to
-the opponent's side, the mistake is played, and the position the player keeps walking into is
-the one they are asked to solve — with no engine call at answer time.
+**Find the punishment** is close to free: the refutation is already captured from the child
+search's principal variation during analysis, which the engine used to discard. The board
+flips, the mistake is played, and the position the player keeps walking into is the one they
+are asked to solve — with no engine call at answer time.
 
-Both modes feed the same schedule. A missed punishment is a lapse like any other, which is the
-point: the two modes are two views of one weakness, not two separate curricula.
+**Play the line** exists because knowing the one better move is not the same as knowing the
+line, and a club repertoire usually runs out two moves later. The opponent replies with the
+book's *most common* answer rather than the engine's best: preparation has to survive
+ordinary opposition, not perfect opposition. Going out of book is not scored as a blunder —
+it says what the book plays instead, and where the book itself runs out it says that too,
+which is worth knowing.
+
+**Explain why** has no move to grade, so the player grades themselves — the standard answer
+in spaced repetition for recall a machine cannot mark. It is the one mode with no clock: the
+honest answer to "did you already know this" is not improved by rushing it.
+
+**The clock** is a modifier rather than a fifth tab, because timed is not a different
+question — it is the same question under pressure. Running out counts as a miss, deliberately:
+a move you cannot find in thirty seconds is not one you have yet, and scoring it any other way
+makes the schedule optimistic about what the player knows.
+
+Every mode feeds the same schedule. A missed punishment, an abandoned line and an honest "no,
+that is new" are lapses like any other — they are four views of one weakness, not four
+separate curricula.
 
 ---
 
