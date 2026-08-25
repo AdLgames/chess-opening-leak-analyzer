@@ -519,14 +519,86 @@ completes regardless.
 
 ---
 
+## Cross-cutting: the page that phoned home
+
+**Status: done**
+
+The dashboard's whole claim is that nothing leaves the machine — it says so in the
+sidebar, under "Network: not required". It then loaded two stylesheets from
+`fonts.googleapis.com` and 200KB of Chart.js from `cdn.jsdelivr.net`, telling both a
+third party the IP address of everyone who opened it.
+
+- **Fonts** are vendored from npm (`@fontsource/*`, SIL OFL 1.1), latin subset, only the
+  weights the stylesheet asks for: 176KB in `public/vendor/`.
+- **Chart.js is gone rather than vendored.** The page drew two bar charts with it, which
+  does not justify 200KB, and a `<canvas>` cannot be read by a screen reader. Both are
+  now inline SVG in `public/charts.js` — under 200 lines — each with a real table of the
+  same numbers collapsed beneath it, hover and keyboard-focus tooltips, and a
+  `ResizeObserver` redraw (a chart drawn while its section was hidden measured zero).
+
+Verified in Chromium: a full run from the demo archive completes with **zero requests
+off-origin and zero console errors**.
+
+The chart colours were run through a contrast and colour-vision-deficiency validator
+rather than picked by eye. The original pair failed twice — `#79a9c9` sat outside the
+lightness band and under the chroma floor against this surface, reading as grey — and is
+now `#4f9ad4` against `#e06a5f`, which clears CVD separation at ΔE 17.3 (protan). The
+single-series amber moved from the UI accent `#e3a44b` to `#bd7f28` for the same reason.
+
+Two label defects the render caught, which no unit test would have:
+
+- Rotated column labels ran down-and-right from their tick, drifting away from the
+  column they name. They now rotate the other way and anchor at their end.
+- Truncation kept the *head* of an opening name, so "King's Knight Opening: Normal
+  Variation" and "King's Knight Opening: Konstantinopolsky" became the same label on two
+  different bars. It now keeps the distinguishing tail.
+
+---
+
+## Cross-cutting: who may call the API  ·  `X6` `C08`
+
+**Status: done**
+
+The server binds `0.0.0.0` and answered `allow_origins=["*"]` with no throttle anywhere.
+On one laptop that is nearly harmless; on a shared network it means any page the user has
+open in another tab can read their game history off the port, and any script can queue
+unbounded analysis jobs.
+
+`chessopening/guard.py` holds both pieces, outside the server module so they can be
+tested without standing a server up:
+
+| | Now | Escape hatch |
+| --- | --- | --- |
+| Origins | localhost on the dev ports, plus `null` so the file:// path still works | `LEAKLAB_ORIGINS`, including `*` for anyone who genuinely wants the old behaviour |
+| Analysis runs | 20/hour — each spawns an engine and reads an archive | `LEAKLAB_ANALYZE_PER_HOUR` |
+| Reads | 600/minute — the dashboard polls these freely | `LEAKLAB_READS_PER_MINUTE` |
+
+`X-Forwarded-For` is ignored unless `LEAKLAB_TRUST_PROXY=1`: it is a header the caller
+sets, so honouring it by default would let anyone mint a fresh budget per request. The
+limiter is deliberately in-process and fixed-window — it bounds accidents, not
+adversaries, and the docstring says so rather than implying more.
+
+Verified against the running server: an allowed origin is echoed, `https://evil.example`
+gets no CORS header at all, and the sixth read against a limit of five returns
+`429` with `Retry-After: 59` and *"That is a lot of requests at once. Try again in 59
+seconds."*
+
+Separately, the outbound `User-Agent` in `explorer.py` was
+`chess-opening-analyzer/1.0 (+https://github.com/)` — a link to nothing, which is worse
+than sending no URL. Both fetchers now share the one definition in `ingest.py`.
+
+And `LEAKLAB_BOOK` now overrides the bundled book path, because the shipped file is a Git
+LFS pointer until it is pulled and swapping in a differently-built book should not mean
+editing the package.
+
+---
+
 ## Cross-cutting, do alongside
 
 | Item | Finding | Note |
 | --- | --- | --- |
 | Keyboard-operable board, live regions for verdicts, chart text alternatives | `X3` | Squares carry `tabindex="-1"`; drill feedback is announced to nobody |
 | Replace Unicode pieces with inline SVG | `X4` | Windows renders both colours from one outline font |
-| Vendor Chart.js and the fonts locally | `X5` | The page claims "no network calls" while loading two CDNs |
-| Lock CORS to localhost origins; rate limit; descriptive User-Agent | `X6` `C08` | Currently `allow_origins=["*"]` and no throttle anywhere |
 | Lichess OAuth instead of pasting an API token into a form | `C05` | Teaches a habit users should not have |
 | Consumer-readable error states; no shell commands in the UI | `C05` | |
 | Privacy page: what is fetched, retention, deletion | `C08` | Table stakes for asking for an account name |
@@ -541,7 +613,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**. After run-over-run comparison and the second practice mode: **173 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**. After run-over-run comparison and the second practice mode: **173 passed, 5 skipped**. After locking down the API: **190 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample

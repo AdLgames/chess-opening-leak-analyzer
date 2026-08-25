@@ -25,7 +25,8 @@ for _cand in (_HERE, os.path.join(os.path.dirname(_HERE), "chess_opening_analyze
     if os.path.isdir(os.path.join(_cand, "chessopening")) and _cand not in sys.path:
         sys.path.append(_cand)
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import (BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Request,
+                     UploadFile)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
@@ -34,6 +35,7 @@ from chessopening.board import BoardError, cp_text, engine_lines, position_paylo
 from chessopening.engine import find_engine
 from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch_games,
                                  lookup_player, provider_label, speeds_from_csv)
+from chessopening.guard import RateLimiter, allowed_origins, client_key
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase
 from chessopening.marks import DEFAULT_STATE, MarkStore
 from chessopening.history import HistoryStore
@@ -47,7 +49,50 @@ JOBS_ROOT = os.path.join(tempfile.gettempdir(), "leaklab-jobs")
 os.makedirs(JOBS_ROOT, exist_ok=True)
 
 app = FastAPI(title="Opening Leak Lab API")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# Localhost only, unless the operator names somewhere else. The previous "*" meant any
+# page the user had open in another tab could read their game history off this port.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins(),
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Lichess-Token"],
+)
+
+# Analysis is the expensive one — each job spawns an engine and reads an archive — so it
+# gets a much tighter budget than the read endpoints the dashboard polls constantly.
+ANALYZE_LIMIT = RateLimiter(int(os.environ.get("LEAKLAB_ANALYZE_PER_HOUR", "20")), 3600)
+READ_LIMIT = RateLimiter(int(os.environ.get("LEAKLAB_READS_PER_MINUTE", "600")), 60)
+
+
+# Paths that cost real work: an analysis spawns an engine and reads an archive, and an
+# engine probe is a search. Everything else is a SQLite read the dashboard polls freely.
+COSTLY = ("/api/analyze", "/api/engine")
+
+
+@app.middleware("http")
+async def throttle(request: Request, call_next):
+    """Bound accidents — a runaway script, a page stuck in a retry loop.
+
+    Not a defence against a determined attacker: this is one process with an in-memory
+    counter. It stops a mistake from queueing a hundred engine jobs, which is the failure
+    that actually happens.
+    """
+    if request.method == "OPTIONS" or not request.url.path.startswith("/api/"):
+        return await call_next(request)
+    costly = any(request.url.path.startswith(p) for p in COSTLY)
+    limiter = ANALYZE_LIMIT if costly else READ_LIMIT
+    key = client_key(request.client.host if request.client else None,
+                     request.headers.get("x-forwarded-for"))
+    allowed, retry_after = limiter.check(key)
+    if not allowed:
+        what = "analysis runs" if costly else "requests"
+        return JSONResponse(
+            status_code=429,
+            content={"detail": f"That is a lot of {what} at once. "
+                               f"Try again in {retry_after} seconds."},
+            headers={"Retry-After": str(retry_after)},
+        )
+    return await call_next(request)
 
 JOBS: dict[str, dict[str, Any]] = {}
 LOCK = threading.Lock()

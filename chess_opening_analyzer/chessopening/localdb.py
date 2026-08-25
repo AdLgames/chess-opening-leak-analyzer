@@ -28,7 +28,11 @@ CREATE TABLE IF NOT EXISTS moves (
 CREATE TABLE IF NOT EXISTS openings (pos TEXT PRIMARY KEY, eco TEXT, name TEXT);
 """
 
-DEFAULT_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "openings.sqlite")
+# The bundled book, unless the player points somewhere else. The override exists because
+# the shipped file is a Git LFS pointer until it is pulled, and because a book built from
+# a different corpus (a rating band, a time control) should not mean editing the package.
+BUNDLED_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "openings.sqlite")
+DEFAULT_DB = os.environ.get("LEAKLAB_BOOK") or BUNDLED_DB
 
 
 def epd_after(play_uci_csv: str) -> str:

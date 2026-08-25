@@ -17,9 +17,13 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
+# Lichess asks that clients identify themselves and offer a way to reach a human. The
+# value here used to be "+https://github.com/", a link to nothing, which is worse than
+# sending no URL at all. One definition, shared with the archive fetcher.
+from .ingest import USER_AGENT
+
 LICHESS_DB = "https://explorer.lichess.ovh/lichess"
 MASTERS_DB = "https://explorer.lichess.ovh/masters"
-USER_AGENT = "chess-opening-analyzer/1.0 (+https://github.com/)"
 
 # One-sided 80% normal quantile, used to ask "is the player below the book even at the
 # generous end of their own record?".

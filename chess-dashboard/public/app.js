@@ -771,53 +771,8 @@ function countUp() {
 }
 
 /* ------------------------------------------------------------------- charts */
-const CHART_FONT = { family: "'Inter', sans-serif", size: 11 };
-function chartBase() {
-  Chart.defaults.color = '#949c9f';
-  Chart.defaults.font = CHART_FONT;
-  Chart.defaults.borderColor = '#252d33';
-}
-
 function renderCharts(s) {
-  if (!window.Chart) return;
-  document.querySelectorAll('.chart-empty').forEach((el) => el.remove());
-  chartBase();
-  const items = s.by_opening.slice(0, 8);
-  const labels = items.map((o) => (o.opening.length > 30 ? o.opening.slice(0, 29) + '…' : o.opening));
-
-  Object.values(state.charts).forEach((c) => c.destroy());
-  state.charts.lost = new Chart($('chartLost'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{ label: 'Points lost', data: items.map((o) => o.lost_points), backgroundColor: '#e3a44b', borderRadius: 3, barThickness: 16 }],
-    },
-    options: {
-      indexAxis: 'y',
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { afterLabel: (c) => `${items[c.dataIndex].leaks} leaks · ${items[c.dataIndex].games} games` } } },
-      scales: { x: { grid: { color: '#1c2327' }, ticks: { precision: 1 } }, y: { grid: { display: false } } },
-    },
-  });
-
-  state.charts.vs = new Chart($('chartVs'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Your score %', data: items.map((o) => o.your_score), backgroundColor: '#e06a5f', borderRadius: 3 },
-        { label: 'Book score %', data: items.map((o) => o.db_score), backgroundColor: '#79a9c9', borderRadius: 3 },
-      ],
-    },
-    options: {
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } } },
-      scales: {
-        x: { grid: { display: false }, ticks: { maxRotation: 40, minRotation: 40, autoSkip: false, font: { ...CHART_FONT, size: 9.5 } } },
-        y: { beginAtZero: true, max: 100, grid: { color: '#1c2327' }, ticks: { callback: (v) => v + '%' } },
-      },
-    },
-  });
+  if (window.LeakCharts) window.LeakCharts.render(s.by_opening);
 }
 
 /* -------------------------------------------------------------------- table */
