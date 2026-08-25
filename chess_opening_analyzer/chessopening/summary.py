@@ -16,6 +16,59 @@ def _f(v: Any) -> float:
         return 0.0
 
 
+def group_by_line(rows: list[dict[str, str]]) -> list[dict[str, Any]]:
+    """Collapse flagged decisions into one entry per line, keyed on the earliest mistake.
+
+    A bad move at move 6 drags the rest of the line down with it, so the same hole comes
+    back as separate rows at moves 8, 10 and 12, each competing for the top of the report.
+    A row whose line begins with another row's line is downstream of it — the player had
+    already played the earlier move to get there — so it is nested underneath instead of
+    standing on its own.
+
+    Fixing the headline move makes the whole branch moot, which is why the group carries the
+    branch's combined cost rather than only the first row's.
+    """
+    ordered = sorted(rows, key=lambda r: (int(_f(r.get("ply")) or 0), -_f(r.get("priority"))))
+    groups: list[dict[str, Any]] = []
+
+    for row in ordered:
+        line = (row.get("variation_line") or "").split()
+        parent = None
+        for group in groups:
+            head = group["_line"]
+            # Same colour only: White's move 6 does not cause Black's move 8.
+            if (
+                len(head) < len(line)
+                and line[: len(head)] == head
+                and group["headline"]["player_color"] == row["player_color"]
+            ):
+                # Only roots are in `groups` — a group whose line extended another would
+                # itself have been nested — so the first match is the only one.
+                parent = group
+                break
+        if parent is not None:
+            parent["downstream"].append(row)
+        else:
+            groups.append({"_line": line, "headline": row, "downstream": []})
+
+    for group in groups:
+        branch = [group["headline"], *group["downstream"]]
+        head = group["headline"]
+        group.pop("_line")
+        group["lost_points"] = round(sum(_f(r.get("lost_points")) for r in branch), 2)
+        group["lost_points_conservative"] = round(
+            sum(_f(r.get("lost_points_conservative")) for r in branch), 2
+        )
+        group["priority"] = round(sum(_f(r.get("priority")) for r in branch), 2)
+        group["followers"] = len(group["downstream"])
+        group["opening"] = head.get("opening") or head.get("eco") or "Unclassified"
+        group["explanation"] = head.get("explanation", "")
+        group["player_color"] = head.get("player_color", "")
+
+    groups.sort(key=lambda g: -g["priority"])
+    return groups
+
+
 def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, Any]:
     """Aggregate flagged rows by opening and count the flags.
 
@@ -55,6 +108,7 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         "blunders": sum(1 for r in rows if _f(r["eval_drop_pawns"]) >= 0.8),
         "flags": dict(flags),
         "by_opening": openings[:12],
+        "groups": group_by_line(rows),
         "white_leaks": sum(1 for r in rows if r["player_color"] == "white"),
         "black_leaks": sum(1 for r in rows if r["player_color"] == "black"),
         "top": rows[0] if rows else None,

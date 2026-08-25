@@ -428,12 +428,60 @@ function applyReport(data, job) {
   $('footStatus').textContent = state.serverless
     ? `hosted run · ${s.leaks} leaks`
     : `job ${state.jobId} · ${s.leaks} leaks`;
+  renderFixList(s);
   renderKpis(s);
   renderCharts(s);
   renderTable();
   if (window.Study) window.Study.setRows(state.rows);
   const first = sortedRows()[0];
   if (first) selectRow(first);
+}
+
+/* The answer to "what do I do next", above the table rather than below it. The server has
+   already collapsed each line down to the move that starts it, so three rows about one bad
+   line show up here as one thing to fix. */
+function renderFixList(s) {
+  const groups = (s.groups || []).slice(0, 3);
+  $('fixes').hidden = groups.length === 0;
+  if (!groups.length) return;
+  $('fixesHint').textContent =
+    s.groups.length > 3
+      ? `The 3 biggest of ${s.groups.length} — worst first`
+      : 'Your most expensive habits, worst first';
+
+  $('fixList').innerHTML = groups
+    .map((g, i) => {
+      const r = g.headline;
+      const followers = g.followers
+        ? `<span class="fix-follow">and ${g.followers} later ${g.followers === 1 ? 'mistake' : 'mistakes'} in the same line</span>`
+        : '';
+      return `<article class="fix-card" data-i="${i}">
+        <div class="fix-rank">${i + 1}</div>
+        <div class="fix-main">
+          <h3>${esc(g.opening)} <span class="mono muted">${r.move_number}${r.player_color === 'white' ? '.' : '...'}${esc(r.your_move)}</span></h3>
+          <p class="fix-why">${esc(g.explanation || '')}</p>
+          ${followers}
+        </div>
+        <div class="fix-cost">
+          <b>${fmt(g.lost_points, 1)}</b>
+          <span>points</span>
+        </div>
+        <button class="btn btn-primary fix-go" data-i="${i}">Show me</button>
+      </article>`;
+    })
+    .join('');
+
+  $('fixList').querySelectorAll('.fix-go').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const g = groups[+btn.dataset.i];
+      // The table may be filtered, so match on the row's own identity, not its index.
+      const target = state.rows.find(
+        (r) => r.fen === g.headline.fen && r.your_move === g.headline.your_move,
+      );
+      if (target) selectRow(target);
+      $('position').scrollIntoView({ behavior: 'smooth' });
+    }),
+  );
 }
 
 function showKpiSkeleton() {

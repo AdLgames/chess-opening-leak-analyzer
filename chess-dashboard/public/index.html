@@ -42,6 +42,7 @@
 
         <nav class="nav" aria-label="Sections">
           <a href="#run" class="nav-item is-active"><span class="dot"></span>Run analysis</a>
+          <a href="#fixes" class="nav-item"><span class="dot"></span>Fix these first</a>
           <a href="#overview" class="nav-item"><span class="dot"></span>Overview</a>
           <a href="#charts" class="nav-item"><span class="dot"></span>Where points go</a>
           <a href="#leaks" class="nav-item"><span class="dot"></span>Leak table</a>
@@ -253,10 +254,19 @@
           </div>
         </section>
 
+        <!-- fix list: the answer to "what do I do next", before any table -->
+        <section class="section" id="fixes" hidden>
+          <div class="section-head">
+            <h2>2 · Fix these first</h2>
+            <span class="hint" id="fixesHint">Your most expensive habits, worst first</span>
+          </div>
+          <div class="fix-list" id="fixList"></div>
+        </section>
+
         <!-- overview -->
         <section class="section" id="overview">
           <div class="section-head">
-            <h2>2 · Overview</h2>
+            <h2>3 · Overview</h2>
             <span class="hint" id="overviewHint">Awaiting a run</span>
           </div>
           <div class="kpis" id="kpis"></div>
@@ -265,7 +275,7 @@
         <!-- charts -->
         <section class="section" id="charts">
           <div class="section-head">
-            <h2>3 · Where the points go</h2>
+            <h2>4 · Where the points go</h2>
             <span class="hint">Score is win% + half of draw%, as on Lichess</span>
           </div>
           <div class="chart-grid">
@@ -285,7 +295,7 @@
         <!-- leaks -->
         <section class="section" id="leaks">
           <div class="section-head">
-            <h2>4 · Leak table</h2>
+            <h2>5 · Leak table</h2>
             <div class="filters">
               <div class="segmented" id="flagFilter" role="tablist">
                 <button class="seg is-active" data-flag="all">All</button>
@@ -332,7 +342,7 @@
         <!-- position detail -->
         <section class="section" id="position">
           <div class="section-head">
-            <h2>5 · Fix the mistake</h2>
+            <h2>6 · Fix the mistake</h2>
             <span class="hint" id="posHint">Select a row above</span>
           </div>
           <div class="card detail-card" id="detailCard">
@@ -401,7 +411,7 @@
         <!-- practice -->
         <section class="section" id="practice">
           <div class="section-head">
-            <h2>6 · Practice the fixes</h2>
+            <h2>7 · Practice the fixes</h2>
             <span class="hint" id="practiceHint">Run an analysis to build a drill set</span>
           </div>
           <div class="card practice-card">
@@ -441,7 +451,7 @@
         <!-- openings library -->
         <section class="section" id="library">
           <div class="section-head">
-            <h2>7 · Openings library</h2>
+            <h2>8 · Openings library</h2>
             <span class="hint">Walk any line and see what the book did with it</span>
           </div>
           <div class="card library-card">
@@ -487,7 +497,7 @@
         <!-- provenance -->
         <section class="section" id="provenance">
           <div class="section-head">
-            <h2>8 · Engine &amp; data</h2>
+            <h2>9 · Engine &amp; data</h2>
             <span class="hint">Everything bundled, nothing phoning home</span>
           </div>
           <div class="prov-grid">

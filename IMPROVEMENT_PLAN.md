@@ -49,7 +49,7 @@ product on top of statistics that can be wrong just distributes bad advice faste
 
 ## Phase 0 — Make the numbers trustworthy  ·  `S1` `S2` `S5`
 
-**Status: in progress**
+**Status: done**
 
 The highest-severity correctness problem in the codebase. `min_db_games` gates the *position*
 total, but `PositionStats.move()` returns statistics for a move seen as few as twice, so
@@ -81,8 +81,6 @@ A move the player has made three times, scoring 33% against a book move with fou
 no flag. The same 33% over twenty games against a well-sampled book move still does. Every
 percentage on screen is accompanied by the count behind it.
 
----
-
 ### Calibration note
 
 The confidence test is one-sided at 80% (`Z_CONFIDENCE`), not the 90% first tried. At 90% a
@@ -90,6 +88,9 @@ player scoring 11% over 9 games against a 23% baseline is not flagged — a real
 finding thrown away. In a coaching tool a missed leak costs as much as a spurious one, so the
 threshold is set where it suppresses three-game noise without suppressing nine-game signal, and
 is exposed as `analyze(confidence_z=)` for anyone who disagrees.
+
+---
+
 
 ## Phase 1 — Say it in words  ·  `S5` `C04` `X2` (`B1`/`B2` from Phase 2 requirements)
 
@@ -109,8 +110,8 @@ all already computed.
 - [x] Report personal scores as whole numbers with the record behind them, and mark low-confidence
       rows in the table.
 - [ ] Move the remaining figures behind a "details" toggle.
-- [ ] Promote a "fix list" of the top three findings to directly under the run panel, above the
-      table (`X2`).
+- [x] Promote a "fix list" of the top three findings to directly under the run panel, above the
+      table (`X2`), each one a group rather than a row.
 - [ ] Replace flag codes with human labels throughout the UI, keeping the codes in the CSV for
       anyone parsing it.
 - [ ] Split `priority` into its two visible components — how often, how bad — instead of one opaque
@@ -125,22 +126,28 @@ reading the table.
 
 ## Phase 2 — One hole, one fix  ·  `R3`
 
+**Status: done**
+
 Nodes are keyed `(epd, uci)`, so a single bad decision at move 6 surfaces again as its downstream
 consequences at moves 8, 10 and 12, each competing separately for the top of the report. The
 learner sees five problems where they have one, and fixing the earliest dissolves the rest.
 
 ### Work
 
-- [ ] Group flagged rows into a tree by `line_uci` prefix.
-- [ ] Report the earliest divergence in each branch as the headline item, with downstream leaks
-      nested beneath it as supporting evidence.
-- [ ] Sort top-level items by points summed across the branch, not per-row priority.
-- [ ] Keep the flat CSV as-is for compatibility; grouping is a view over it.
+- [x] Group flagged rows by line prefix in `summary.group_by_line`, shared by the local API and
+      the hosted function so both dashboards get it at once.
+- [x] Report the earliest divergence in each branch as the headline, with downstream leaks nested
+      beneath it. Colours never nest into each other — the player cannot be both sides of one game.
+- [x] Sort by points summed across the branch, since fixing the headline makes the rest moot.
+- [x] Keep the flat CSV as-is for compatibility; grouping is a view over it.
+- [x] Tests covering causation vs a shared opening prefix, out-of-order rows, and branch costs.
 
 ### Acceptance
 
 A player who repeats one bad move at move 6 sees one finding, not five, and the nested rows explain
-why the rest of the line went wrong.
+why the rest of the line went wrong. **Met**: on the demo archive six flagged rows collapse to four
+findings — `2...d6` folds into `1...e5` (Philidor) and `2...dxc4` into `1...d5` (Queen's Gambit
+Accepted), each headline carrying its branch's combined cost.
 
 ---
 
@@ -256,7 +263,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample
