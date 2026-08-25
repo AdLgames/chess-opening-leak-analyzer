@@ -313,6 +313,8 @@
     answered: false,
     progress: null,
     lastLoss: null,
+    mode: 'best',
+    punishing: false,
 
     setRows(rows) {
       this.queue = rows
@@ -344,13 +346,36 @@
       const row = this.queue[this.index];
       this.row = row;
       this.answered = false;
-      const side = row.player_color === 'black' ? 'black' : 'white';
+      // "Find the punishment" asks from the other side of the board, after the mistake has
+      // been played — which is the position the player kept walking into.
+      this.punishing = this.mode === 'punish' && !!row.refutation;
+      const side = this.punishing
+        ? (row.player_color === 'black' ? 'white' : 'black')
+        : (row.player_color === 'black' ? 'black' : 'white');
       if (!this.board) {
         this.board = new LB.Board($('drillBoard'), { orientation: side, onMove: (m) => this.attempt(m) });
       }
       this.board.setOrientation(side);
-      this.pos = await LB.position(row.fen);
+      this.pos = this.punishing
+        ? await LB.position(row.fen, [row.your_move_uci])
+        : await LB.position(row.fen);
       this.board.setPosition(this.pos.fen, { legal: this.pos.legal });
+      $('drillTask').textContent = this.punishing
+        ? 'Punish the mistake'
+        : 'Find the improvement';
+      if (this.punishing) {
+        $('drillPrompt').innerHTML =
+          `<b>${esc(row.opening || row.eco || 'Unnamed opening')}</b><br />` +
+          `<span class="mono">${esc(row.variation_line || '')}</span><br />` +
+          `You have played <b>${esc(row.your_move)}</b> here ${row.your_games} time` +
+          `${+row.your_games === 1 ? '' : 's'}. Take the other side and show why it does not work.`;
+        $('drillFeedback').hidden = true;
+        $('drillFeedback').className = 'drill-feedback';
+        $('drillCount').textContent = `${this.index + 1} / ${this.queue.length}`;
+        $('nextBtn').disabled = this.index >= this.queue.length - 1;
+        this.renderQueue();
+        return;
+      }
       const scored = num(row.your_score_pct);
       $('drillPrompt').innerHTML =
         `<b>${esc(row.opening || row.eco || 'Unnamed opening')}</b> · move ${row.move_number} as ${esc(side)}<br />` +
@@ -397,6 +422,7 @@
     },
 
     async attempt(move) {
+      if (this.punishing) return this.attemptPunish(move);
       const fb = $('drillFeedback');
       fb.hidden = false;
       fb.className = 'drill-feedback';
@@ -461,6 +487,41 @@
         // A position you just missed comes back before the session ends — that repetition
         // is what makes it stick at all.
         if (!this.row.solved) {
+          this.queue = requeue(this.queue, this.index);
+          this.renderQueue();
+        }
+      }
+    },
+
+    /* Graded against the refutation the report already found, so no engine call is needed
+       and the verdict matches the sentence the finding gave. */
+    async attemptPunish(move) {
+      const fb = $('drillFeedback');
+      fb.hidden = false;
+      const right = move.san === this.row.refutation;
+      fb.className = `drill-feedback is-${right ? 'best' : 'bad'}`;
+      fb.innerHTML = right
+        ? `<b>That is the one</b><span>${esc(this.row.consequence || `${esc(move.san)} is the refutation.`)}</span>`
+        : `<b>Not quite</b><span>${esc(move.san)} is not what punishes it. The move to find is the one your opponents keep playing.</span>`;
+      this.board.setPosition(this.pos.fen, {
+        legal: this.pos.legal,
+        arrows: [{ from: move.from, to: move.to, kind: right ? 'best' : 'played' }],
+      });
+      if (!this.answered) {
+        this.answered = true;
+        state.session.seen += 1;
+        if (right) state.session.best += 1;
+        else state.session.missed += 1;
+        this.row.solved = right;
+        this.renderScore();
+        this.renderQueue();
+        const res = await reviewSchedule.attempt(this.row, move.uci, right ? 0 : 400, false);
+        if (res) {
+          this.progress = res.progress;
+          fb.innerHTML += `<span class="muted">You will see this ${esc(res.due)}.</span>`;
+          this.renderScore();
+        }
+        if (!right) {
           this.queue = requeue(this.queue, this.index);
           this.renderQueue();
         }
@@ -665,6 +726,14 @@
     $('drillAnswer').addEventListener('click', () => drill.reveal());
     $('drillRetry').addEventListener('click', () => drill.retry());
     $('drillFlip').addEventListener('click', () => drill.board && drill.board.flip());
+    document.querySelectorAll('#drillMode .seg').forEach((b) =>
+      b.addEventListener('click', () => {
+        document.querySelectorAll('#drillMode .seg').forEach((x) => x.classList.remove('is-active'));
+        b.classList.add('is-active');
+        drill.mode = b.dataset.mode;
+        if (drill.queue.length) drill.load(drill.index);
+      }),
+    );
 
     $('libBack').addEventListener('click', () => library.back());
     $('libReset').addEventListener('click', () => library.reset());

@@ -665,6 +665,7 @@ async function renderProgress() {
   } catch {
     progress = null;
   }
+  renderComparison();
   const has = progress && progress.tracked > 0;
   $('progress').hidden = false;
   $('progressEmpty').hidden = !!has;
@@ -693,6 +694,38 @@ async function renderProgress() {
       <div class="kpi-value">${esc(c.value)}</div>
       <div class="kpi-note">${esc(c.note)}</div></div>`)
     .join('');
+}
+
+/* Two runs answer the question one cannot: did last month's work do anything. The server
+   decides what counts as changed; this only says it. */
+function changeList(el, items, emptyNote) {
+  el.innerHTML = items.length
+    ? items.slice(0, 8).map((r) => `<li>
+        <span class="ch-move">${esc(r.san || '?')}</span>
+        <span class="ch-open">${esc(r.opening || 'Unnamed line')}</span>
+        <span class="ch-cost">${fmt(r.lost_points, 1)}</span>
+      </li>`).join('')
+    : `<li class="empty-note">${esc(emptyNote)}</li>`;
+}
+
+async function renderComparison() {
+  let comparison = null;
+  try {
+    ({ comparison } = await (await fetch(`${API}/api/history`)).json());
+  } catch {
+    comparison = null;
+  }
+  $('compareNotice').hidden = !comparison;
+  $('changeGrid').hidden = !comparison;
+  if (!comparison) return;
+
+  $('compareHeadline').textContent = comparison.headline;
+  $('compareDetail').textContent = comparison.comparable
+    ? `Comparing ${comparison.current.games} games with the ${comparison.previous.games} ` +
+      `you ran on ${comparison.previous.created_at}.`
+    : '';
+  changeList($('changeFixed'), comparison.fixed, 'Nothing cleared yet — keep at the drills.');
+  changeList($('changeNew'), comparison.new, 'No new leaks. Good.');
 }
 
 function showKpiSkeleton() {

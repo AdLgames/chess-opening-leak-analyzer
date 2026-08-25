@@ -184,7 +184,7 @@ question a club player actually arrives with.
 The report can say: "3.e5 appears in 41% of your Caro-Kanns from here. You have faced it twice and
 have no prepared answer." **Met**: against a 900-game book the demo player — who opens 1.e4 — is
 told that 1...c6 appears in 19% of games and they have never once faced it, followed by the French
-at 10% and the Philidor at 7%. The run-over-run comparison waits on Phase 6.
+at 10% and the Philidor at 7%. The run-over-run comparison landed with item 7.
 
 ---
 
@@ -245,9 +245,9 @@ Improving at chess is a months-long habit.
 
 ### Work
 
-- [ ] Device-local run history in IndexedDB — no backend, no signup, immediate run-over-run
-      comparison.
-- [ ] Per-finding deltas between runs: gone, new, worse.
+- [x] Run history stored with the player's other local state (SQLite beside the marks and the
+      review schedule, rather than IndexedDB — it lives where the analysis runs, not in the page).
+- [x] Per-finding deltas between runs: gone, new, better, worse — see item 7.
 - [ ] Accounts, once there is a reason: sync across devices, and email when a fix stops leaking.
 - [ ] Scheduled re-analysis, so the user does not have to remember to re-run.
 
@@ -304,8 +304,8 @@ Ten items, given as the target shape of the product. Mapped to what exists.
 | 3 | "My Repertoire" as a visual tree with strong lines, weak lines and gaps | **Done.** `repertoire.build_tree` draws the lines actually played, coloured by how each is doing, with unmet replies hanging off the move that reaches them. |
 | 4 | Four kinds of problem: objective / practical / knowledge gap / low confidence | **Done.** `classify()` decides; the dashboard colours each one. |
 | 5 | "What are you not ready for?" with Learn / Practice / Ignore | Mostly. The section ships; the three actions do not. |
-| 6 | Varied practice: best move, opponent's idea, continue the line, explain why, timed | Open. One mode today. |
-| 7 | Track improvement: "you fixed this", before/after, weakness score over time | Partly. A Progress destination now reports known / still learning / due / recall accuracy; run-over-run deltas still need report history. |
+| 6 | Varied practice: best move, opponent's idea, continue the line, explain why, timed | Partly. Two modes ship — find the move, and find the punishment — both feeding one schedule. Continue-the-line, explain-why and timed remain open. |
+| 7 | Track improvement: "you fixed this", before/after, weakness score over time | **Done.** `history.py` stores each run and diffs it per position: cleared, new, better, worse — and refuses to compare runs over very different game counts. |
 | 8 | Let users commit to their own repertoire choice and stop re-flagging it | **Done.** `marks.py` records "this is my move" / "not interested"; committing drops the results argument and keeps the objective one. |
 | 9 | Simplify the UI around Dashboard → My Repertoire → Fix Mistakes → Practice → Progress | **Done.** Five destinations; each shows only the sections that answer its question. |
 
@@ -462,6 +462,63 @@ tracked yet" beside eight tracked positions.
 
 ---
 
+## Item 6 — more than one way to be asked
+
+**Status: done**
+
+One drill mode teaches one thing: recall of a move you have already been shown. That is
+worth having, but it is not the same skill as understanding *why* the move is wrong, and a
+player who can produce `Bc5` on cue may still walk into `Ng5` next week without seeing it
+coming.
+
+Practice now has two modes, chosen from a control above the board:
+
+| Mode | The question | Graded against |
+| --- | --- | --- |
+| Find the move | You played `Nf6` here and scored 31%. Find something better. | the engine's pick, with partial credit |
+| Find the punishment | Take the other side, after `Nf6`. Show why it does not work. | the refutation |
+
+The second mode is close to free: the refutation is already captured from the child search's
+principal variation during analysis, which the engine used to discard. So the board flips to
+the opponent's side, the mistake is played, and the position the player keeps walking into is
+the one they are asked to solve — with no engine call at answer time.
+
+Both modes feed the same schedule. A missed punishment is a lapse like any other, which is the
+point: the two modes are two views of one weakness, not two separate curricula.
+
+---
+
+## Item 7 — did any of this work?
+
+**Status: done**
+
+A report says what is wrong today. Two reports say whether last month's work did anything,
+which is the only question that brings anyone back. Each run is now stored — its headline
+figures and its flagged decisions — and Progress opens with the comparison in one sentence:
+
+> One of your leaks is gone since last time, worth about 6.5 points. Nothing new appeared.
+
+Beneath it, the two lists that sentence summarises: cleared, and new.
+
+Three things this deliberately does *not* do:
+
+- **Report aggregate movement.** "Lost points down 6.5" is satisfying and nearly meaningless,
+  because it moves with the number of games read. The diff is per position, keyed on
+  `(epd, colour, move)` — so `2.Nf3` in the Sicilian and `2.Nf3` in the King's Pawn are two
+  different leaks, as they should be.
+- **Call variance a trend.** A line's cost must move by 20% before it counts as better or
+  worse; without that, every run looks like it moved.
+- **Compare runs it should not.** A leak that vanished because it was fixed and one that
+  vanished because this run read forty games instead of two hundred look identical from the
+  diff alone. So the game counts travel with the comparison, and when they differ by more than
+  a third the headline says so instead of claiming progress:
+  *"This run read 40 games and the last read 200, which is too different to compare fairly."*
+
+History is a nicety, never a blocker — a failure to record a run is logged and the run
+completes regardless.
+
+---
+
 ## Cross-cutting, do alongside
 
 | Item | Finding | Note |
@@ -484,7 +541,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**. After run-over-run comparison and the second practice mode: **173 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample

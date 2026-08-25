@@ -450,8 +450,12 @@
             </div>
             <div class="practice-body" id="practiceBody" hidden>
               <div class="board-col">
+                    <div class="segmented" id="drillMode" role="tablist" aria-label="What to practise">
+                  <button class="seg is-active" data-mode="best">Find the move</button>
+                  <button class="seg" data-mode="punish">Find the punishment</button>
+                </div>
                 <div class="board-meta">
-                  <b>Find the improvement</b>
+                  <b id="drillTask">Find the improvement</b>
                   <span class="mono muted" id="drillCount">0 / 0</span>
                 </div>
                 <div class="board" id="drillBoard" aria-label="Drill position"></div>
@@ -531,7 +535,21 @@
           </div>
           <p class="section-lead">Positions move from still-learning to known by being recalled
             correctly, with a widening gap between attempts. Missing one sends it back to tomorrow.</p>
+          <div class="notice is-info" id="compareNotice" hidden>
+            <b id="compareHeadline"></b>
+            <span id="compareDetail"></span>
+          </div>
           <div class="kpis" id="progressKpis"></div>
+          <div class="change-grid" id="changeGrid" hidden>
+            <div class="card change-card">
+              <h3>Cleared since last time</h3>
+              <ol class="change-list" id="changeFixed"></ol>
+            </div>
+            <div class="card change-card">
+              <h3>New this time</h3>
+              <ol class="change-list" id="changeNew"></ol>
+            </div>
+          </div>
           <div class="card" id="progressEmpty">
             <p class="muted">Nothing tracked yet. Run an analysis and work through the practice
               queue — every position you attempt starts being scheduled.</p>

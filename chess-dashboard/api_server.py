@@ -36,6 +36,7 @@ from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch
                                  lookup_player, provider_label, speeds_from_csv)
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase
 from chessopening.marks import DEFAULT_STATE, MarkStore
+from chessopening.history import HistoryStore
 from chessopening.review import ReviewStore, describe_due, grade_for_loss
 from chessopening.pgn_loader import detect_main_player, find_pgn_files
 from chessopening.summary import summarise
@@ -194,6 +195,17 @@ def _run_job(job_id: str, pgn_dir: str, player: str | None, opts: dict[str, Any]
         with LOCK:
             job["rows"] = rows
             job["summary"] = _summarise(rows, result)
+            # Kept so the next run can answer "did last month's work do anything?".
+            try:
+                store = HistoryStore(DEFAULT_STATE)
+                try:
+                    store.save_run(job["summary"], rows, player=player or "",
+                                   source=job.get("source", ""), options=opts)
+                    job["comparison"] = store.compare_latest()
+                finally:
+                    store.close()
+            except Exception as err:  # noqa: BLE001 - history is a nicety, never a blocker
+                log(f"could not record this run in your history: {err}")
             job["report_path"] = result["report"]
             job["status"] = "done"
             job["finished"] = time.time()
@@ -519,6 +531,16 @@ def record_attempt(payload: dict[str, Any]) -> dict[str, Any]:
             "lapses": schedule.lapses,
             "progress": store.progress(),
         }
+    finally:
+        store.close()
+
+
+@app.get("/api/history")
+def history(limit: int = 20) -> dict[str, Any]:
+    """Past runs and how the newest compares with the one before it."""
+    store = HistoryStore(DEFAULT_STATE)
+    try:
+        return {"runs": store.runs(limit=limit), "comparison": store.compare_latest()}
     finally:
         store.close()
 
