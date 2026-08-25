@@ -6,7 +6,53 @@
 (function () {
   'use strict';
 
-  const GLYPHS = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+  /* Pieces as inline SVG rather than Unicode glyphs.
+
+     A glyph came from whichever system font happened to have one — Segoe UI Symbol on
+     Windows, which draws them as monochrome outlines. Colouring an outline glyph white
+     leaves a white piece as a white outline: on a light square, invisible. Filled shapes
+     with a contrasting stroke depend on no font being installed and read as well at 22px
+     as at 60px. Original artwork, so there is nothing here to attribute. */
+  const PIECE_BASE =
+    '<rect x="10" y="34.6" width="25" height="5" rx="1.6"/>' +
+    '<rect x="13" y="30.6" width="19" height="4.2" rx="1.4"/>';
+
+  const PIECE_SHAPES = {
+    p: '<circle cx="22.5" cy="12.4" r="5"/>' +
+       '<path d="M16.4 17.6h12.2c0 5.8-3.9 8.6-4.1 13h-4c-.2-4.4-4.1-7.2-4.1-13z"/>',
+    r: '<path d="M12 8.5h4.6v3.2h3.6V8.5h4.6v3.2h3.6V8.5H33v7.6H12z"/>' +
+       '<path d="M14.6 16.1h15.8l-1.7 14.5H16.3z"/>',
+    n: '<path d="M15 31c0-7 2-11 6-14.2 1.5-1.2 2-2.6 1.5-4.2l-3 1.8-2.2-2.6 3.6-3.4 3-1 1-3 2.6 2.4c4.6 2 7.5 6.8 7.5 12.6V31z"/>' +
+       '<circle cx="26.6" cy="12.4" r="1.05" class="cb-eye"/>',
+    b: '<circle cx="22.5" cy="5.4" r="2.1"/>' +
+       '<path d="M22.5 8c3.1 3.1 6.4 7 6.4 10.9 0 3.5-2.9 6-6.4 6s-6.4-2.5-6.4-6C16.1 15 19.4 11.1 22.5 8z"/>' +
+       '<path d="M21.6 11.4h1.8v7.4h-1.8z" class="cb-cut"/>' +
+       '<path d="M17.2 25.4h10.6l1.4 5.2H15.8z"/>',
+    q: '<circle cx="11.6" cy="12" r="2.3"/><circle cx="22.5" cy="7.4" r="2.5"/>' +
+       '<circle cx="33.4" cy="12" r="2.3"/>' +
+       '<path d="M11.6 13.2 15.2 22h14.6l3.6-8.8-5.4 3.9-5.5-8.5-5.5 8.5z"/>' +
+       '<path d="M15.4 22.6h14.2l-1.2 8H16.6z"/>',
+    k: '<path d="M21.2 4.4h2.6v3h3v2.6h-3v3h-2.6v-3h-3V7.4h3z"/>' +
+       '<path d="M12.2 16.6c3-3.1 6.2-4.4 10.3-4.4s7.3 1.3 10.3 4.4L30.6 23H14.4z"/>' +
+       '<path d="M14.9 23.6h15.2l-1.2 7H16.1z"/>',
+  };
+
+  const PIECE_NAMES = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
+
+  function pieceSvg(letter) {
+    const shape = PIECE_SHAPES[(letter || '').toLowerCase()];
+    if (!shape) return '';
+    const white = letter === letter.toUpperCase();
+    return `<svg class="cb-svg ${white ? 'is-white' : 'is-black'}" viewBox="0 0 45 45"` +
+      ` aria-hidden="true" focusable="false"><g>${PIECE_BASE}${shape}</g></svg>`;
+  }
+
+  /* What a screen reader should hear for one square. */
+  function squareLabel(sq, letter) {
+    if (!letter) return `${sq[0]} ${sq[1]}, empty`;
+    const colour = letter === letter.toUpperCase() ? 'white' : 'black';
+    return `${sq[0]} ${sq[1]}, ${colour} ${PIECE_NAMES[letter.toLowerCase()]}`;
+  }
   const FILES = 'abcdefgh';
   const NAMES = { q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' };
   const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -116,7 +162,7 @@
 
       el.classList.add('cb');
       el.innerHTML =
-        '<div class="cb-squares"></div>' +
+        '<div class="cb-squares" role="grid" aria-label="Chess board"></div>' +
         '<svg class="cb-arrows" viewBox="0 0 80 80" aria-hidden="true"></svg>' +
         '<div class="cb-promo" hidden></div>';
       this.squaresEl = el.querySelector('.cb-squares');
@@ -124,8 +170,12 @@
       this.promoEl = el.querySelector('.cb-promo');
       this.buildSquares();
       this.squaresEl.addEventListener('click', (e) => this.handleClick(e));
-      el.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') this.clearSelection();
+      this.squaresEl.addEventListener('keydown', (e) => this.handleKey(e));
+      // Focus follows the arrow keys, so the roving tabindex has to follow focus too —
+      // otherwise tabbing away and back returns to wherever the cursor started.
+      this.squaresEl.addEventListener('focusin', (e) => {
+        const cell = e.target.closest('.cb-sq');
+        if (cell) this.setCursor(cell.dataset.square, false);
       });
       this.draw();
     }
@@ -151,7 +201,8 @@
           const showFile = row === 7;
           const showRank = col === 0;
           return (
-            `<div class="cb-sq ${light ? 'is-light' : 'is-dark'}" data-square="${sq}" role="button" tabindex="-1">` +
+            `<div class="cb-sq ${light ? 'is-light' : 'is-dark'}" data-square="${sq}"` +
+            ` role="gridcell" tabindex="-1" aria-label="${sq[0]} ${sq[1]}, empty">` +
             '<span class="cb-piece"></span><span class="cb-dot"></span>' +
             (showRank ? `<span class="cb-coord cb-rank">${sq[1]}</span>` : '') +
             (showFile ? `<span class="cb-coord cb-file">${sq[0]}</span>` : '') +
@@ -163,6 +214,10 @@
       this.squaresEl.querySelectorAll('.cb-sq').forEach((cell) => {
         this.cells[cell.dataset.square] = cell;
       });
+      // One square is in the tab order at a time; the arrow keys move which one. Sixty-four
+      // tab stops to cross a board is not keyboard support, it is a punishment.
+      this.cursor = squares.includes(this.cursor) ? this.cursor : squares[squares.length - 8];
+      this.cells[this.cursor].tabIndex = 0;
     }
 
     /* -- state ----------------------------------------------------------- */
@@ -223,8 +278,17 @@
       Object.entries(this.cells).forEach(([sq, cell]) => {
         const piece = board[sq];
         const glyph = cell.querySelector('.cb-piece');
-        glyph.textContent = piece ? GLYPHS[piece.toLowerCase()] : '';
-        glyph.className = `cb-piece${piece ? (piece === piece.toUpperCase() ? ' is-white' : ' is-black') : ''}`;
+        const wanted = piece || '';
+        if (glyph.dataset.piece !== wanted) {
+          glyph.innerHTML = piece ? pieceSvg(piece) : '';
+          glyph.dataset.piece = wanted;
+        }
+        glyph.className = 'cb-piece';
+        // The name has to carry what the colours carry, including whether this square is a
+        // legal destination — that is the whole state a sighted player reads off the dots.
+        const role = this.selected === sq ? ', selected'
+          : targetSquares.has(sq) ? (piece ? ', can capture here' : ', can move here') : '';
+        cell.setAttribute('aria-label', squareLabel(sq, piece) + role);
         cell.classList.toggle('is-selected', this.selected === sq);
         cell.classList.toggle('is-target', targetSquares.has(sq));
         cell.classList.toggle('is-capture', targetSquares.has(sq) && !!piece);
@@ -275,10 +339,15 @@
 
     /* -- interaction ----------------------------------------------------- */
     handleClick(e) {
-      if (!this.interactive) return;
       const cell = e.target.closest('.cb-sq');
       if (!cell) return;
-      const sq = cell.dataset.square;
+      this.activate(cell.dataset.square);
+    }
+
+    /* Selecting, moving, or deselecting — whichever the square means right now. Both the
+       mouse and the keyboard land here, so the two can never drift apart. */
+    activate(sq) {
+      if (!this.interactive) return;
       if (this.selected) {
         const matches = this.legal.filter((m) => m.from === this.selected && m.to === sq);
         if (matches.length === 1) {
@@ -299,6 +368,45 @@
       this.onSelect(this.selected);
     }
 
+    /* Where the keyboard cursor is. Kept separate from `selected`: moving the cursor over
+       a square is not the same as picking the piece up, exactly as with a mouse. */
+    setCursor(square, focus = true) {
+      if (!this.cells[square]) return;
+      const prev = this.cells[this.cursor];
+      if (prev) prev.tabIndex = -1;
+      this.cursor = square;
+      this.cells[square].tabIndex = 0;
+      if (focus) this.cells[square].focus();
+    }
+
+    handleKey(e) {
+      const step = { ArrowUp: [0, 1], ArrowDown: [0, -1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+      if (step) {
+        e.preventDefault();
+        // The board can be seen from either side, and "up" means up the screen, not up
+        // the board — arrows that invert when you flip would be unusable.
+        const flip = this.orientation === 'black' ? -1 : 1;
+        const file = FILES.indexOf(this.cursor[0]) + step[0] * flip;
+        const rank = Number(this.cursor[1]) + step[1] * flip;
+        if (file < 0 || file > 7 || rank < 1 || rank > 8) return;
+        this.setCursor(`${FILES[file]}${rank}`);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        this.activate(this.cursor);
+        return;
+      }
+      if (e.key === 'Escape') {
+        this.clearSelection();
+        return;
+      }
+      if (e.key === 'Home' || e.key === 'End') {
+        e.preventDefault();
+        this.setCursor(e.key === 'Home' ? `a${this.cursor[1]}` : `h${this.cursor[1]}`);
+      }
+    }
+
     showPromo(moves, square) {
       this.promoEl.hidden = false;
       this.promoEl.innerHTML =
@@ -307,7 +415,8 @@
           .map(
             (m) =>
               `<button type="button" data-uci="${m.uci}" title="${NAMES[m.promotion] || m.promotion}">` +
-              `<span class="cb-piece ${parseFen(this.fen).turn === 'white' ? 'is-white' : 'is-black'}">${GLYPHS[m.promotion]}</span>` +
+              `<span class="cb-piece">${pieceSvg(parseFen(this.fen).turn === 'white'
+                ? m.promotion.toUpperCase() : m.promotion)}</span>` +
               `<i>${NAMES[m.promotion] || ''}</i></button>`
           )
           .join('') +

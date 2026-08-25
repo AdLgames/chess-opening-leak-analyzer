@@ -375,7 +375,7 @@
                   <span class="mono muted" id="reviewTurn"></span>
                 </div>
                 <div class="board" id="board" aria-label="Board position"></div>
-                <p class="board-status" id="reviewStatus">Play a move on the board to try an alternative.</p>
+                <p class="board-status" id="reviewStatus" role="status" aria-live="polite">Play a move on the board to try an alternative.</p>
                 <div class="move-strip mono" id="reviewLine"></div>
                 <div class="board-bar">
                   <button class="btn btn-ghost" id="reviewMine">Show my move</button>
@@ -450,12 +450,12 @@
                   <button class="seg" data-mode="punish">Find the punishment</button>
                 </div>
                 <div class="board-meta">
-                  <b id="drillTask">Find the improvement</b>
+                  <b id="drillTask" role="status" aria-live="polite">Find the improvement</b>
                   <span class="mono muted" id="drillCount">0 / 0</span>
                 </div>
                 <div class="board" id="drillBoard" aria-label="Drill position"></div>
-                <p class="board-status" id="drillPrompt"></p>
-                <div class="drill-feedback" id="drillFeedback" hidden></div>
+                <p class="board-status" id="drillPrompt" role="status" aria-live="polite"></p>
+                <div class="drill-feedback" id="drillFeedback" role="status" aria-live="polite" hidden></div>
                 <div class="board-bar">
                   <button class="btn btn-ghost" id="drillPrev">Previous</button>
                   <button class="btn btn-ghost" id="drillRetry">Try again</button>
@@ -490,7 +490,7 @@
                   <span class="mono muted" id="libTurn"></span>
                 </div>
                 <div class="board" id="libBoard" aria-label="Explorer board"></div>
-                <p class="board-status" id="libStats"></p>
+                <p class="board-status" id="libStats" role="status" aria-live="polite"></p>
                 <div class="move-strip mono" id="libLine"></div>
                 <div class="board-bar">
                   <button class="btn btn-ghost" id="libBack">Back one move</button>

@@ -613,14 +613,28 @@ td.move-cell { font-family: var(--mono); font-weight: 500; }
 .cb-sq.is-dark { background: var(--dark-sq); }
 .cb-sq.can-move { cursor: pointer; }
 .cb-piece {
-  font-size: clamp(20px, 8.6cqw, 40px);
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88%;
+  height: 88%;
   pointer-events: none;
   z-index: 2;
 }
 .cb { container-type: inline-size; }
-.cb-piece.is-white { color: #fdfcf8; text-shadow: 0 0 1.5px #1b1f21, 0 1px 2px rgba(0, 0, 0, 0.45); }
-.cb-piece.is-black { color: #191d1f; text-shadow: 0 0 1.5px rgba(255, 255, 255, 0.35), 0 1px 2px rgba(0, 0, 0, 0.35); }
+/* Filled shapes with a contrasting stroke, so a piece never depends on a font the reader
+   may not have. The stroke is what keeps a white piece legible on a light square. */
+.cb-svg { width: 100%; height: 100%; display: block; }
+.cb-svg g { stroke-width: 1.1; stroke-linejoin: round; }
+.cb-svg.is-white g { fill: #fdfcf8; stroke: #1b1f21; }
+.cb-svg.is-black g { fill: #191d1f; stroke: #d8d4cb; }
+.cb-svg .cb-eye, .cb-svg .cb-cut { stroke: none; }
+.cb-svg.is-white .cb-eye, .cb-svg.is-white .cb-cut { fill: #1b1f21; }
+.cb-svg.is-black .cb-eye, .cb-svg.is-black .cb-cut { fill: #d8d4cb; }
+/* The keyboard cursor has to be visible against both square colours and against the
+   selection highlight, so it is an inset ring rather than a background change. */
+.cb-sq:focus { outline: none; }
+.cb-sq:focus-visible { box-shadow: inset 0 0 0 3px var(--accent); z-index: 3; }
 .cb-sq.is-last::before {
   content: '';
   position: absolute;

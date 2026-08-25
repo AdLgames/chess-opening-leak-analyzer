@@ -631,12 +631,51 @@ lands.
 
 ---
 
+## Cross-cutting: the board, for people not using a mouse  ·  `X3` `X4`
+
+**Status: done**
+
+The board was a grid of `div`s with `role="button"`, `tabindex="-1"` and no accessible
+name — sixty-four unnamed buttons, none of them reachable. Verdicts appeared silently.
+And the pieces were Unicode glyphs.
+
+**The pieces.** A glyph came from whichever system font happened to have one — on Windows
+that is Segoe UI Symbol, which draws them as monochrome *outlines*. Colouring an outline
+glyph white leaves a white piece as a white outline: on a light square, invisible. They are
+now inline SVG: filled shapes with a contrasting stroke, depending on no installed font and
+legible at 22px as well as 60px. The artwork is original, drawn for this board — the
+obvious free set (Cburnett) is on npm under a relicence that does not clearly cover the
+artwork, and that is not a call to make quietly inside a commit.
+
+**The keyboard.** The board is now a `role="grid"` with a roving tabindex — one tab stop,
+not sixty-four. Arrow keys move a cursor, Enter selects and moves, Escape deselects,
+Home/End jump along the rank. Arrows follow the *screen*, not the board, so they do not
+invert when you play as Black. The cursor is deliberately separate from the selection:
+moving over a square is not picking the piece up, exactly as with a mouse. Mouse and
+keyboard both route through one `activate()`, so the two cannot drift apart.
+
+**The names.** Each square reads as "f 8, black bishop" — and carries the state the
+colours carry: ", selected", ", can move here", ", can capture here". Without that last
+part a keyboard player has no idea which squares are legal, which is the entire thing the
+dots convey to everyone else.
+
+**The verdicts.** Drill feedback, the drill prompt and task, the review status and the book
+summary are all `aria-live="polite"` regions. A verdict that only appears visually is a
+verdict half the audience never receives.
+
+Verified in Chromium by playing a move end to end with no mouse at all: focus the board,
+arrow to f8, Enter (label becomes "f 8, black bishop, selected", c5 becomes "c 5, empty,
+can move here"), arrow to c5, Enter — move played, verdict announced.
+
+The charts' half of `X3` was done with the charts: both carry a real table of their numbers,
+and every bar is focusable with its own label.
+
+---
+
 ## Cross-cutting, do alongside
 
 | Item | Finding | Note |
 | --- | --- | --- |
-| Keyboard-operable board, live regions for verdicts, chart text alternatives | `X3` | Squares carry `tabindex="-1"`; drill feedback is announced to nobody |
-| Replace Unicode pieces with inline SVG | `X4` | Windows renders both colours from one outline font |
 | Lichess OAuth instead of pasting an API token into a form | `C05` | Teaches a habit users should not have |
 | Consumer-readable error states; no shell commands in the UI | `C05` | |
 | Privacy page: what is fetched, retention, deletion | `C08` | Table stakes for asking for an account name |
