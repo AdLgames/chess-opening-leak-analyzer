@@ -305,9 +305,9 @@ Ten items, given as the target shape of the product. Mapped to what exists.
 | 4 | Four kinds of problem: objective / practical / knowledge gap / low confidence | **Done.** `classify()` decides; the dashboard colours each one. |
 | 5 | "What are you not ready for?" with Learn / Practice / Ignore | Mostly. The section ships; the three actions do not. |
 | 6 | Varied practice: best move, opponent's idea, continue the line, explain why, timed | Open. One mode today. |
-| 7 | Track improvement: "you fixed this", before/after, weakness score over time | Partly. Known / still learning / due today and recall accuracy ship; run-over-run deltas still need history. |
+| 7 | Track improvement: "you fixed this", before/after, weakness score over time | Partly. A Progress destination now reports known / still learning / due / recall accuracy; run-over-run deltas still need report history. |
 | 8 | Let users commit to their own repertoire choice and stop re-flagging it | **Done.** `marks.py` records "this is my move" / "not interested"; committing drops the results argument and keeps the objective one. |
-| 9 | Simplify the UI around Dashboard → My Repertoire → Fix Mistakes → Practice → Progress | Open. Sections are in that order but the navigation still mirrors the pipeline. |
+| 9 | Simplify the UI around Dashboard → My Repertoire → Fix Mistakes → Practice → Progress | **Done.** Five destinations; each shows only the sections that answer its question. |
 
 ### Item 4 — how the four kinds are decided
 
@@ -427,6 +427,38 @@ node's is not (`e4 c6`), so the two never matched and every repertoire reported 
 are now reduced to bare SAN, and the gap's own reply is dropped before matching, since a gap
 hangs off the player's move that *reaches* the position. An older test had encoded the wrong
 assumption and has been corrected rather than deleted.
+
+---
+
+## Item 9 — five destinations
+
+**Status: done**
+
+The sidebar listed eleven sections in the order the analysis computes them, which is the
+pipeline's order rather than anyone's. It is now the five the spec named: **Dashboard**,
+**My repertoire**, **Fix mistakes**, **Practice**, **Progress**.
+
+The sections themselves are unchanged — each destination simply shows the ones that answer
+its question, so nobody scrolls past a chart to reach the thing they came for:
+
+| Destination | Shows |
+| --- | --- |
+| Dashboard | run · overview · where the points go |
+| My repertoire | the tree · what you're not ready for · openings library |
+| Fix mistakes | fix list · leak table · the board |
+| Practice | the drill queue |
+| Progress | how the fixes are bedding in · engine and data |
+
+A section still hides itself when it has nothing to say; the view only decides which are
+*eligible*, so the two conditions never fight. Section numbering is gone, since these are
+no longer a sequence. And a finished run now lands on **Fix mistakes** rather than leaving
+the reader on the form that started it.
+
+Progress is a new destination rather than a new subsystem: the review schedule already knew
+known / still learning / due / recall accuracy, and this asks it. It re-reads on arrival,
+because those numbers move every time a drill is answered and a page-load snapshot would go
+stale within one session — which is exactly what the first version did, showing "nothing
+tracked yet" beside eight tracked positions.
 
 ---
 

@@ -41,17 +41,11 @@
         </a>
 
         <nav class="nav" aria-label="Sections">
-          <a href="#run" class="nav-item is-active"><span class="dot"></span>Run analysis</a>
-          <a href="#fixes" class="nav-item"><span class="dot"></span>Fix these first</a>
-          <a href="#repertoire" class="nav-item"><span class="dot"></span>My repertoire</a>
-          <a href="#coverage" class="nav-item"><span class="dot"></span>Not ready for</a>
-          <a href="#overview" class="nav-item"><span class="dot"></span>Overview</a>
-          <a href="#charts" class="nav-item"><span class="dot"></span>Where points go</a>
-          <a href="#leaks" class="nav-item"><span class="dot"></span>Leak table</a>
-          <a href="#position" class="nav-item"><span class="dot"></span>Fix the mistake</a>
-          <a href="#practice" class="nav-item"><span class="dot"></span>Practice</a>
-          <a href="#library" class="nav-item"><span class="dot"></span>Openings library</a>
-          <a href="#provenance" class="nav-item"><span class="dot"></span>Engine &amp; data</a>
+          <a href="#run" class="nav-item is-active" data-view="dashboard"><span class="dot"></span>Dashboard</a>
+          <a href="#repertoire" class="nav-item" data-view="repertoire"><span class="dot"></span>My repertoire</a>
+          <a href="#fixes" class="nav-item" data-view="fixes"><span class="dot"></span>Fix mistakes</a>
+          <a href="#practice" class="nav-item" data-view="practice"><span class="dot"></span>Practice</a>
+          <a href="#progress" class="nav-item" data-view="progress"><span class="dot"></span>Progress</a>
         </nav>
 
         <div class="side-card" id="sideStatus">
@@ -90,7 +84,7 @@
         <!-- run -->
         <section class="section" id="run">
           <div class="section-head">
-            <h2>1 · Feed it your games</h2>
+            <h2>Feed it your games</h2>
             <span class="hint">Enter your username, or upload a PGN export</span>
           </div>
 
@@ -259,7 +253,7 @@
         <!-- fix list: the answer to "what do I do next", before any table -->
         <section class="section" id="fixes" hidden>
           <div class="section-head">
-            <h2>2 · Fix these first</h2>
+            <h2>Fix these first</h2>
             <span class="hint" id="fixesHint">Your most expensive habits, worst first</span>
           </div>
           <div class="fix-list" id="fixList"></div>
@@ -268,7 +262,7 @@
         <!-- the repertoire itself: what you play, and how each line is doing -->
         <section class="section" id="repertoire" hidden>
           <div class="section-head">
-            <h2>3 · My repertoire</h2>
+            <h2>My repertoire</h2>
             <span class="hint" id="repHint"></span>
           </div>
           <p class="section-lead">The lines you actually play, drawn from your own games. Colour
@@ -283,7 +277,7 @@
         <!-- coverage: lines you will meet but have not played -->
         <section class="section" id="coverage" hidden>
           <div class="section-head">
-            <h2>4 · What you're not ready for</h2>
+            <h2>What you're not ready for</h2>
             <span class="hint" id="coverageHint">Replies you should expect but have barely met</span>
           </div>
           <p class="section-lead">Your report can only judge moves you have actually played. These
@@ -295,7 +289,7 @@
         <!-- overview -->
         <section class="section" id="overview">
           <div class="section-head">
-            <h2>5 · Overview</h2>
+            <h2>Overview</h2>
             <span class="hint" id="overviewHint">Awaiting a run</span>
           </div>
           <div class="kpis" id="kpis"></div>
@@ -304,7 +298,7 @@
         <!-- charts -->
         <section class="section" id="charts">
           <div class="section-head">
-            <h2>6 · Where the points go</h2>
+            <h2>Where the points go</h2>
             <span class="hint">Score is win% + half of draw%, as on Lichess</span>
           </div>
           <div class="chart-grid">
@@ -324,7 +318,7 @@
         <!-- leaks -->
         <section class="section" id="leaks">
           <div class="section-head">
-            <h2>7 · Leak table</h2>
+            <h2>Leak table</h2>
             <div class="filters">
               <div class="segmented" id="flagFilter" role="tablist">
                 <button class="seg is-active" data-flag="all">All</button>
@@ -371,7 +365,7 @@
         <!-- position detail -->
         <section class="section" id="position">
           <div class="section-head">
-            <h2>8 · Fix the mistake</h2>
+            <h2>Fix the mistake</h2>
             <span class="hint" id="posHint">Select a row above</span>
           </div>
           <div class="card detail-card" id="detailCard">
@@ -446,7 +440,7 @@
         <!-- practice -->
         <section class="section" id="practice">
           <div class="section-head">
-            <h2>9 · Practice the fixes</h2>
+            <h2>Practice the fixes</h2>
             <span class="hint" id="practiceHint">Run an analysis to build a drill set</span>
           </div>
           <div class="card practice-card">
@@ -486,7 +480,7 @@
         <!-- openings library -->
         <section class="section" id="library">
           <div class="section-head">
-            <h2>10 · Openings library</h2>
+            <h2>Openings library</h2>
             <span class="hint">Walk any line and see what the book did with it</span>
           </div>
           <div class="card library-card">
@@ -529,10 +523,25 @@
           </div>
         </section>
 
+        <!-- progress: what the review cycle knows about how it is going -->
+        <section class="section" id="progress" hidden>
+          <div class="section-head">
+            <h2>Progress</h2>
+            <span class="hint" id="progressHint">How the fixes are bedding in</span>
+          </div>
+          <p class="section-lead">Positions move from still-learning to known by being recalled
+            correctly, with a widening gap between attempts. Missing one sends it back to tomorrow.</p>
+          <div class="kpis" id="progressKpis"></div>
+          <div class="card" id="progressEmpty">
+            <p class="muted">Nothing tracked yet. Run an analysis and work through the practice
+              queue — every position you attempt starts being scheduled.</p>
+          </div>
+        </section>
+
         <!-- provenance -->
         <section class="section" id="provenance">
           <div class="section-head">
-            <h2>11 · Engine &amp; data</h2>
+            <h2>Engine &amp; data</h2>
             <span class="hint">Everything bundled, nothing phoning home</span>
           </div>
           <div class="prov-grid">

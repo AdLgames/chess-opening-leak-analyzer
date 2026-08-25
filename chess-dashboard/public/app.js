@@ -32,6 +32,7 @@ const state = {
   selected: null,
   charts: {},
   meta: null,
+  view: 'dashboard',
   marks: {},
   treeSide: 'white',
 };
@@ -439,6 +440,9 @@ function applyReport(data, job) {
   if (window.Study) window.Study.setRows(state.rows);
   const first = sortedRows()[0];
   if (first) selectRow(first);
+  renderProgress();
+  // A finished run should land on its findings rather than on the form that started it.
+  if (state.view === 'dashboard' && (data.rows || []).length) showView('fixes');
 }
 
 /* The answer to "what do I do next", above the table rather than below it. The server has
@@ -650,6 +654,45 @@ async function decide(decision) {
   } catch (err) {
     $('decideState').textContent = `Could not save that: ${err.message}`;
   }
+}
+
+/* Progress is the long view: not this session's score, but whether the fixes are bedding
+   in. The review schedule already knows; this only asks it. */
+async function renderProgress() {
+  let progress = null;
+  try {
+    ({ progress } = await (await fetch(`${API}/api/drills`)).json());
+  } catch {
+    progress = null;
+  }
+  const has = progress && progress.tracked > 0;
+  $('progress').hidden = false;
+  $('progressEmpty').hidden = !!has;
+  $('progressKpis').innerHTML = '';
+  if (!has) {
+    $('progressHint').textContent = 'Nothing tracked yet';
+    return;
+  }
+
+  $('progressHint').textContent =
+    progress.due ? `${progress.due} ready to review now` : 'Nothing due right now — come back tomorrow';
+  const cards = [
+    { label: 'Known', value: progress.known, cls: 'good', note: 'recalled repeatedly, weeks apart' },
+    { label: 'Still learning', value: progress.learning, note: 'not yet reliable' },
+    { label: 'Due now', value: progress.due, cls: 'accent', note: 'ready to be seen again' },
+    { label: 'Attempts', value: progress.attempts, note: 'across every session' },
+    {
+      label: 'Recalled correctly',
+      value: progress.accuracy_pct === null ? '—' : `${progress.accuracy_pct}%`,
+      note: 'first-time and repeat attempts together',
+    },
+  ];
+  $('progressKpis').innerHTML = cards
+    .map((c) => `<div class="kpi ${c.cls || ''}">
+      <div class="kpi-label">${esc(c.label)}</div>
+      <div class="kpi-value">${esc(c.value)}</div>
+      <div class="kpi-note">${esc(c.note)}</div></div>`)
+    .join('');
 }
 
 function showKpiSkeleton() {
@@ -1050,10 +1093,6 @@ function wire() {
       setTimeout(() => ($('copyFen').textContent = 'Copy FEN'), 1800);
     }
   });
-  const setDrawer = (open) => {
-    $('sidebar').classList.toggle('is-open', open);
-    $('scrim').hidden = !open;
-  };
   $('menuBtn').addEventListener('click', () => setDrawer(!$('sidebar').classList.contains('is-open')));
   $('drawerClose').addEventListener('click', () => setDrawer(false));
   $('scrim').addEventListener('click', () => setDrawer(false));
@@ -1061,24 +1100,51 @@ function wire() {
     if (e.key === 'Escape') setDrawer(false);
   });
 
-  const links = Array.from(document.querySelectorAll('.nav-item'));
-  links.forEach((a) =>
-    a.addEventListener('click', () => {
-      links.forEach((x) => x.classList.remove('is-active'));
-      a.classList.add('is-active');
+  wireViews();
+}
+
+const setDrawer = (open) => {
+  $('sidebar').classList.toggle('is-open', open);
+  $('scrim').hidden = !open;
+};
+
+/* Five destinations rather than eleven pipeline stages. The sections themselves are
+   unchanged; each view simply shows the ones that belong to the question being asked, so
+   nobody scrolls past a chart to reach the thing they came for. */
+const VIEWS = {
+  dashboard: ['run', 'overview', 'charts'],
+  repertoire: ['repertoire', 'coverage', 'library'],
+  fixes: ['fixes', 'leaks', 'position'],
+  practice: ['practice'],
+  progress: ['progress', 'provenance'],
+};
+
+function showView(name) {
+  const wanted = VIEWS[name] || VIEWS.dashboard;
+  state.view = name;
+  document.querySelectorAll('.section').forEach((section) => {
+    // A section that has hidden itself for lack of data stays hidden; the view only
+    // decides which are eligible.
+    section.dataset.inView = wanted.includes(section.id) ? 'yes' : 'no';
+  });
+  document.querySelectorAll('.nav-item').forEach((a) =>
+    a.classList.toggle('is-active', a.dataset.view === name),
+  );
+  $('main').scrollTop = 0;
+  // The numbers move every time a drill is answered, so read them on arrival rather than
+  // trusting whatever they were when the page loaded.
+  if (name === 'progress') renderProgress();
+}
+
+function wireViews() {
+  document.querySelectorAll('.nav-item').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      showView(a.dataset.view);
       setDrawer(false);
-    })
+    }),
   );
-  const spy = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((en) => {
-        if (!en.isIntersecting) return;
-        links.forEach((x) => x.classList.toggle('is-active', x.getAttribute('href') === `#${en.target.id}`));
-      });
-    },
-    { root: $('main'), rootMargin: '-30% 0px -60% 0px' }
-  );
-  document.querySelectorAll('.section').forEach((s) => spy.observe(s));
+  showView('dashboard');
 }
 
 wire();
@@ -1086,3 +1152,4 @@ if (window.Study) window.Study.init(API);
 bootAccount();
 loadMeta();
 loadMarks();
+renderProgress();
