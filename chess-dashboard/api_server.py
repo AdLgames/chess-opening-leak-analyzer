@@ -37,7 +37,7 @@ from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch
                                  lookup_player, provider_label, speeds_from_csv)
 from chessopening.guard import RateLimiter, allowed_origins, client_key
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase
-from chessopening.marks import DEFAULT_STATE, MarkStore
+from chessopening.marks import DEFAULT_STATE, GapStore, MarkStore
 from chessopening.history import HistoryStore
 from chessopening.review import ReviewStore, describe_due, grade_for_loss
 from chessopening.pgn_loader import detect_main_player, find_pgn_files
@@ -512,6 +512,60 @@ def set_repertoire_mark(payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "mark": mark.__dict__}
     finally:
         store.close()
+
+
+@app.get("/api/gaps")
+def gap_decisions() -> dict[str, Any]:
+    """What the player has decided about the replies they are not ready for."""
+    store = GapStore(DEFAULT_STATE)
+    try:
+        return {"decisions": store.listing()}
+    finally:
+        store.close()
+
+
+@app.post("/api/gaps")
+def decide_gap(payload: dict[str, Any]) -> dict[str, Any]:
+    """Learn it, practise it, or stop being told about it.
+
+    "Practising" also enrols the position in the review cycle, so choosing it in one place
+    does the thing rather than only recording an intention. The move to grade against comes
+    from the report, which looked it up in the book when the gap was found.
+    """
+    epd = str(payload.get("epd") or "").strip()
+    color = str(payload.get("color") or "").strip()
+    decision = str(payload.get("decision") or "").strip()
+    if not epd or color not in ("white", "black"):
+        raise HTTPException(400, "epd and a colour of white or black are required")
+
+    store = GapStore(DEFAULT_STATE)
+    try:
+        if decision == "clear":
+            return {"ok": True, "cleared": store.clear(epd, color)}
+        try:
+            saved = store.set(
+                epd, color, decision,
+                reply=str(payload.get("reply") or ""),
+                line=str(payload.get("line") or ""),
+                opening=str(payload.get("opening") or ""),
+            )
+        except ValueError as err:
+            raise HTTPException(400, str(err)) from err
+    finally:
+        store.close()
+
+    progress = None
+    if decision == "practising" and payload.get("answer_uci"):
+        reviews = ReviewStore(DEFAULT_STATE)
+        try:
+            reviews.enrol(epd, color, uci=str(payload.get("answer_uci") or ""),
+                          san=str(payload.get("answer_san") or ""),
+                          opening=str(payload.get("opening") or ""),
+                          line=str(payload.get("line") or ""))
+            progress = reviews.progress()
+        finally:
+            reviews.close()
+    return {"ok": True, "decision": saved, "progress": progress}
 
 
 @app.get("/api/drills")

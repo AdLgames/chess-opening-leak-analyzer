@@ -588,6 +588,18 @@
       await this.search('');
     },
 
+    /* Start the board from a position rather than from move one — a gap is somewhere in
+       the middle of a line, and walking there by hand is not studying it. */
+    async openFrom(fen, label = '') {
+      await this.init();
+      this.fromFen = fen || null;
+      this.moves = [];
+      this.history = [];
+      this.startLabel = label;
+      await this.load();
+      document.getElementById('library').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+
     async load(lastMove = null) {
       const pos = this.fromFen
         ? await LB.position(this.fromFen, this.moves)
@@ -762,6 +774,23 @@
     setRows(rows) {
       state.rows = rows || [];
       drill.setRows(state.rows);
+    },
+    /* Open a gap on the board that is already here, with the local book and engine behind
+       it. Handing the position to lichess.org was the only thing the section offered, which
+       is a strange answer from a tool whose pitch is that it works offline. */
+    study(gap) {
+      return library.openFrom(gap.fen, gap.line || '').catch(() => {});
+    },
+    /* A gap that has just been enrolled should show up in the scoreboard without a reload. */
+    async refreshDrills() {
+      try {
+        const res = await fetch(`${apiBase}/api/drills`);
+        const { progress } = await res.json();
+        drill.progress = progress;
+        drill.renderScore();
+      } catch {
+        // the review cycle is an extra, not a prerequisite
+      }
     },
   };
 })();

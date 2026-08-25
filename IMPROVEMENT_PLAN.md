@@ -303,7 +303,7 @@ Ten items, given as the target shape of the product. Mapped to what exists.
 | 2 | Every leak → Learn → Practice → Retest, with spaced repetition | **Done.** `review.py` schedules by SM-2; misses return within the session and again the next day. |
 | 3 | "My Repertoire" as a visual tree with strong lines, weak lines and gaps | **Done.** `repertoire.build_tree` draws the lines actually played, coloured by how each is doing, with unmet replies hanging off the move that reaches them. |
 | 4 | Four kinds of problem: objective / practical / knowledge gap / low confidence | **Done.** `classify()` decides; the dashboard colours each one. |
-| 5 | "What are you not ready for?" with Learn / Practice / Ignore | Mostly. The section ships; the three actions do not. |
+| 5 | "What are you not ready for?" with Learn / Practice / Ignore | **Done.** All three, persisted in `gap_decisions`; Practise enrols against a book-derived answer, and ignored gaps stay gone across runs. |
 | 6 | Varied practice: best move, opponent's idea, continue the line, explain why, timed | Partly. Two modes ship — find the move, and find the punishment — both feeding one schedule. Continue-the-line, explain-why and timed remain open. |
 | 7 | Track improvement: "you fixed this", before/after, weakness score over time | **Done.** `history.py` stores each run and diffs it per position: cleared, new, better, worse — and refuses to compare runs over very different game counts. |
 | 8 | Let users commit to their own repertoire choice and stop re-flagging it | **Done.** `marks.py` records "this is my move" / "not interested"; committing drops the results argument and keeps the objective one. |
@@ -593,6 +593,44 @@ editing the package.
 
 ---
 
+## Item 5 — three things to do about a gap
+
+**Status: done**
+
+"What are you not ready for" listed the replies and then offered one action: a link to
+lichess.org — a strange answer from a tool whose whole pitch is that it works offline, and
+no help at all in deciding what to *do*. The spec asked for Learn, Practice and Ignore.
+
+**Ignore** is the one that makes the section trustworthy. A list that only ever grows is a
+list people stop opening; somebody who does not play into the French does not need to be
+told about it every month. The decision persists in `gap_decisions` and is applied
+server-side on the next run — verified by ignoring `1.e4 e6`, re-running from scratch, and
+watching it stay gone.
+
+**Learn** opens the position on the board that is already in the page, with the local book
+and engine behind it, and marks the gap as being worked on.
+
+**Practice** enrols it in the review cycle. That needed something the report did not have:
+a gap is a position the player has *never faced*, so there is no move of theirs to grade
+against. `best_reply()` takes the target from the book instead — and getting that right
+took two goes:
+
+> Shrinkage alone does not do it. A 12-game 100% line shrinks to about 71% against a prior
+> of 50, which still beats a 1000-game 64% mainline, so the player would have been drilled
+> on a curiosity. A candidate now needs a real *share* of the position's games as well —
+> which is also the more honest rule: the answer to "what do I play here" ought to be
+> something real opponents have had to meet.
+
+Where the book is too thin to name an answer, Practise is disabled and says why, rather
+than enrolling the player in a drill with no correct move.
+
+Rendering it caught a labelling bug that had nothing to do with this feature: gaps were
+named after the position *before* the reply, so `1.e4 c6` was captioned "King's Pawn Game"
+while the board underneath correctly said Caro-Kann. Gaps are now named by where the reply
+lands.
+
+---
+
 ## Cross-cutting, do alongside
 
 | Item | Finding | Note |
@@ -613,7 +651,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**. After run-over-run comparison and the second practice mode: **173 passed, 5 skipped**. After locking down the API: **190 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**. After run-over-run comparison and the second practice mode: **173 passed, 5 skipped**. After locking down the API: **190 passed, 5 skipped**. After the gap actions: **205 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample

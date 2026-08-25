@@ -164,12 +164,18 @@ def find_gaps(
                 continue
             seen = faced.get(child.epd(), 0)
             if seen < min_faced:
+                # Name the gap by where the reply *lands*, not where it started. The reply
+                # is usually what defines the opening — labelling 1.e4 c6 "King's Pawn
+                # Game" is technically the parent's name and useless to someone trying to
+                # work out what to read about.
+                child_named = db.opening_name(child.epd())
+                gap_eco, gap_name = child_named if child_named else (eco, name)
                 gaps.append({
                     "line": _describe([*line, move.san], chess.WHITE),
                     "reply": move.san,
                     "reply_uci": move.uci,
-                    "eco": eco,
-                    "opening": name,
+                    "eco": gap_eco,
+                    "opening": gap_name,
                     "share_pct": round(100 * share, 1),
                     "reach_pct": round(100 * reach, 1),
                     "times_faced": seen,
@@ -207,6 +213,8 @@ def _explain(reply: str, line: list[str], share: float, seen: int, name: str) ->
 COVERAGE_FIELDS = [
     "reach_pct", "share_pct", "times_faced", "player_color", "category", "eco", "opening",
     "line", "reply", "book_games", "fen", "explanation",
+    # What to meet it with, so the export is actionable rather than just a list of worries
+    "answer_san", "answer_uci", "answer_score_pct", "answer_games", "decision",
 ]
 
 
@@ -324,3 +332,66 @@ def tree_totals(tree: list[dict[str, Any]]) -> dict[str, int]:
             walk(item.get("children", []))
     walk(tree)
     return counts
+
+
+# ---------------------------------------------------------------- answering a gap
+
+# A gap's answer needs enough games behind it to be an answer rather than a coincidence.
+# Lower than the leak threshold on purpose: a rarely-reached position is exactly where the
+# book thins out, and holding out for 30 games would leave the deepest gaps unanswerable.
+MIN_ANSWER_GAMES = 10
+
+# And it has to be a move people actually play. Shrinkage alone does not save us here: a
+# 12-game 100% line shrinks to about 71% against a prior of 50, which still beats a
+# 1000-game 64% mainline, so the player would be drilled on a curiosity. Requiring a real
+# share of the position's games is both the effective filter and the honest rule — the
+# answer to "what do I play here" should be something real opponents have had to meet.
+MIN_ANSWER_SHARE = 0.05
+
+
+def best_reply(stats: Any, color: str, min_games: int = MIN_ANSWER_GAMES,
+               min_share: float = MIN_ANSWER_SHARE, prior_games: int = 50) -> dict[str, Any] | None:
+    """The book's best-supported answer for `color` in this position, or None.
+
+    A gap is a position the player has never had to answer, so there is no move of theirs
+    to grade against — the target has to come from somewhere else. The book knows what
+    happened when other people stood here.
+
+    Two filters and then a comparison: a candidate needs a real number of games and a real
+    share of them, and what is compared is the score shrunk toward the position average,
+    for the same reason it is everywhere else in this codebase.
+    """
+    from .explorer import shrink_toward
+
+    position_score = stats.score_for(color)
+    if position_score is None:
+        return None
+    total = sum(m.games for m in stats.moves)
+    if not total:
+        return None
+    candidates = [
+        m for m in stats.moves
+        if m.games >= min_games and m.games / total >= min_share
+    ]
+    if not candidates:
+        return None
+
+    best, best_score = None, -1.0
+    for move in candidates:
+        raw = move.score_for(color)
+        if raw is None:
+            continue
+        adjusted = shrink_toward(raw, move.games, position_score, prior_games)
+        if adjusted > best_score:
+            best, best_score = move, adjusted
+
+    if best is None:
+        return None
+    return {
+        "uci": best.uci,
+        "san": best.san,
+        "score_pct": round(best_score * 100, 1),
+        "games": best.games,
+        "share_pct": round(best.games / total * 100, 1),
+        "raw_score_pct": round((best.score_for(color) or 0) * 100, 1),
+    }

@@ -559,7 +559,7 @@ function renderTree(s) {
 /* The lines the report cannot otherwise see: replies the player's own openings lead to,
    which they have barely met. Ranked by how often a real opponent reaches them. */
 function renderCoverage(s) {
-  const gaps = s.coverage || [];
+  const gaps = (s.coverage || []).filter((g) => g.decision !== 'ignored');
   $('coverage').hidden = gaps.length === 0;
   if (!gaps.length) return;
   const total = s.coverage_total || gaps.length;
@@ -568,26 +568,104 @@ function renderCoverage(s) {
       ? `The ${gaps.length} most likely of ${total}`
       : `${gaps.length} to prepare`;
 
-  $('gapList').innerHTML = gaps
-    .map((g) => {
-      const faced =
-        g.times_faced === 0
-          ? '<span class="gap-never">never faced</span>'
-          : `<span class="gap-rare">faced ${g.times_faced}×</span>`;
-      return `<article class="gap-card">
-        <div class="gap-reach" title="How often your games should reach this position">
-          <b>${fmt(g.reach_pct, 0, '%')}</b><span>of games</span>
-        </div>
-        <div class="gap-main">
-          <h3 class="mono">${esc(g.line)}</h3>
-          <p>${esc(g.opening || 'Unnamed line')} · as ${esc(g.player_color)} ${faced}</p>
-        </div>
-        <a class="btn btn-ghost" href="https://lichess.org/analysis/standard/${encodeURIComponent(
-          (g.fen || '').replace(/ /g, '_'),
-        )}" target="_blank" rel="noopener">Work it out</a>
-      </article>`;
-    })
-    .join('');
+  $('gapList').innerHTML = gaps.map(gapCard).join('');
+}
+
+/* Three things you can do about a reply you have never met, rather than one link out to
+   somebody else's site. "Ignore" is the one that makes the section trustworthy: a list
+   that only ever grows is a list people stop opening. */
+const GAP_STAGE = {
+  learning: { label: 'Learning', cls: 'is-learning' },
+  practising: { label: 'In your drills', cls: 'is-practising' },
+};
+
+function gapCard(g) {
+  const faced =
+    g.times_faced === 0
+      ? '<span class="gap-never">never faced</span>'
+      : `<span class="gap-rare">faced ${g.times_faced}×</span>`;
+  const stage = GAP_STAGE[g.decision];
+  const answer = g.answer_san
+    ? `<span class="gap-answer">Book answer <b>${esc(g.answer_san)}</b>
+         <span class="muted">${fmt(g.answer_score_pct, 0, '%')} over ${g.answer_games} games</span></span>`
+    : '<span class="gap-answer muted">The book is too thin here to name an answer.</span>';
+  const epd = (g.fen || '').split(' ').slice(0, 4).join(' ');
+  const attrs = `data-epd="${esc(epd)}" data-color="${esc(g.player_color)}" data-fen="${esc(g.fen || '')}"`;
+  return `<article class="gap-card${stage ? ' ' + stage.cls : ''}" ${attrs}>
+    <div class="gap-reach" title="How often your games should reach this position">
+      <b>${fmt(g.reach_pct, 0, '%')}</b><span>of games</span>
+    </div>
+    <div class="gap-main">
+      <h3 class="mono">${esc(g.line)}</h3>
+      <p>${esc(g.opening || 'Unnamed line')} · as ${esc(g.player_color)} ${faced}</p>
+      ${answer}
+    </div>
+    <div class="gap-actions">
+      ${stage ? `<span class="gap-stage">${esc(stage.label)}</span>` : ''}
+      <button class="btn btn-ghost gap-do" data-do="learn">Learn</button>
+      <button class="btn btn-ghost gap-do" data-do="practise"
+        ${g.answer_uci ? '' : 'disabled title="No book answer to grade against"'}>Practise</button>
+      <button class="btn btn-ghost gap-do" data-do="ignore">Ignore</button>
+    </div>
+  </article>`;
+}
+
+/* One listener on the list rather than one per button: the list is re-rendered on every
+   decision, and per-card listeners would be re-attached each time. */
+function wireGaps() {
+  $('gapList').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.gap-do');
+    if (!btn) return;
+    const card = btn.closest('.gap-card');
+    const row = (state.summary.coverage || []).find(
+      (g) => (g.fen || '').split(' ').slice(0, 4).join(' ') === card.dataset.epd &&
+        g.player_color === card.dataset.color,
+    );
+    if (!row) return;
+
+    if (btn.dataset.do === 'learn') {
+      // Show it on the board that is already here, with the local book and engine behind
+      // it, rather than handing the position to another site.
+      row.decision = 'learning';
+      await saveGapDecision(row, 'learning');
+      if (window.Study) window.Study.study(row);
+      showView('repertoire');
+      return;
+    }
+    if (btn.dataset.do === 'practise') {
+      row.decision = 'practising';
+      await saveGapDecision(row, 'practising');
+      renderCoverage(state.summary);
+      if (window.Study) window.Study.refreshDrills();
+      return;
+    }
+    row.decision = 'ignored';
+    await saveGapDecision(row, 'ignored');
+    renderCoverage(state.summary);
+  });
+}
+
+async function saveGapDecision(row, decision) {
+  try {
+    await fetch(`${API}/api/gaps`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        epd: (row.fen || '').split(' ').slice(0, 4).join(' '),
+        color: row.player_color,
+        decision,
+        reply: row.reply || '',
+        line: row.line || '',
+        opening: row.opening || '',
+        answer_uci: row.answer_uci || '',
+        answer_san: row.answer_san || '',
+      }),
+    });
+  } catch {
+    // Local-first: the decision still applies to what is on screen. Worth saying so
+    // rather than letting the button look like it worked and then forget by morning.
+    $('coverageHint').textContent = 'Applied here, but not saved — the local API did not answer.';
+  }
 }
 
 /* What the player has decided about their own openings. A tool that keeps arguing with a
@@ -1089,6 +1167,7 @@ function wire() {
   });
 
   wireViews();
+  wireGaps();
 }
 
 const setDrawer = (open) => {

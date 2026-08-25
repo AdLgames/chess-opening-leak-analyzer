@@ -12,9 +12,11 @@ from .engine import EngineAnalyzer, PositionEval
 from .evalstore import DEFAULT_EVALS, open_store
 from .explorer import BOOK_PRIOR_GAMES, OpeningExplorer, PositionStats, Z_CONFIDENCE, score_interval
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
-from .marks import DEFAULT_STATE, filter_flags, load_marks
+from .marks import (DEFAULT_STATE, apply_gap_decisions, filter_flags, load_gap_decisions,
+                    load_marks)
 from .pgn_loader import GameSummary, PlyRecord, load_games
-from .repertoire import COVERAGE_FIELDS, build_tree, find_gaps, tree_totals
+from .repertoire import (COVERAGE_FIELDS, best_reply, build_tree, find_gaps,
+                         tree_totals)
 
 
 @dataclass
@@ -615,6 +617,23 @@ def analyze(
             coverage.extend(found)
             log(f"Coverage ({side}): {len(found)} likely replies you have barely faced")
         coverage.sort(key=lambda g: (-g["reach_pct"], g["times_faced"]))
+        # Each gap carries the move the player should meet it with, so "Practice" has
+        # something to grade against — a position they have never faced has no move of
+        # their own to compare. Looked up here, once, rather than per click.
+        for gap in coverage:
+            answer = best_reply(explorer.lookup_epd(" ".join(gap["fen"].split()[:4])),
+                                gap["player_color"])
+            if answer:
+                gap["answer_uci"] = answer["uci"]
+                gap["answer_san"] = answer["san"]
+                gap["answer_score_pct"] = answer["score_pct"]
+                gap["answer_games"] = answer["games"]
+        # The player's own decisions are a view over the ranking, not a change to it: the
+        # walk keeps producing the honest list and this drops what they have dismissed.
+        before = len(coverage)
+        coverage = apply_gap_decisions(coverage, {} if no_marks else load_gap_decisions(marks_path))
+        if before != len(coverage):
+            log(f"Coverage: {before - len(coverage)} gaps hidden by your own decisions")
         coverage_path = os.path.join(out_dir, "repertoire_coverage.csv")
         with open(coverage_path, "w", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=COVERAGE_FIELDS, extrasaction="ignore")
