@@ -429,6 +429,7 @@ function applyReport(data, job) {
     ? `hosted run · ${s.leaks} leaks`
     : `job ${state.jobId} · ${s.leaks} leaks`;
   renderFixList(s);
+  renderCoverage(s);
   renderKpis(s);
   renderCharts(s);
   renderTable();
@@ -483,6 +484,40 @@ function renderFixList(s) {
       $('position').scrollIntoView({ behavior: 'smooth' });
     }),
   );
+}
+
+/* The lines the report cannot otherwise see: replies the player's own openings lead to,
+   which they have barely met. Ranked by how often a real opponent reaches them. */
+function renderCoverage(s) {
+  const gaps = s.coverage || [];
+  $('coverage').hidden = gaps.length === 0;
+  if (!gaps.length) return;
+  const total = s.coverage_total || gaps.length;
+  $('coverageHint').textContent =
+    total > gaps.length
+      ? `The ${gaps.length} most likely of ${total}`
+      : `${gaps.length} to prepare`;
+
+  $('gapList').innerHTML = gaps
+    .map((g) => {
+      const faced =
+        g.times_faced === 0
+          ? '<span class="gap-never">never faced</span>'
+          : `<span class="gap-rare">faced ${g.times_faced}×</span>`;
+      return `<article class="gap-card">
+        <div class="gap-reach" title="How often your games should reach this position">
+          <b>${fmt(g.reach_pct, 0, '%')}</b><span>of games</span>
+        </div>
+        <div class="gap-main">
+          <h3 class="mono">${esc(g.line)}</h3>
+          <p>${esc(g.opening || 'Unnamed line')} · as ${esc(g.player_color)} ${faced}</p>
+        </div>
+        <a class="btn btn-ghost" href="https://lichess.org/analysis/standard/${encodeURIComponent(
+          (g.fen || '').replace(/ /g, '_'),
+        )}" target="_blank" rel="noopener">Work it out</a>
+      </article>`;
+    })
+    .join('');
 }
 
 function showKpiSkeleton() {

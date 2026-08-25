@@ -11,6 +11,7 @@ from .engine import EngineAnalyzer, PositionEval
 from .explorer import BOOK_PRIOR_GAMES, OpeningExplorer, PositionStats, Z_CONFIDENCE, score_interval
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
 from .pgn_loader import GameSummary, PlyRecord, load_games
+from .repertoire import COVERAGE_FIELDS, find_gaps
 
 
 @dataclass
@@ -236,6 +237,8 @@ def analyze(
     min_db_move_games: int = 30,
     book_prior_games: int = BOOK_PRIOR_GAMES,
     confidence_z: float = Z_CONFIDENCE,
+    coverage_off: bool = False,
+    coverage_min_reach: float = 0.02,
     db: str = "lichess",
     local_db_path: str = DEFAULT_DB,
     min_db_games: int = 0,
@@ -447,7 +450,27 @@ def analyze(
 
     log(f"Wrote {len(rows)} flagged rows -> {report_path}")
     log(f"Wrote variation rollup -> {summary_path}")
+
+    # ---- Coverage: likely replies the player has barely met ----
+    # Needs a book that can be walked position by position, which the local database can do
+    # and the online Explorer cannot without a request per node.
+    coverage: list[dict] = []
+    if db == "local" and not coverage_off:
+        for side in (["white", "black"] if color == "both" else [color]):
+            found = find_gaps(explorer, nodes, side, max_plies=max_moves * 2,
+                              min_reach=coverage_min_reach)
+            coverage.extend(found)
+            log(f"Coverage ({side}): {len(found)} likely replies you have barely faced")
+        coverage.sort(key=lambda g: (-g["reach_pct"], g["times_faced"]))
+        coverage_path = os.path.join(out_dir, "repertoire_coverage.csv")
+        with open(coverage_path, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=COVERAGE_FIELDS, extrasaction="ignore")
+            w.writeheader()
+            w.writerows(coverage)
+        log(f"Wrote coverage report -> {coverage_path}")
+
     return {
+        "coverage": coverage,
         "games": len(games),
         "nodes": len(nodes),
         "repeated": len(repeated),

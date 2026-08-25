@@ -156,26 +156,35 @@ Accepted), each headline carrying its branch's combined cost.
 
 ## Phase 3 — The repertoire object  ·  `R1` `R2`
 
+**Status: coverage done; repertoire persistence and re-labelling still open**
+
 The structural gap. A repertoire tree lets the report distinguish memory failures from bad lines,
 and — more valuable — lets the tool talk about lines the player has *not* faced, which is the
 question a club player actually arrives with.
 
 ### Work
 
-- [ ] A repertoire tree per side: root move, named lines, target depth, stored as EPD → intended
-      UCI. Local-first (SQLite), same schema wherever it is hosted later.
-- [ ] Seed it automatically from the player's own most-played choices on the first run, and confirm
-      it in one sentence rather than asking them to build it by hand.
+- [x] A repertoire tree per side, inferred in `repertoire.build_repertoire`: at every position
+      the player reached, the move they choose most often is what they intend, with `share`
+      recording how settled that choice is. Nobody builds a tree by hand — their games describe one.
+- [x] Coverage pass (`repertoire.find_gaps`): walk the tree from move one, follow the intended move
+      at the player's turn, fan out over the book's replies at the opponent's, and multiply
+      probabilities down each branch. Report replies that are both *likely* and *unfamiliar*,
+      ranked by how often a real opponent reaches them.
+- [x] Written to `repertoire_coverage.csv`, carried in the run summary, and shown on the dashboard
+      as "What you're not ready for".
+- [x] Tests over a hand-built stub book: intent from plurality, compounding probability, rare
+      sidelines pruned, thin book positions making no claims, depth limits, wording.
+- [ ] Persist the tree so the player can correct it, rather than re-inferring it every run.
 - [ ] Re-label every finding as *off-book* (you know this, you played something else), *weak book*
-      (your intended move is the problem) or *uncharted*.
-- [ ] Coverage pass: walk the tree, read reply shares from the book at every opponent node,
-      multiply down the branch, and rank replies the player has never faced by how likely they are
-      to appear.
+      (your intended move is the problem) or *uncharted*. Needs the persisted tree above.
 
 ### Acceptance
 
 The report can say: "3.e5 appears in 41% of your Caro-Kanns from here. You have faced it twice and
-have no prepared answer." Two runs a month apart show which lines improved.
+have no prepared answer." **Met**: against a 900-game book the demo player — who opens 1.e4 — is
+told that 1...c6 appears in 19% of games and they have never once faced it, followed by the French
+at 10% and the Philidor at 7%. The run-over-run comparison waits on Phase 6.
 
 ---
 
@@ -266,7 +275,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample
