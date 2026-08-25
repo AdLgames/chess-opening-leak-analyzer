@@ -61,6 +61,10 @@ def group_by_line(rows: list[dict[str, str]]) -> list[dict[str, Any]]:
         )
         group["priority"] = round(sum(_f(r.get("priority")) for r in branch), 2)
         group["followers"] = len(group["downstream"])
+        # Both halves of why this group ranks where it does: how often it happens, and
+        # what it costs each time. One number alone cannot tell the reader which it is.
+        group["games"] = sum(int(_f(r.get("your_games")) or 0) for r in branch)
+        group["cost_per_game"] = round(group["lost_points"] / group["games"], 2) if group["games"] else 0.0
         group["opening"] = head.get("opening") or head.get("eco") or "Unclassified"
         group["explanation"] = head.get("explanation", "")
         group["player_color"] = head.get("player_color", "")

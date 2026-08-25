@@ -462,9 +462,10 @@ function renderFixList(s) {
           <p class="fix-why">${esc(g.explanation || '')}</p>
           ${followers}
         </div>
-        <div class="fix-cost">
+        <div class="fix-cost" title="What this line has cost you in total, and what it costs each time you play it">
           <b>${fmt(g.lost_points, 1)}</b>
           <span>points</span>
+          <em>${g.games} games · ${fmt(g.cost_per_game, 2)} each</em>
         </div>
         <button class="btn btn-primary fix-go" data-i="${i}">Show me</button>
       </article>`;
@@ -596,14 +597,21 @@ function sortedRows() {
     });
 }
 
+/* What each flag means in words. The codes stay in the CSV for anyone parsing it; nobody
+   reading the page should have to learn them. */
+const FLAGS = {
+  EVAL_DROP: { label: 'gives ground', cls: 'chip-eval', why: 'The engine says this move hands over the advantage.' },
+  WINRATE_DECLINE: { label: 'scores badly', cls: 'chip-win', why: 'You score below what this position is worth.' },
+  OFFBEAT_MOVE: { label: 'rare move', cls: 'chip-off', why: "Almost nobody plays this, and it isn't working for you." },
+};
+
 function flagChips(flag) {
   return (flag || '')
     .split('+')
     .filter(Boolean)
     .map((f) => {
-      const cls = f === 'EVAL_DROP' ? 'chip-eval' : f === 'WINRATE_DECLINE' ? 'chip-win' : 'chip-off';
-      const label = f === 'EVAL_DROP' ? 'eval' : f === 'WINRATE_DECLINE' ? 'win-rate' : 'offbeat';
-      return `<span class="chip ${cls}">${label}</span>`;
+      const meta = FLAGS[f] || { label: f.toLowerCase().replace(/_/g, ' '), cls: 'chip-off', why: '' };
+      return `<span class="chip ${meta.cls}" title="${esc(meta.why)}">${esc(meta.label)}</span>`;
     })
     .join(' ');
 }

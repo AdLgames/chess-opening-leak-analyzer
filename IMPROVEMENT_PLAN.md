@@ -94,7 +94,7 @@ is exposed as `analyze(confidence_z=)` for anyone who disagrees.
 
 ## Phase 1 — Say it in words  ·  `S5` `C04` `X2` (`B1`/`B2` from Phase 2 requirements)
 
-**Status: in progress**
+**Status: done, bar one deferred item**
 
 The vocabulary on screen is `EVAL_DROP`, `WINRATE_DECLINE`, `OFFBEAT_MOVE`, centipawns, MultiPV,
 FEN, EPD, and a priority formula printed as `points lost + eval drop × games × 0.25`. The target
@@ -109,13 +109,16 @@ all already computed.
 - [x] Show the sentence as the leading element of the finding panel, above the figures.
 - [x] Report personal scores as whole numbers with the record behind them, and mark low-confidence
       rows in the table.
-- [ ] Move the remaining figures behind a "details" toggle.
+- [ ] Move the remaining figures behind a "details" toggle. *Deferred: with the sentence leading
+      the panel and the table now in plain English, the six remaining stats read as support rather
+      than noise. Worth revisiting when the mobile layout lands, where the space actually matters.*
 - [x] Promote a "fix list" of the top three findings to directly under the run panel, above the
       table (`X2`), each one a group rather than a row.
-- [ ] Replace flag codes with human labels throughout the UI, keeping the codes in the CSV for
-      anyone parsing it.
-- [ ] Split `priority` into its two visible components — how often, how bad — instead of one opaque
-      number (`S5`).
+- [x] Replace flag codes with human labels throughout the UI — "gives ground", "scores badly",
+      "rare move" — with the reason on hover, and relabel the jargon column headings. The codes
+      stay in the CSV for anyone parsing it. Verified: no raw code appears on the rendered page.
+- [x] Show both halves of the ranking on every finding — how often it happens and what it costs
+      each time — so the order is readable rather than asserted (`S5`).
 
 ### Acceptance
 
@@ -263,7 +266,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample

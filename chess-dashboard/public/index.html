@@ -299,9 +299,9 @@
             <div class="filters">
               <div class="segmented" id="flagFilter" role="tablist">
                 <button class="seg is-active" data-flag="all">All</button>
-                <button class="seg" data-flag="EVAL_DROP">Eval drops</button>
-                <button class="seg" data-flag="WINRATE_DECLINE">Win-rate</button>
-                <button class="seg" data-flag="OFFBEAT_MOVE">Offbeat</button>
+                <button class="seg" data-flag="EVAL_DROP">Gives ground</button>
+                <button class="seg" data-flag="WINRATE_DECLINE">Scores badly</button>
+                <button class="seg" data-flag="OFFBEAT_MOVE">Rare move</button>
               </div>
               <div class="segmented" id="colorFilter">
                 <button class="seg is-active" data-color="all">Both</button>
@@ -316,16 +316,16 @@
               <table id="leakTable">
                 <thead>
                   <tr>
-                    <th data-sort="priority" class="sortable is-sorted">Priority</th>
-                    <th data-sort="flag" class="sortable">Flag</th>
+                    <th data-sort="priority" class="sortable is-sorted" title="How often you make the mistake, combined with how much it costs each time">Cost</th>
+                    <th data-sort="flag" class="sortable" title="What kind of problem this is">Problem</th>
                     <th>Opening</th>
                     <th>Line</th>
                     <th data-sort="your_move" class="sortable">Your move</th>
                     <th data-sort="your_games" class="sortable num">Games</th>
-                    <th data-sort="your_score_pct" class="sortable num">You</th>
-                    <th data-sort="baseline_pct" class="sortable num">Book</th>
-                    <th data-sort="lost_points" class="sortable num">Lost</th>
-                    <th data-sort="eval_drop_pawns" class="sortable num">Eval</th>
+                    <th data-sort="your_score_pct" class="sortable num" title="Your score in this exact position">You</th>
+                    <th data-sort="baseline_pct" class="sortable num" title="What the position is worth to players in the database">Others</th>
+                    <th data-sort="lost_points" class="sortable num" title="Results given away across all the games you played this move">Lost</th>
+                    <th data-sort="eval_drop_pawns" class="sortable num" title="How far the engine's assessment falls after your move, in pawns">Swing</th>
                     <th>Engine says</th>
                   </tr>
                 </thead>
@@ -523,11 +523,11 @@
             <div class="card prov-card">
               <h3>How a leak is flagged</h3>
               <ul class="flag-legend">
-                <li><span class="chip chip-eval">EVAL_DROP</span> Stockfish eval falls by more than your threshold after your move.</li>
-                <li><span class="chip chip-win">WINRATE_DECLINE</span> your score in that exact position trails the book by more than the score gap.</li>
-                <li><span class="chip chip-off">OFFBEAT_MOVE</span> a move almost nobody plays, and it is not working for you.</li>
+                <li><span class="chip chip-eval">gives ground</span> The engine's assessment drops sharply after your move — you have handed over an advantage.</li>
+                <li><span class="chip chip-win">scores badly</span> You score below what this position is worth, by enough games that it is unlikely to be luck.</li>
+                <li><span class="chip chip-off">rare move</span> Almost nobody plays this, and it is not working for you either.</li>
               </ul>
-              <p class="muted small">Priority = points lost + eval drop × games × 0.25.</p>
+              <p class="muted small">Findings are ordered by what they cost you: how often you make the mistake, multiplied by how much it gives away each time. Where the evidence is thin, the cautious estimate is used, so a habit seen three times never outranks one seen thirty.</p>
             </div>
           </div>
           <footer class="foot">

@@ -110,3 +110,20 @@ def test_the_deepest_of_several_candidate_parents_does_not_steal_the_branch():
 
 def test_no_rows_means_no_groups():
     assert group_by_line([]) == []
+
+
+def test_a_group_shows_both_halves_of_why_it_ranks():
+    """A single cost number cannot say whether a line is expensive because it happens
+    often or because it is disastrous. The group carries both."""
+    rows = [
+        dict(row("e4 e5 Nf3 Nc6 Bc4 Bc5 Nxe5", 7, lost=6.0), your_games="20"),
+        dict(row("e4 e5 Nf3 Nc6 Bc4 Bc5 Nxe5 Nxe5 d4", 9, lost=2.0), your_games="10"),
+    ]
+    group = group_by_line(rows)[0]
+    assert group["games"] == 30
+    assert group["cost_per_game"] == round(8.0 / 30, 2)
+
+
+def test_cost_per_game_survives_a_group_with_no_recorded_games():
+    rows = [dict(row("e4 e5", 2), your_games="")]
+    assert group_by_line(rows)[0]["cost_per_game"] == 0.0

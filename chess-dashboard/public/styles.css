@@ -327,6 +327,8 @@ td.move-cell { font-family: var(--mono); font-weight: 500; }
 .fix-cost { text-align: right; line-height: 1.15; }
 .fix-cost b { display: block; font-size: 20px; color: var(--bad); font-variant-numeric: tabular-nums; }
 .fix-cost span { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+/* the two halves of the ranking, so it is never just an opaque number */
+.fix-cost em { display: block; margin-top: 3px; font-style: normal; font-size: 11px; color: var(--text-faint); white-space: nowrap; }
 @media (max-width: 720px) {
   .fix-card { grid-template-columns: auto 1fr; }
   .fix-cost { grid-column: 2; text-align: left; }
