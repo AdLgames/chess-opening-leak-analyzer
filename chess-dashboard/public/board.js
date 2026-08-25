@@ -68,8 +68,25 @@
 
   async function jsonOrThrow(res) {
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.detail || `${res.status} ${res.statusText}`);
-    return body;
+    if (res.ok) return body;
+    // The backend sends the readable version alongside the raw one. Carrying it on the
+    // Error means every caller shows the same sentence instead of inventing its own.
+    const explain = body.detail && typeof body.detail === 'object' ? body.detail : null;
+    const err = new Error(
+      explain ? explain.headline : body.detail || `${res.status} ${res.statusText}`
+    );
+    err.explain = explain;
+    throw err;
+  }
+
+  /* Render a failure the same way wherever it lands. */
+  function explainHtml(err) {
+    const x = err && err.explain;
+    if (!x) return `<p class="muted small">${esc(err ? err.message : 'Something went wrong')}</p>`;
+    return `<div class="explain-fail"><b>${esc(x.headline)}</b>` +
+      `<span>${esc(x.detail)}</span>` +
+      (x.technical ? `<details><summary>What the program reported</summary>` +
+        `<code>${esc(x.technical)}</code></details>` : '') + '</div>';
   }
 
   /** Legal moves, book statistics and the opening name for one position. Cached.
@@ -513,6 +530,7 @@
     parseFen,
     cpText,
     esc,
+    explainHtml,
     START_FEN,
   };
 })();

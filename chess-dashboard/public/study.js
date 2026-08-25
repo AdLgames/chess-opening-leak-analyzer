@@ -246,7 +246,7 @@
           },
         });
       } catch (err) {
-        target.innerHTML = `<p class="muted small">Engine unavailable: ${esc(err.message)}</p>`;
+        target.innerHTML = LB.explainHtml(err);
       } finally {
         btn.disabled = false;
       }
@@ -457,7 +457,8 @@
           }
         }
       } catch (err) {
-        verdict = { kind: 'ok', label: 'Engine unavailable', detail: esc(err.message) };
+        verdict = { kind: 'ok', label: (err.explain && err.explain.headline) || 'Engine unavailable',
+                    detail: (err.explain && err.explain.detail) || esc(err.message) };
       }
 
       const bookEntry = this.pos.book ? this.pos.book.moves.find((m) => m.uci === move.uci) : null;
@@ -548,7 +549,7 @@
             .join(', ') +
           `</span><span class="muted">Depth ${result.depth}. Your move here was ${esc(this.row.your_move)}.</span>`;
       } catch (err) {
-        fb.innerHTML = `<b>Answer</b><span>Engine unavailable: ${esc(err.message)}</span>`;
+        fb.innerHTML = `<b>Answer</b>${LB.explainHtml(err)}`;
       }
       // Asking to be shown is a lapse whether or not the engine answered: the player has
       // told us they could not recall it, and that is the thing being scheduled.
@@ -691,7 +692,7 @@
           });
         });
       } catch (err) {
-        target.innerHTML = `<p class="muted small">Search unavailable: ${esc(err.message)}</p>`;
+        target.innerHTML = LB.explainHtml(err);
       }
     },
 
@@ -709,7 +710,7 @@
           },
         });
       } catch (err) {
-        target.innerHTML = `<p class="muted small">Engine unavailable: ${esc(err.message)}</p>`;
+        target.innerHTML = LB.explainHtml(err);
       } finally {
         btn.disabled = false;
       }
@@ -765,11 +766,12 @@
       LB.setApiBase(base);
       wire();
       library.init().catch(() => {
-        $('libBook').innerHTML = '<p class="muted small">The board needs the local API — start api_server.py.</p>';
+        $('libBook').innerHTML = '<p class="muted small">The board is not connected to the analyzer running on this computer, so it cannot show book statistics. Everything else on the page still works.</p>';
       });
     },
     review: (row) => review.open(row).catch((err) => {
-      $('reviewStatus').textContent = `Could not load the board: ${err.message}`;
+      $('reviewStatus').textContent = (err.explain && err.explain.headline)
+        || `Could not load the board: ${err.message}`;
     }),
     setRows(rows) {
       state.rows = rows || [];

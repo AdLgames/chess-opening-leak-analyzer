@@ -54,6 +54,7 @@
         <p class="side-foot" id="sideFoot">
           Everything runs on this machine: a local Stockfish build and a local SQLite opening book. No
           API keys, no rate limits.
+          <button type="button" class="link-btn" id="privacyBtn">What happens to my data?</button>
         </p>
       </aside>
 
@@ -88,12 +89,7 @@
             <span id="hostedNoticeText"></span>
           </div>
 
-          <div class="notice" id="engineNotice" hidden>
-            <b>No engine found.</b>
-            <span>Statistics still work, but eval drops need Stockfish. Install it with
-              <code>python chess_opening_analyzer/tools/install_stockfish.py</code>
-              (or <code>make engine</code>), then reload this page.</span>
-          </div>
+          <div class="notice" id="engineNotice" hidden></div>
 
           <div class="run-grid">
             <div class="card source-card">
@@ -596,6 +592,60 @@
       </main>
     </div>
 
+
+    <!-- What is fetched, what is kept, how to delete it. Anything that asks for a
+         username owes the reader this, and owes it in plain words. -->
+    <dialog class="sheet" id="privacySheet">
+      <div class="sheet-head">
+        <h2>What happens to your data</h2>
+        <button type="button" class="btn btn-ghost" id="privacyClose" aria-label="Close">Close</button>
+      </div>
+      <div class="sheet-body">
+        <h3>Where the analysis happens</h3>
+        <p>On this computer. Your games are parsed here, compared against an opening database
+          stored here, and evaluated by a chess engine running here. No game of yours is sent
+          anywhere for analysis, and there is no account to create.</p>
+
+        <h3>What leaves this computer, and when</h3>
+        <dl class="facts">
+          <dt>Downloading your games</dt>
+          <dd>If you type a username, we ask Lichess or Chess.com for that player's public
+            games — the same archive anyone can download from their site. That request
+            contains the username you typed and nothing else about you. Uploading a PGN file
+            instead makes no network request at all.</dd>
+          <dt>A Lichess token</dt>
+          <dd>Only if you paste one, only to fetch your own games, and it is never written to
+            disk. Nothing here needs a token to work.</dd>
+          <dt>Everything else</dt>
+          <dd>Nothing. The fonts, the charts and the opening database are all part of the app,
+            so opening this page contacts no third party at all.</dd>
+        </dl>
+
+        <h3>What is kept, and where</h3>
+        <dl class="facts">
+          <dt>Downloaded games</dt>
+          <dd><code>~/.cache/leaklab/archives</code> — cached so re-running does not re-download.
+            Safe to delete at any time.</dd>
+          <dt>Your decisions and practice history</dt>
+          <dd><code>~/.local/share/leaklab/repertoire.sqlite</code> — the openings you have
+            committed to, the gaps you have dismissed, your drill schedule and your past runs.
+            This is deliberately not in the cache folder: it is what you have told the app,
+            and a cache is by definition something that can be thrown away.</dd>
+          <dt>Reports</dt>
+          <dd>Written to the output folder you chose. Nothing is uploaded.</dd>
+        </dl>
+
+        <h3>Deleting it</h3>
+        <p>Delete those two folders. That is the whole of it — there is no server holding a
+          copy, and no account to close.</p>
+
+        <h3>Who else can reach this</h3>
+        <p>The analyzer listens on this machine and answers only pages served from it. If you
+          run it somewhere other people can reach, that is a deliberate choice you make with
+          the <code>LEAKLAB_ORIGINS</code> setting, and at that point the usual warnings about
+          exposing a service apply.</p>
+      </div>
+    </dialog>
     <script src="./charts.js"></script>
     <script src="./board.js"></script>
     <script src="./study.js"></script>

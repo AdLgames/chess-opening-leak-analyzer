@@ -672,13 +672,56 @@ and every bar is focusable with its own label.
 
 ---
 
+## Cross-cutting: errors people can act on, and a straight answer about data  ·  `C05` `C08`
+
+**Status: done**
+
+### The error messages
+
+The analyzer began as a command-line tool, where this is exactly the right thing to print:
+
+> Stockfish not found. Bundle a local copy with `python tools/install_stockfish.py`, or
+> install it system-wide (apt install stockfish / brew install stockfish), or pass
+> --engine /path/to/stockfish, or set STOCKFISH_PATH.
+
+That sentence went straight into the browser, in front of somebody who wanted to know why
+their openings leak points and is now reading about environment variables. `messages.py`
+translates: a headline, one sentence about what still works, and the original text kept
+under "What the program reported" for whoever does want the command. Nothing is hidden — it
+is just not the first thing, and a bug report is better for still having it.
+
+> **No chess engine on this computer.** Everything based on your results still works —
+> which openings cost you points, how you score against the database, all of the practice.
+> What you lose is the engine's verdict on individual moves.
+
+It is a small table rather than anything clever, and the fallback is an honest "Something
+went wrong" rather than a confident wrong guess. There is a test asserting no shell command
+reaches a headline or a detail, and another asserting every branch keeps the raw text.
+
+### The 500 this uncovered
+
+`/api/meta` returned a **500** whenever the opening book was a Git LFS pointer that had not
+been pulled — which is the state of every fresh clone. The whole page failed over a file
+that had simply not downloaded yet. Both `db_info()` and `board_db()` now catch it: the
+first reports it as a missing book with the explanation above, the second returns `None` so
+the board still draws and the engine still runs, with only the book panel empty.
+
+### What happens to your data
+
+Anything that asks for a username owes the reader this, in plain words. A sheet off the
+sidebar now says where the analysis happens (here), what leaves the machine and when (a
+request to Lichess or Chess.com containing the username you typed, and nothing at all if
+you upload a PGN), what is kept and where — including *why* the decisions live in
+`~/.local/share` and not the cache folder — how to delete it (two folders; there is no
+server holding a copy), and who else can reach the local API.
+
+---
+
 ## Cross-cutting, do alongside
 
 | Item | Finding | Note |
 | --- | --- | --- |
 | Lichess OAuth instead of pasting an API token into a form | `C05` | Teaches a habit users should not have |
-| Consumer-readable error states; no shell commands in the UI | `C05` | |
-| Privacy page: what is fetched, retention, deletion | `C08` | Table stakes for asking for an account name |
 | Book banded by rating, selected from the player's own rating | `S3` | `moves.rating_sum` is populated and never read |
 
 ---
@@ -690,7 +733,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**. After run-over-run comparison and the second practice mode: **173 passed, 5 skipped**. After locking down the API: **190 passed, 5 skipped**. After the gap actions: **205 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**. After run-over-run comparison and the second practice mode: **173 passed, 5 skipped**. After locking down the API: **190 passed, 5 skipped**. After the gap actions: **205 passed, 5 skipped**. After the error translation: **216 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample

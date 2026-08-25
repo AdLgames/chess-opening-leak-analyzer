@@ -110,7 +110,10 @@ async function loadMeta() {
       $('sampleDl').style.display = 'none';
     }
     $('sampleDl').href = `${API}/api/sample-archive`;
-    $('engineNotice').hidden = e.available !== false;
+    $('engineNotice').hidden = e.available !== false && d.available !== false;
+    $('engineNotice').innerHTML =
+      [e.available === false ? e.explain : null, d.available === false ? d.explain : null]
+        .filter(Boolean).map(explainHtml).join('');
     if (e.available === false) {
       $('optNoEngine').checked = true;
       $('optNoEngine').disabled = true;
@@ -848,6 +851,20 @@ function countUp() {
   });
 }
 
+
+/* A failure, said for the person in front of it. The command the maintainer wants is kept
+   in the details, because the sentence that helps one of them is not the sentence that
+   helps the other — and hiding the technical text entirely just means a worse bug report. */
+function explainHtml(x) {
+  if (!x) return '';
+  return `<div class="explain-fail">
+    <b>${esc(x.headline)}</b>
+    <span>${esc(x.detail)}</span>
+    ${x.technical ? `<details><summary>What the program reported</summary>
+      <code>${esc(x.technical)}</code></details>` : ''}
+  </div>`;
+}
+
 /* ------------------------------------------------------------------- charts */
 function renderCharts(s) {
   if (window.LeakCharts) window.LeakCharts.render(s.by_opening);
@@ -1168,6 +1185,15 @@ function wire() {
 
   wireViews();
   wireGaps();
+
+  const sheet = $('privacySheet');
+  $('privacyBtn').addEventListener('click', () => sheet.showModal());
+  $('privacyClose').addEventListener('click', () => sheet.close());
+  // Clicking the backdrop closes it: the dialog element reports clicks outside the content
+  // box as landing on the dialog itself.
+  sheet.addEventListener('click', (e) => {
+    if (e.target === sheet) sheet.close();
+  });
 }
 
 const setDrawer = (open) => {

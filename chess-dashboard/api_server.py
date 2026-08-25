@@ -10,6 +10,7 @@ import csv
 import io
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 import threading
@@ -38,6 +39,7 @@ from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch
 from chessopening.guard import RateLimiter, allowed_origins, client_key
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase
 from chessopening.marks import DEFAULT_STATE, GapStore, MarkStore
+from chessopening.messages import explain_failure
 from chessopening.history import HistoryStore
 from chessopening.review import ReviewStore, describe_due, grade_for_loss
 from chessopening.pgn_loader import detect_main_player, find_pgn_files
@@ -109,10 +111,16 @@ def board_db() -> LocalOpeningDatabase | None:
     if _BOARD_DB is None and os.path.exists(DEFAULT_DB):
         with _BOARD_DB_LOCK:
             if _BOARD_DB is None:
-                _BOARD_DB = LocalOpeningDatabase(DEFAULT_DB)
+                try:
+                    _BOARD_DB = LocalOpeningDatabase(DEFAULT_DB)
+                except sqlite3.DatabaseError:
+                    # An unpulled Git LFS pointer. The board still draws and the engine
+                    # still runs; only the book panel has nothing to say, which the page
+                    # already handles. A 500 here would take the whole board down.
+                    return None
                 _BOARD_DB.con.close()
-                _BOARD_DB.con = __import__("sqlite3").connect(DEFAULT_DB, check_same_thread=False)
-                _BOARD_DB.con.row_factory = __import__("sqlite3").Row
+                _BOARD_DB.con = sqlite3.connect(DEFAULT_DB, check_same_thread=False)
+                _BOARD_DB.con.row_factory = sqlite3.Row
     return _BOARD_DB
 
 
@@ -121,7 +129,9 @@ def engine_info() -> dict[str, Any]:
     try:
         path = find_engine()
     except FileNotFoundError as exc:
-        return {"available": False, "detail": str(exc)}
+        # The raw text is the right thing on a terminal and the wrong thing in a browser,
+        # so both travel: `detail` for anyone reading a log, `explain` for the page.
+        return {"available": False, "detail": str(exc), "explain": explain_failure(exc)}
     import subprocess
 
     try:
@@ -135,8 +145,15 @@ def engine_info() -> dict[str, Any]:
 
 def db_info() -> dict[str, Any]:
     if not os.path.exists(DEFAULT_DB):
-        return {"available": False}
-    db = LocalOpeningDatabase(DEFAULT_DB)
+        return {"available": False,
+                "explain": explain_failure(f"Local opening database not found at {DEFAULT_DB}")}
+    try:
+        db = LocalOpeningDatabase(DEFAULT_DB)
+    except sqlite3.DatabaseError as exc:
+        # The book ships through Git LFS, so before `git lfs pull` this path holds a small
+        # text pointer that opens fine and then fails as a database. Letting that become a
+        # 500 takes the whole page down over a file that simply has not downloaded yet.
+        return {"available": False, "explain": explain_failure(exc)}
     meta = dict(db._meta)  # noqa: SLF001 - simple read of the meta table
     positions = db.con.execute("SELECT COUNT(DISTINCT pos) FROM moves").fetchone()[0]
     rows = db.con.execute("SELECT COUNT(*) FROM moves").fetchone()[0]
@@ -259,6 +276,7 @@ def _run_job(job_id: str, pgn_dir: str, player: str | None, opts: dict[str, Any]
         with LOCK:
             job["status"] = "error"
             job["error"] = f"{type(exc).__name__}: {exc}"
+            job["explain"] = explain_failure(exc)
             job["log"].append(job["error"])
         traceback.print_exc()
     finally:
@@ -371,6 +389,7 @@ def job_status(job_id: str) -> dict[str, Any]:
         "options": job.get("options"),
         "log": job["log"][-14:],
         "error": job.get("error"),
+        "explain": job.get("explain"),
         "hint": job.get("hint"),
         "download_url": job.get("download_url"),
         "account": job.get("account"),
@@ -455,7 +474,9 @@ def engine_eval(payload: dict[str, Any]) -> dict[str, Any]:
             cache_path=ENGINE_CACHE,
         )
     except FileNotFoundError as exc:
-        raise HTTPException(503, f"No engine available: {exc}") from exc
+        # The friendly version travels with the failure, so every caller renders the same
+        # sentence rather than each one inventing its own wording for the same problem.
+        raise HTTPException(503, explain_failure(exc)) from exc
     except BoardError as exc:
         raise HTTPException(400, str(exc)) from exc
     for line in result.get("lines", []):
@@ -468,7 +489,7 @@ def openings(q: str = "", limit: int = 30) -> dict[str, Any]:
     """Named openings from the local book, for the library search box."""
     db = board_db()
     if db is None:
-        raise HTTPException(503, "No local opening database installed")
+        raise HTTPException(503, explain_failure("Local opening database not found"))
     return {"query": q, "results": db.search_openings(q, max(1, min(int(limit), 100)))}
 
 
