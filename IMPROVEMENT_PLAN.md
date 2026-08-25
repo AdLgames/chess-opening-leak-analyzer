@@ -300,12 +300,12 @@ Ten items, given as the target shape of the product. Mapped to what exists.
 | # | Asked for | Status |
 | --- | --- | --- |
 | 1 | Explain *why* a move is bad, not just which move the engine prefers | **Done.** Every finding names the opponent's reply and what it wins: "Black replies Nxe5, winning a piece." |
-| 2 | Every leak → Learn → Practice → Retest, with spaced repetition | Open. Drill queue exists; scheduling and retest do not. |
+| 2 | Every leak → Learn → Practice → Retest, with spaced repetition | **Done.** `review.py` schedules by SM-2; misses return within the session and again the next day. |
 | 3 | "My Repertoire" as a visual tree with strong lines, weak lines and gaps | Partly. The tree is inferred (`repertoire.build_repertoire`) and gaps are found; it is not yet drawn or editable. |
 | 4 | Four kinds of problem: objective / practical / knowledge gap / low confidence | **Done.** `classify()` decides; the dashboard colours each one. |
 | 5 | "What are you not ready for?" with Learn / Practice / Ignore | Mostly. The section ships; the three actions do not. |
 | 6 | Varied practice: best move, opponent's idea, continue the line, explain why, timed | Open. One mode today. |
-| 7 | Track improvement: "you fixed this", before/after, weakness score over time | Open. Needs run history (Phase 6). |
+| 7 | Track improvement: "you fixed this", before/after, weakness score over time | Partly. Known / still learning / due today and recall accuracy ship; run-over-run deltas still need history. |
 | 8 | Let users commit to their own repertoire choice and stop re-flagging it | **Done.** `marks.py` records "this is my move" / "not interested"; committing drops the results argument and keeps the objective one. |
 | 9 | Simplify the UI around Dashboard → My Repertoire → Fix Mistakes → Practice → Progress | Open. Sections are in that order but the navigation still mirrors the pipeline. |
 
@@ -360,6 +360,42 @@ position rather than the move's name.
 
 ---
 
+## Item 2 — Learn, practise, retest
+
+**Status: done**
+
+One graded attempt is a quiz. Remembering an opening comes from recalling the same line
+days later, and again after that. Two clocks run, and conflating them would break both:
+
+- **Within the session.** A position just missed returns a few places later — far enough
+  that the answer is off the screen, near enough to be the same sitting. That repetition is
+  what makes it stick at all. Mirrored on both sides (`review.requeue_within_session` and
+  the same function in `study.js`) so the queue behaves identically wherever it is driven.
+- **Across days.** SM-2: an ease factor per position that rises with easy recall and falls
+  without it, multiplying the gap each time — one day, then six, then longer.
+
+Two deliberate departures from textbook SM-2, both about not insulting the player:
+
+- A lapse comes back tomorrow rather than resetting to a fresh card. They have met this line
+  before; the job is to repair it, not to pretend otherwise. The ease carries over, so
+  repeated lapses still shorten future gaps.
+- Asking to be shown the answer is always a lapse, however good the move would have been.
+  Recognising a move is not recalling it.
+
+Grades come from the same centipawn thresholds the practice pane already displays, so what
+the player is told and what the schedule believes never disagree.
+
+State lives in the same SQLite file as the repertoire decisions. Enrolling is idempotent, so
+re-running the analysis re-offers the same positions without wiping progress — the failure
+mode that would quietly undo weeks of work.
+
+Verified in the browser: eight positions enrolled and due, revealing an answer requeued that
+position from first to fourth, "due today" fell 8 → 7, and the stored schedule showed ease
+2.5 → 1.96 with a lapse and a due date of tomorrow. The reveal path records the lapse even
+when the engine is unavailable, since the player has already said they could not recall it.
+
+---
+
 ## Cross-cutting, do alongside
 
 | Item | Finding | Note |
@@ -382,7 +418,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample

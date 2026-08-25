@@ -98,6 +98,9 @@ REPORT_FIELDS = [
     "eval_drop_pawns",
     "engine_rank_of_your_move",
     "engine_best_1",
+    # The move the drill teaches, so the review schedule can name it. Only the first
+    # alternative needs it; the others are read by people, not machines.
+    "engine_best_1_uci",
     "engine_best_1_cp",
     "engine_best_1_db_score_pct",
     "engine_best_2",
@@ -509,6 +512,8 @@ def analyze(
             alt = ev.alternatives[i] if ev and i < len(ev.alternatives) else None
             alt_db = stats.move(alt.uci) if (alt and stats) else None
             alt_cells[f"engine_best_{i+1}"] = alt.san if alt else ""
+            if i == 0:
+                alt_cells["engine_best_1_uci"] = alt.uci if alt else ""
             alt_cells[f"engine_best_{i+1}_cp"] = alt.cp if alt else ""
             alt_cells[f"engine_best_{i+1}_db_score_pct"] = (
                 _pct(alt_db.score_for(node.player_color)) if alt_db else ""

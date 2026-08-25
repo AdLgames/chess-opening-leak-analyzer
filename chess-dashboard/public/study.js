@@ -17,6 +17,7 @@
   };
 
   const DEPTH = 12;
+  let apiBase = '';
   const state = {
     rows: [],
     review: null,
@@ -252,12 +253,66 @@
     },
   };
 
+  /* The review schedule lives on the server, so a session picked up tomorrow continues
+     where this one left off. Failures come back twice: later in this sitting, and sooner
+     in the day-scale schedule. */
+  const epdOf = (fen) => String(fen || '').split(' ').slice(0, 4).join(' ');
+
+  /* Mirror of `review.requeue_within_session`: a missed position moves a few places down
+     the queue rather than off it — far enough that the answer is no longer on screen,
+     near enough to be the same sitting. */
+  function requeue(queue, index, gap = 3) {
+    if (!queue.length || index < 0 || index >= queue.length) return queue;
+    const item = queue[index];
+    const rest = queue.slice(0, index).concat(queue.slice(index + 1));
+    const target = Math.min(index + gap, rest.length);
+    return rest.slice(0, target).concat([item], rest.slice(target));
+  }
+
+  async function postJSON(path, body) {
+    const res = await fetch(`${apiBase}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  const reviewSchedule = {
+    async enrol(rows) {
+      const positions = rows.slice(0, 100).map((r) => ({
+        epd: epdOf(r.fen), color: r.player_color, uci: r.engine_best_1_uci || '',
+        san: r.engine_best_1 || '', opening: r.opening || r.eco || '', line: r.variation_line || '',
+      }));
+      try {
+        const { progress } = await postJSON('/api/drills/enrol', { positions });
+        return progress;
+      } catch {
+        return null; // the review cycle is an extra, not a prerequisite
+      }
+    },
+    async attempt(row, playedUci, cpLoss, revealed) {
+      try {
+        return await postJSON('/api/drills/attempt', {
+          epd: epdOf(row.fen), color: row.player_color, played_uci: playedUci,
+          cp_loss: cpLoss === null || cpLoss === undefined ? null : Math.round(cpLoss),
+          revealed: !!revealed,
+        });
+      } catch {
+        return null;
+      }
+    },
+  };
+
   /* ---------------------------------------------------------------- practice */
   const drill = {
     board: null,
     queue: [],
     index: 0,
     answered: false,
+    progress: null,
+    lastLoss: null,
 
     setRows(rows) {
       this.queue = rows
@@ -272,7 +327,15 @@
       $('practiceHint').textContent = this.queue.length
         ? `${this.queue.length} position${this.queue.length === 1 ? '' : 's'} from your own games`
         : 'Run an analysis to build a drill set';
-      if (this.queue.length) this.load(0);
+      if (this.queue.length) {
+        this.load(0);
+        // Take these positions into the review cycle. Already-tracked ones keep their
+        // schedule, so re-running the analysis never wipes out progress.
+        reviewSchedule.enrol(this.queue).then((progress) => {
+          this.progress = progress;
+          this.renderScore();
+        });
+      }
       this.renderScore();
     },
 
@@ -320,7 +383,13 @@
 
     renderScore() {
       const s = state.session;
-      $('drillScore').innerHTML =
+      const p = this.progress;
+      const longView = p
+        ? `<div class="stat"><div class="stat-label">Known</div><div class="stat-value">${p.known}</div></div>` +
+          `<div class="stat"><div class="stat-label">Still learning</div><div class="stat-value">${p.learning}</div></div>` +
+          `<div class="stat"><div class="stat-label">Due today</div><div class="stat-value">${p.due}</div></div>`
+        : '';
+      $('drillScore').innerHTML = longView +
         `<div class="stat"><div class="stat-label">Attempted</div><div class="stat-value">${s.seen}</div></div>` +
         `<div class="stat"><div class="stat-label">Engine's pick</div><div class="stat-value">${s.best}</div></div>` +
         `<div class="stat"><div class="stat-label">Close enough</div><div class="stat-value">${s.good}</div></div>` +
@@ -347,6 +416,7 @@
         const bestCp = bestLine ? bestLine.cp : 0;
         const mineCp = after.lines && after.lines.length ? -after.lines[0].cp : bestCp;
         const loss = Math.max(0, bestCp - mineCp);
+        this.lastLoss = loss;
         verdict = verdictFor(loss);
         verdict.detail =
           `${esc(move.san)} keeps ${LB.cpText(mineCp)}, the engine's ${esc(bestLine ? bestLine.san : '—')} keeps ${LB.cpText(bestCp)}` +
@@ -381,6 +451,19 @@
         this.row.solved = verdict.kind === 'best' || verdict.kind === 'good';
         this.renderScore();
         this.renderQueue();
+
+        const result = await reviewSchedule.attempt(this.row, move.uci, this.lastLoss, false);
+        if (result) {
+          this.progress = result.progress;
+          fb.innerHTML += `<span class="muted">You will see this ${esc(result.due)}.</span>`;
+          this.renderScore();
+        }
+        // A position you just missed comes back before the session ends — that repetition
+        // is what makes it stick at all.
+        if (!this.row.solved) {
+          this.queue = requeue(this.queue, this.index);
+          this.renderQueue();
+        }
       }
     },
 
@@ -403,14 +486,24 @@
             .map((l) => `${esc(l.san)} (${esc(l.eval || LB.cpText(l.cp))})`)
             .join(', ') +
           `</span><span class="muted">Depth ${result.depth}. Your move here was ${esc(this.row.your_move)}.</span>`;
-        if (!this.answered) {
-          this.answered = true;
-          state.session.seen += 1;
-          state.session.missed += 1;
-          this.renderScore();
-        }
       } catch (err) {
         fb.innerHTML = `<b>Answer</b><span>Engine unavailable: ${esc(err.message)}</span>`;
+      }
+      // Asking to be shown is a lapse whether or not the engine answered: the player has
+      // told us they could not recall it, and that is the thing being scheduled.
+      if (!this.answered) {
+        this.answered = true;
+        state.session.seen += 1;
+        state.session.missed += 1;
+        this.renderScore();
+        const res = await reviewSchedule.attempt(this.row, '', null, true);
+        if (res) {
+          this.progress = res.progress;
+          fb.innerHTML += `<span class="muted">You will see this ${esc(res.due)}.</span>`;
+          this.renderScore();
+        }
+        this.queue = requeue(this.queue, this.index);
+        this.renderQueue();
       }
     },
 
@@ -586,8 +679,9 @@
   }
 
   window.Study = {
-    init(apiBase) {
-      LB.setApiBase(apiBase);
+    init(base) {
+      apiBase = base || '';
+      LB.setApiBase(base);
       wire();
       library.init().catch(() => {
         $('libBook').innerHTML = '<p class="muted small">The board needs the local API — start api_server.py.</p>';

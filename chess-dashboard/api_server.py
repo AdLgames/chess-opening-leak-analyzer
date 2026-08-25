@@ -36,6 +36,7 @@ from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch
                                  lookup_player, provider_label, speeds_from_csv)
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase
 from chessopening.marks import DEFAULT_STATE, MarkStore
+from chessopening.review import ReviewStore, describe_due, grade_for_loss
 from chessopening.pgn_loader import detect_main_player, find_pgn_files
 from chessopening.summary import summarise
 
@@ -452,6 +453,72 @@ def set_repertoire_mark(payload: dict[str, Any]) -> dict[str, Any]:
         except ValueError as err:
             raise HTTPException(400, str(err)) from err
         return {"ok": True, "mark": mark.__dict__}
+    finally:
+        store.close()
+
+
+@app.get("/api/drills")
+def drills_due(limit: int = 30) -> dict[str, Any]:
+    """Positions ready to be seen again, plus how the player is doing overall."""
+    store = ReviewStore(DEFAULT_STATE)
+    try:
+        return {"due": store.due(limit=limit), "progress": store.progress()}
+    finally:
+        store.close()
+
+
+@app.post("/api/drills/enrol")
+def enrol_drills(payload: dict[str, Any]) -> dict[str, Any]:
+    """Take the positions from a finished report into the review cycle.
+
+    Enrolling is idempotent: a position already being reviewed keeps its schedule, so
+    re-running the analysis never wipes out progress.
+    """
+    positions = payload.get("positions") or []
+    store = ReviewStore(DEFAULT_STATE)
+    try:
+        for pos in positions[:100]:
+            epd = str(pos.get("epd") or "").strip()
+            color = str(pos.get("color") or "").strip()
+            if not epd or color not in ("white", "black"):
+                continue
+            store.enrol(epd, color, uci=str(pos.get("uci") or ""),
+                        san=str(pos.get("san") or ""),
+                        opening=str(pos.get("opening") or ""),
+                        line=str(pos.get("line") or ""))
+        return {"ok": True, "progress": store.progress()}
+    finally:
+        store.close()
+
+
+@app.post("/api/drills/attempt")
+def record_attempt(payload: dict[str, Any]) -> dict[str, Any]:
+    """Grade one attempt and say when the position comes back."""
+    epd = str(payload.get("epd") or "").strip()
+    color = str(payload.get("color") or "").strip()
+    if not epd or color not in ("white", "black"):
+        raise HTTPException(400, "epd and a colour of white or black are required")
+
+    cp_loss = payload.get("cp_loss")
+    revealed = bool(payload.get("revealed"))
+    grade = payload.get("grade")
+    if grade is None:
+        grade = grade_for_loss(float(cp_loss or 0), revealed=revealed)
+
+    store = ReviewStore(DEFAULT_STATE)
+    try:
+        schedule = store.record(
+            epd, color, str(payload.get("played_uci") or ""), int(grade),
+            cp_loss=int(cp_loss) if cp_loss is not None else None,
+        )
+        return {
+            "ok": True,
+            "grade": int(grade),
+            "due": describe_due(schedule),
+            "repetitions": schedule.repetitions,
+            "lapses": schedule.lapses,
+            "progress": store.progress(),
+        }
     finally:
         store.close()
 
