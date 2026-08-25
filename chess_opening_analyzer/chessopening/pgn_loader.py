@@ -48,10 +48,23 @@ class GameSummary:
     eco: str
     opening: str
     date: str
+    # The player's own rating in this game, when the export recorded one. Used to compare
+    # them against the book at their own strength rather than against everybody at once.
+    player_rating: int | None = None
     plies: list[PlyRecord] = field(default_factory=list)
 
 
 _RESULT_SCORE = {"1-0": (1.0, 0.0), "0-1": (0.0, 1.0), "1/2-1/2": (0.5, 0.5)}
+
+
+def _rating(headers: "chess.pgn.Headers", color: str) -> int | None:
+    """The player's Elo from the headers, if it is there and looks like a rating."""
+    raw = headers.get("WhiteElo" if color == "white" else "BlackElo", "")
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    return value if 100 <= value <= 4000 else None
 
 
 def find_pgn_files(folder: str) -> list[str]:
@@ -144,6 +157,7 @@ def load_games(
                     eco=h.get("ECO", ""),
                     opening=h.get("Opening", "") or h.get("Variation", ""),
                     date=h.get("UTCDate", "") or h.get("Date", ""),
+                    player_rating=_rating(h, player_color),
                 )
 
                 board = game.board()

@@ -12,6 +12,7 @@ from .engine import EngineAnalyzer, PositionEval
 from .evalstore import DEFAULT_EVALS, open_store
 from .explorer import BOOK_PRIOR_GAMES, OpeningExplorer, PositionStats, Z_CONFIDENCE, score_interval
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
+from .bands import ALL, band_for, label as band_label
 from .marks import (DEFAULT_STATE, apply_gap_decisions, filter_flags, load_gap_decisions,
                     load_marks)
 from .pgn_loader import GameSummary, PlyRecord, load_games
@@ -87,6 +88,9 @@ REPORT_FIELDS = [
     "baseline_pct",
     "baseline_source",
     "baseline_games",
+    # Which population the comparison actually used. Named per row because a thin position
+    # widens back toward everybody, so it is not always the player's own band.
+    "baseline_band",
     "db_move_games",
     "db_move_score_pct",
     "db_move_popularity_pct",
@@ -388,11 +392,26 @@ def analyze(
             ratings=ratings,
             offline=offline,
         )
+    # Compare the player against players of their own strength, when the book can. The
+    # median of their own games is the right centre: a mean is dragged around by the odd
+    # game against somebody far stronger, and a provisional rating early in an archive.
+    ratings_seen = sorted(g.player_rating for g in games if g.player_rating)
+    player_rating = ratings_seen[len(ratings_seen) // 2] if ratings_seen else None
+    player_band = band_for(player_rating)
+    banded = db == "local" and getattr(explorer, "has_bands", False) and player_band != ALL
+    if banded:
+        log(f"Your rating reads as about {player_rating}, so you are being compared against "
+            f"{band_label(player_band)} rather than everybody")
+    elif db == "local" and player_band != ALL:
+        log("This opening book has no rating bands, so the comparison is against all "
+            "ratings together. Rebuilding it adds them.")
+
     pos_stats: dict[str, PositionStats] = {}
     for i, node in enumerate(repeated.values(), start=1):
         parent = ",".join(node.line_uci.split(",")[:-1])  # position BEFORE the player's move
         if node.epd not in pos_stats:
-            pos_stats[node.epd] = explorer.lookup(parent)
+            pos_stats[node.epd] = (explorer.lookup(parent, band=player_band) if banded
+                                   else explorer.lookup(parent))
         if i % 25 == 0:
             log(f"  opening db: {i}/{len(repeated)} positions looked up")
     if db == "local":
@@ -561,6 +580,7 @@ def analyze(
             "baseline_pct": _pct(baseline),
             "baseline_source": baseline_source,
             "baseline_games": baseline_games or "",
+            "baseline_band": stats.band if stats else "",
             "db_move_games": mv.games if mv else "",
             "db_move_score_pct": _pct(db_move_score),
             "db_move_popularity_pct": _pct(stats.popularity(node.played_uci)) if stats else "",
@@ -669,5 +689,11 @@ def analyze(
         "summary": summary_path,
         "explorer_stats": explorer.stats,
         "suppressed_by_marks": suppressed,
+        # Who the player was actually measured against, so the dashboard can say it plainly
+        # rather than leaving "the book scores 54%" to mean whatever the reader assumes.
+        "player_rating": player_rating,
+        "player_band": player_band if banded else ALL,
+        "player_band_label": band_label(player_band if banded else ALL),
+        "book_has_bands": bool(banded),
         "notes": notes,
     }

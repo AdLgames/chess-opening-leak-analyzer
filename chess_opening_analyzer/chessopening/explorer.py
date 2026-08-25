@@ -102,6 +102,9 @@ class PositionStats:
     black: int
     moves: list[MoveStats]
     offline: bool = False
+    # Which rating band these numbers came from. "all" means everybody folded together,
+    # which is what a book built before bands existed can offer.
+    band: str = "all"
 
     @property
     def games(self) -> int:

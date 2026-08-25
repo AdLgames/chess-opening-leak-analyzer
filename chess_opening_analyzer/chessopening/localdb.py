@@ -3,8 +3,8 @@
 Build one with `python tools/build_local_db.py` (Lichess monthly PGN dump or your own corpus).
 Schema
     meta(key TEXT PRIMARY KEY, value TEXT)
-    moves(pos TEXT, uci TEXT, san TEXT, white INT, draws INT, black INT, rating_sum INT,
-          PRIMARY KEY (pos, uci))
+    moves(pos TEXT, uci TEXT, band TEXT, san TEXT, white INT, draws INT, black INT,
+          rating_sum INT, PRIMARY KEY (pos, uci, band))
     openings(pos TEXT PRIMARY KEY, eco TEXT, name TEXT)
 `pos` is the board EPD (FEN without move counters), so transpositions merge automatically.
 """
@@ -15,15 +15,17 @@ import sqlite3
 
 import chess
 
+from .bands import ALL, neighbours
 from .explorer import MoveStats, PositionStats, EMPTY
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS moves (
-    pos TEXT NOT NULL, uci TEXT NOT NULL, san TEXT NOT NULL,
+    pos TEXT NOT NULL, uci TEXT NOT NULL, band TEXT NOT NULL DEFAULT 'all',
+    san TEXT NOT NULL,
     white INTEGER DEFAULT 0, draws INTEGER DEFAULT 0, black INTEGER DEFAULT 0,
     rating_sum INTEGER DEFAULT 0,
-    PRIMARY KEY (pos, uci)
+    PRIMARY KEY (pos, uci, band)
 );
 CREATE TABLE IF NOT EXISTS openings (pos TEXT PRIMARY KEY, eco TEXT, name TEXT);
 """
@@ -33,6 +35,13 @@ CREATE TABLE IF NOT EXISTS openings (pos TEXT PRIMARY KEY, eco TEXT, name TEXT);
 # a different corpus (a rating band, a time control) should not mean editing the package.
 BUNDLED_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "openings.sqlite")
 DEFAULT_DB = os.environ.get("LEAKLAB_BOOK") or BUNDLED_DB
+
+
+def _avg_rating(row: sqlite3.Row) -> int | None:
+    """Mean rating behind a move, when the book recorded one."""
+    games = row["white"] + row["draws"] + row["black"]
+    total = row["rating_sum"] if "rating_sum" in row.keys() else 0
+    return round(total / games) if games and total else None
 
 
 def epd_after(play_uci_csv: str) -> str:
@@ -65,6 +74,19 @@ class LocalOpeningDatabase:
         self.con.row_factory = sqlite3.Row
         self.stats = {"cache_hits": 0, "api_calls": 0, "errors": 0, "db_hits": 0, "db_misses": 0}
         self._meta = {r["key"]: r["value"] for r in self.con.execute("SELECT key, value FROM meta")}
+        # Books built before rating bands existed have no `band` column, and there are
+        # plenty of them — the shipped one included. Detecting it is one query at startup
+        # and means an old book keeps working with no migration and no rebuild.
+        columns = {r["name"] for r in self.con.execute("PRAGMA table_info(moves)")}
+        # Two different questions. The column may be absent entirely (a book built before
+        # bands existed — the shipped one included), in which case the query itself has to
+        # change; or present but holding only "all" rows, in which case the query is fine
+        # and there is simply nothing to choose between. The book is never altered to add
+        # the column: it is the player's file, and opening it should not rewrite it.
+        self._banded_schema = "band" in columns
+        self.has_bands = self._banded_schema and bool(
+            self.con.execute("SELECT 1 FROM moves WHERE band != ? LIMIT 1", (ALL,)).fetchone()
+        )
 
     # -------- introspection --------
     @property
@@ -78,22 +100,46 @@ class LocalOpeningDatabase:
         return int(self._meta.get("games", 0) or 0)
 
     # -------- lookup --------
-    def lookup(self, play_uci_csv: str) -> PositionStats:
-        return self.lookup_epd(epd_after(play_uci_csv))
+    def lookup(self, play_uci_csv: str, band: str = ALL, min_band_games: int = 200) -> PositionStats:
+        return self.lookup_epd(epd_after(play_uci_csv), band=band, min_band_games=min_band_games)
 
-    def lookup_epd(self, pos: str) -> PositionStats:
-        """Same as `lookup`, for a board EPD you already have."""
+    def lookup_epd(self, pos: str, band: str = ALL, min_band_games: int = 200) -> PositionStats:
+        """Same as `lookup`, for a board EPD you already have.
+
+        `band` asks to be compared against players of a similar strength. If that band is
+        too thin here — under `min_band_games` — the comparison widens outward to the
+        neighbouring bands and finally to everyone, because a comparison against the right
+        population with eight games behind it is worse than one against a slightly wrong
+        population with eight hundred. `PositionStats.band` records which was actually used
+        so the interface can say so rather than implying a precision it does not have.
+        """
         pos = pos.split(" 0 1")[0].strip()
-        rows = self.con.execute(
-            "SELECT uci, san, white, draws, black FROM moves WHERE pos = ? "
-            "ORDER BY (white + draws + black) DESC LIMIT 40",
-            (pos,),
-        ).fetchall()
+        if not self._banded_schema:
+            rows = self.con.execute(
+                "SELECT uci, san, white, draws, black, rating_sum FROM moves WHERE pos = ? "
+                "ORDER BY (white + draws + black) DESC LIMIT 40",
+                (pos,),
+            ).fetchall()
+            used = ALL
+        else:
+            wanted = band if self.has_bands else ALL
+            rows, used = [], ALL
+            for candidate in neighbours(wanted):
+                rows = self.con.execute(
+                    "SELECT uci, san, white, draws, black, rating_sum FROM moves "
+                    "WHERE pos = ? AND band = ? ORDER BY (white + draws + black) DESC LIMIT 40",
+                    (pos, candidate),
+                ).fetchall()
+                total = sum(r["white"] + r["draws"] + r["black"] for r in rows)
+                used = candidate
+                if rows and (candidate == ALL or total >= min_band_games):
+                    break
         if not rows:
             self.stats["db_misses"] += 1
             return EMPTY
         moves = [
-            MoveStats(uci=r["uci"], san=r["san"], white=r["white"], draws=r["draws"], black=r["black"])
+            MoveStats(uci=r["uci"], san=r["san"], white=r["white"], draws=r["draws"],
+                      black=r["black"], average_rating=_avg_rating(r))
             for r in rows
         ]
         total_w = sum(m.white for m in moves)
@@ -111,6 +157,7 @@ class LocalOpeningDatabase:
             draws=total_d,
             black=total_b,
             moves=moves,
+            band=used,
         )
 
     # -------- naming and search --------

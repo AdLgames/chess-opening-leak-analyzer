@@ -122,4 +122,9 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         "white_leaks": sum(1 for r in rows if r["player_color"] == "white"),
         "black_leaks": sum(1 for r in rows if r["player_color"] == "black"),
         "top": rows[0] if rows else None,
+        # Who they were measured against. Carried through so the dashboard never has to
+        # leave "the book scores 54%" meaning whatever the reader assumes it means.
+        "player_rating": stats.get("player_rating"),
+        "player_band_label": stats.get("player_band_label", "all ratings"),
+        "book_has_bands": bool(stats.get("book_has_bands")),
     }

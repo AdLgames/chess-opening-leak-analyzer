@@ -717,12 +717,61 @@ server holding a copy), and who else can reach the local API.
 
 ---
 
+## Rating bands: comparing you with players like you  ·  `S3`
+
+**Status: done, and it needs a rebuilt book to show**
+
+The book folds every game together, so "the database scores 54% here" really means
+"everyone from 800 to 2800 scores 54% here". Those are different games. A line that is
+excellent once both sides know the theory can be a poor practical choice at 1400; a line
+that scores well at 1400 *because* it is easy to meet badly may be nothing at master level.
+Telling a 1400 they are 6% below a number set largely by players two classes above them is
+not a useful thing to tell them.
+
+**A correction to this plan.** The original entry said `moves.rating_sum` was "populated and
+never read". Only the second half was true — the builder never wrote it, so the column was
+zeros. Both halves are now done: the builder records it, and the book carries per-band rows.
+
+| | |
+| --- | --- |
+| Bands | under 1200 · 1200–1600 · 1600–2000 · 2000–2400 · 2400+ |
+| Written | every game counts twice — into its own band and into `all` — so one book answers both questions with no join |
+| The player's rating | the **median** across their own games; a mean is dragged around by one game against somebody far stronger, and by a provisional rating early in an archive |
+| Too thin to use | widens *outward* to the neighbouring bands, then to everybody |
+
+Bands are coarse deliberately. Narrow bands cut the games behind each move, and the whole
+analysis rests on having enough of them: a comparison against exactly the right population
+with eight games behind it is worse than one against a slightly wrong population with eight
+hundred. For the same reason the widening goes outward one band at a time rather than
+jumping straight to everyone, and `baseline_band` records per row which population was
+actually used — because after widening it is not always the player's own.
+
+**Old books keep working, untouched.** The shipped book has no `band` column at all, so the
+query itself changes shape rather than filtering on a column that is not there. The file is
+never altered to add one: it is the player's file, and opening it should not rewrite it.
+There is a test asserting exactly that.
+
+The dashboard now says who you were measured against instead of leaving it to be assumed:
+
+> Compared against players rated 1600–2000, since your games put you around 1754.
+
+…and, on a book without bands, says that too rather than quietly comparing against everyone:
+
+> Compared against every rating together — this opening book has no rating bands.
+> Rebuilding it compares you with players at your own strength.
+
+**What this needs from the maintainer:** the shipped 157k-game book predates the column, so
+the banded comparison only starts working once it is rebuilt with
+`python tools/build_local_db.py`. Until then everything behaves exactly as before and the
+page says so.
+
+---
+
 ## Cross-cutting, do alongside
 
 | Item | Finding | Note |
 | --- | --- | --- |
 | Lichess OAuth instead of pasting an API token into a form | `C05` | Teaches a habit users should not have |
-| Book banded by rating, selected from the player's own rating | `S3` | `moves.rating_sum` is populated and never read |
 
 ---
 
@@ -733,7 +782,7 @@ Statistical changes are tested against hand-computed values, not golden files, s
 change to the model is visible as an intentional change to the test.
 
 Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
-After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**. After run-over-run comparison and the second practice mode: **173 passed, 5 skipped**. After locking down the API: **190 passed, 5 skipped**. After the gap actions: **205 passed, 5 skipped**. After the error translation: **216 passed, 5 skipped**.
+After Phase 0: **54 passed, 5 skipped**. After Phase 2: **62 passed, 5 skipped**. After Phase 1: **64 passed, 5 skipped**. After Phase 3: **77 passed, 5 skipped**. After Phase 3b: **97 passed, 5 skipped**. After the taxonomy and the "why": **106 passed, 5 skipped**. After repertoire decisions: **119 passed, 5 skipped**. After spaced repetition: **147 passed, 5 skipped**. After the repertoire tree: **159 passed, 5 skipped**. After run-over-run comparison and the second practice mode: **173 passed, 5 skipped**. After locking down the API: **190 passed, 5 skipped**. After the gap actions: **205 passed, 5 skipped**. After the error translation: **216 passed, 5 skipped**. After rating bands: **232 passed, 5 skipped**.
 
 The five skips cover the engine and the LFS opening book, neither of which is available in every
 environment. Phase 0 was therefore also verified by hand against a book built from the sample

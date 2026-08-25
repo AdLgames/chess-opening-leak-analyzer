@@ -438,6 +438,7 @@ function applyReport(data, job) {
   renderTree(s);
   renderCoverage(s);
   renderKpis(s);
+  renderBaselineNote(s);
   renderCharts(s);
   renderTable();
   if (window.Study) window.Study.setRows(state.rows);
@@ -813,6 +814,27 @@ function showKpiSkeleton() {
   $('kpis').innerHTML = Array.from({ length: 6 })
     .map(() => '<div class="kpi kpi-skeleton"><div class="kpi-label">loading</div><div class="kpi-value">0.0</div><div class="kpi-note">loading</div></div>')
     .join('');
+}
+
+/* Who the numbers compare you against. "The book scores 54%" means nothing until the
+   reader knows whose book — a 1400 measured against a pool set largely by players two
+   classes above them is being told something untrue about their own openings. */
+function renderBaselineNote(s) {
+  const el = $('baselineNote');
+  if (!el) return;
+  if (s.book_has_bands && s.player_rating) {
+    el.textContent = `Compared against players rated ${esc(s.player_band_label)}, ` +
+      `since your games put you around ${Math.round(s.player_rating)}.`;
+    el.hidden = false;
+    return;
+  }
+  if (s.player_rating) {
+    el.textContent = 'Compared against every rating together — this opening book has no ' +
+      'rating bands. Rebuilding it compares you with players at your own strength.';
+    el.hidden = false;
+    return;
+  }
+  el.hidden = true;
 }
 
 function renderKpis(s) {
