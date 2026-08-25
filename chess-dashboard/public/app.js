@@ -565,9 +565,10 @@ function renderTable() {
   $('tableEmpty').hidden = rows.length > 0;
   $('leakBody').innerHTML = rows
     .map((r, i) => {
-      const book = num(r.db_move_score_pct);
+      const book = num(r.baseline_pct);
       const gap = num(r.score_gap_vs_db_pct);
       const drop = num(r.eval_drop_pawns);
+      const you = num(r.your_score_pct);
       return `<tr data-i="${i}" class="${state.selected && state.selected.fen === r.fen && state.selected.your_move === r.your_move ? 'is-selected' : ''}">
         <td class="num">${fmt(r.priority, 1)}</td>
         <td>${flagChips(r.flag)}</td>
@@ -575,8 +576,8 @@ function renderTable() {
         <td class="line-cell"><span class="truncate" title="${esc(r.variation_line)}">${esc(r.variation_line)}</span></td>
         <td class="move-cell">${r.move_number}${r.player_color === 'white' ? '.' : '…'} ${esc(r.your_move)}</td>
         <td class="num">${esc(r.your_games)}</td>
-        <td class="num ${gap !== null && gap < 0 ? 'delta-bad' : ''}">${fmt(r.your_score_pct, 1, '%')}</td>
-        <td class="num book-val">${book === null ? '—' : book.toFixed(1) + '%'}</td>
+        <td class="num ${gap !== null && gap < 0 ? 'delta-bad' : ''}" title="${r.your_wins}W ${r.your_draws}D ${r.your_losses}L${r.confidence === 'low' ? ' — few games, treat with caution' : ''}">${you === null ? '—' : Math.round(you) + '%'}${r.confidence === 'low' ? ' <span class="confidence is-low">?</span>' : ''}</td>
+        <td class="num book-val" title="${esc(r.baseline_source === 'move' ? 'this move in the book' : 'position average — too few book games with this move')}">${book === null ? '—' : Math.round(book) + '%'}</td>
         <td class="num">${fmt(r.lost_points, 1)}</td>
         <td class="num ${drop && drop >= 0.8 ? 'delta-bad' : ''}">${drop === null || drop === 0 ? '—' : '−' + drop.toFixed(2)}</td>
         <td class="engine-cell">${esc(r.engine_best_1 || '—')}</td>
@@ -634,19 +635,30 @@ function selectRow(r) {
   $('detailFlag').outerHTML = `<span class="chip" id="detailFlag">${flagChips(r.flag) || '—'}</span>`;
   $('detailOpening').textContent = r.opening || r.eco || 'Unclassified';
   $('detailLine').textContent = r.variation_line;
+  // The server writes one plain sentence per finding, so the CLI, the API and both
+  // dashboards say the same thing in the same words.
+  $('detailExplain').textContent = r.explanation || '';
   $('fenText').textContent = r.fen;
   $('lichessLink').href = `https://lichess.org/analysis/standard/${encodeURIComponent(r.fen.replace(/ /g, '_'))}`;
   if (window.Study) window.Study.review(r);
   else renderBoardStatic(r.fen);
 
   const gap = num(r.score_gap_vs_db_pct);
+  // A score over a handful of games does not deserve a decimal place, and no percentage
+  // is shown without the sample size that produced it.
+  const whole = (v, suffix = '%') => (num(v) === null ? '—' : Math.round(num(v)) + suffix);
+  const baselineNote = r.baseline_source === 'move'
+    ? `${(+r.baseline_games || 0).toLocaleString()} games with this move`
+    : num(r.baseline_games)
+      ? `position average · ${(+r.baseline_games).toLocaleString()} games`
+      : 'not in book';
   const stats = [
-    { label: 'Your score', value: fmt(r.your_score_pct, 1, '%'), note: `${r.your_wins}W ${r.your_draws}D ${r.your_losses}L` },
-    { label: 'Book score', value: num(r.db_move_score_pct) === null ? '—' : fmt(r.db_move_score_pct, 1, '%'), note: num(r.db_move_games) ? `${(+r.db_move_games).toLocaleString()} games` : 'not in book' },
+    { label: 'Your score', value: whole(r.your_score_pct), note: `${r.your_wins}W ${r.your_draws}D ${r.your_losses}L over ${r.your_games}` },
+    { label: 'Compared to', value: whole(r.baseline_pct), note: baselineNote },
     { label: 'Gap', value: gap === null ? '—' : (gap < 0 ? '−' : '+') + Math.abs(gap).toFixed(1) + '%', note: 'you vs book' },
     { label: 'Eval swing', value: num(r.eval_drop_pawns) ? '−' + fmt(r.eval_drop_pawns, 2) : '—', note: `${cpText(r.eval_before_cp)} → ${cpText(r.eval_after_cp)}` },
-    { label: 'Points shed', value: fmt(r.lost_points, 1), note: `over ${r.your_games} games` },
-    { label: 'Engine rank', value: r.engine_rank_of_your_move || '—', note: 'of your move' },
+    { label: 'Points shed', value: fmt(r.lost_points, 1), note: `at least ${fmt(r.lost_points_conservative, 1)} on the cautious reading` },
+    { label: 'Confidence', value: (r.confidence || '—'), note: r.confidence === 'low' ? 'few games — a hint, not a verdict' : 'from sample sizes on both sides' },
   ];
   $('detailStats').innerHTML = stats
     .map((s) => `<div class="stat"><div class="stat-label">${esc(s.label)}</div><div class="stat-value">${esc(s.value)}</div><div class="kpi-note">${esc(s.note)}</div></div>`)

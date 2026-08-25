@@ -8,7 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from .engine import EngineAnalyzer, PositionEval
-from .explorer import OpeningExplorer, PositionStats
+from .explorer import BOOK_PRIOR_GAMES, OpeningExplorer, PositionStats, Z_CONFIDENCE, score_interval
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
 from .pgn_loader import GameSummary, PlyRecord, load_games
 
@@ -68,6 +68,13 @@ REPORT_FIELDS = [
     "your_draws",
     "your_losses",
     "your_score_pct",
+    "your_score_lo_pct",
+    "your_score_hi_pct",
+    "confidence",
+    "explanation",
+    "baseline_pct",
+    "baseline_source",
+    "baseline_games",
     "db_move_games",
     "db_move_score_pct",
     "db_move_popularity_pct",
@@ -75,6 +82,7 @@ REPORT_FIELDS = [
     "db_position_score_pct",
     "score_gap_vs_db_pct",
     "lost_points",
+    "lost_points_conservative",
     "eval_before_cp",
     "eval_after_cp",
     "eval_drop_pawns",
@@ -135,6 +143,81 @@ def _pct(x: float | None) -> str:
     return "" if x is None else f"{100 * x:.1f}"
 
 
+def flags_winrate_decline(
+    score_hi: float, baseline: float | None, gap: float | None, threshold: float
+) -> bool:
+    """Whether a repeated decision really is scoring below the book.
+
+    Two conditions, not one: the observed gap must be wide enough to matter, *and* the
+    player must still be behind at the generous end of their own confidence interval. The
+    second is what stops a three-game sample from reading as a crisis.
+    """
+    if gap is None or baseline is None:
+        return False
+    return gap <= -threshold and score_hi < baseline
+
+
+def _round_pct(fraction: float) -> int:
+    """A fraction as a whole percentage, rounding halves up.
+
+    Python's `round` rounds halves to even, so 62.5% becomes 62 while the browser's
+    `Math.round` makes it 63 — the same figure disagreeing with itself on one screen.
+    """
+    return int(100 * fraction + 0.5)
+
+
+def confidence_label(your_games: int, baseline_games: int, baseline_source: str) -> str:
+    """How much weight the reader should put on this row's comparison.
+
+    Two things can be thin: how often the player made the decision, and how well the book
+    knows the position. The weaker of the two decides.
+    """
+    if your_games >= 15 and baseline_source == "move" and baseline_games >= 500:
+        return "high"
+    if your_games < 6 or baseline_games < 100:
+        return "low"
+    return "medium"
+
+
+def explain(
+    node: Node,
+    baseline: float | None,
+    baseline_source: str,
+    baseline_games: int,
+    ev: PositionEval | None,
+    best_san: str,
+    confidence: str,
+) -> str:
+    """One plain sentence saying what is wrong, for a reader who does not know what a
+    centipawn is. Built from figures already computed, so the CLI, the API and both
+    dashboards can share the same wording."""
+    move_label = f"{node.move_number}{'.' if node.player_color == 'white' else '...'}{node.played_san}"
+    times = "once" if node.n == 1 else f"{node.n} times"
+    parts = [f"You played {move_label} {times} and scored {_round_pct(node.score)}%"]
+
+    if baseline is not None:
+        peers = (
+            f"players at this level score {_round_pct(baseline)}% with it"
+            if baseline_source == "move"
+            else f"the position is worth {_round_pct(baseline)}% on average"
+        )
+        parts.append(f", where {peers}")
+        shed = (baseline - node.score) * node.n
+        if shed > 0.5:
+            parts.append(f" — about {shed:.1f} points of results given away")
+    parts.append(".")
+
+    if ev is not None and ev.eval_drop_pawns > 0:
+        worse = f" Stockfish rates it {ev.eval_drop_pawns:.1f} pawns worse"
+        parts.append(f"{worse} than {best_san}." if best_san else f"{worse} than the best move here.")
+    elif best_san:
+        parts.append(f" {best_san} is the engine's choice instead.")
+
+    if confidence == "low":
+        parts.append(" Based on few games so far, so treat it as a hint rather than a verdict.")
+    return "".join(parts)
+
+
 def analyze(
     pgn_dir: str,
     player: str,
@@ -150,6 +233,9 @@ def analyze(
     min_ply: int = 2,
     eval_drop_threshold: float = 0.8,
     score_gap_threshold: float = 0.06,
+    min_db_move_games: int = 30,
+    book_prior_games: int = BOOK_PRIOR_GAMES,
+    confidence_z: float = Z_CONFIDENCE,
     db: str = "lichess",
     local_db_path: str = DEFAULT_DB,
     min_db_games: int = 0,
@@ -237,12 +323,31 @@ def analyze(
         mv = stats.move(node.played_uci) if stats else None
         db_move_score = mv.score_for(node.player_color) if mv else None
         db_pos_score = stats.score_for(node.player_color) if stats else None
-        baseline = db_move_score if db_move_score is not None else db_pos_score
+
+        # The comparison the player is held to. A book move needs a real sample behind it
+        # before its own record counts, and is shrunk toward the position average even then.
+        base = (
+            stats.baseline_for(
+                node.played_uci,
+                node.player_color,
+                min_move_games=min_db_move_games,
+                prior_games=book_prior_games,
+            )
+            if stats
+            else None
+        )
+        baseline, baseline_source, baseline_games = base if base else (None, "", 0)
         gap = (node.score - baseline) if baseline is not None else None
         ev = evals.get(key)
 
+        # The player's own record is a small sample too. `your_hi` is the generous end of it.
+        # Node counts are already from the player's point of view, so they need no colour
+        # mapping — "white" here just means "score the first column".
+        interval = score_interval(node.wins, node.draws, node.losses, "white", z=confidence_z)
+        _, your_lo, your_hi = interval if interval else (node.score, node.score, node.score)
+
         flags = []
-        if gap is not None and gap <= -score_gap_threshold:
+        if flags_winrate_decline(your_hi, baseline, gap, score_gap_threshold):
             flags.append("WINRATE_DECLINE")
         if ev and ev.eval_drop_pawns >= eval_drop_threshold:
             flags.append("EVAL_DROP")
@@ -254,7 +359,12 @@ def analyze(
             continue
 
         lost_points = round(-gap * node.n, 2) if gap is not None and gap < 0 else 0.0
-        priority = round(lost_points + (ev.eval_drop_pawns * node.n * 0.25 if ev else 0.0), 2)
+        # What is lost even on the most generous reading of the player's record. Ranking on
+        # this rather than the observed figure sinks thin evidence without hiding it.
+        lost_conservative = (
+            round(max(0.0, baseline - your_hi) * node.n, 2) if baseline is not None else 0.0
+        )
+        priority = round(lost_conservative + (ev.eval_drop_pawns * node.n * 0.25 if ev else 0.0), 2)
 
         alt_cells: dict[str, str] = {}
         for i in range(3):
@@ -265,6 +375,12 @@ def analyze(
             alt_cells[f"engine_best_{i+1}_db_score_pct"] = (
                 _pct(alt_db.score_for(node.player_color)) if alt_db else ""
             )
+
+        confidence = confidence_label(node.n, baseline_games, baseline_source)
+        explanation = explain(
+            node, baseline, baseline_source, baseline_games, ev,
+            alt_cells.get("engine_best_1", ""), confidence,
+        )
 
         rows.append({
             "priority": priority,
@@ -282,6 +398,13 @@ def analyze(
             "your_draws": node.draws,
             "your_losses": node.losses,
             "your_score_pct": _pct(node.score),
+            "your_score_lo_pct": _pct(your_lo),
+            "your_score_hi_pct": _pct(your_hi),
+            "confidence": confidence,
+            "explanation": explanation,
+            "baseline_pct": _pct(baseline),
+            "baseline_source": baseline_source,
+            "baseline_games": baseline_games or "",
             "db_move_games": mv.games if mv else "",
             "db_move_score_pct": _pct(db_move_score),
             "db_move_popularity_pct": _pct(stats.popularity(node.played_uci)) if stats else "",
@@ -289,6 +412,7 @@ def analyze(
             "db_position_score_pct": _pct(db_pos_score),
             "score_gap_vs_db_pct": ("" if gap is None else f"{100 * gap:+.1f}"),
             "lost_points": lost_points,
+            "lost_points_conservative": lost_conservative,
             "eval_before_cp": ev.best_cp if ev else "",
             "eval_after_cp": ev.played_cp if ev else "",
             "eval_drop_pawns": ev.eval_drop_pawns if ev else "",

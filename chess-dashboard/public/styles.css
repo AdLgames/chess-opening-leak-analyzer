@@ -299,6 +299,22 @@ td.move-cell { font-family: var(--mono); font-weight: 500; }
 .detail-title { margin-bottom: 14px; }
 .detail-title h3 { font-size: 16px; margin: 6px 0 2px; }
 .detail-title p { margin: 0; font-size: 12px; }
+/* The plain-language verdict. Deliberately the largest text in the panel: the numbers
+   below it are supporting evidence, not the finding itself. */
+.explain {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-left: 2px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.explain:empty { display: none; }
+.confidence { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; }
+.confidence.is-low { color: var(--bad); opacity: 1; }
+
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 9px 10px; }
 .stat-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); }

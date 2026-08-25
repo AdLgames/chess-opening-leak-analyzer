@@ -1,0 +1,264 @@
+# Improvement plan
+
+Derived from two audits of `fdc9685`: a **repertoire gap audit** (does the tool help somebody
+build an opening repertoire?) and a **consumer readiness review** (can a non-technical person
+reach and understand it?). This file is the working plan that merges both into one ordered
+sequence, and it is the place to record status as work lands.
+
+Finding IDs used below come from those audits:
+
+| Prefix | Audit | Theme |
+| --- | --- | --- |
+| `R1`–`R5` | Repertoire gap | The repertoire has no representation in the data model |
+| `S1`–`S5` | Repertoire gap | Statistics the learner is asked to trust |
+| `X1`–`X6` | Repertoire gap | Experience, access, claims |
+| `C01`–`C08` | Consumer readiness | Stages of the journey from arrival to return |
+
+---
+
+## The two problems, stated once
+
+**Problem one — the tool has no concept of a repertoire.** Everything is keyed to
+`(position, the move you actually played)`. That makes it impossible to say "against 1.e4 I play
+the Caro-Kann", which in turn makes it impossible to distinguish *forgetting your line* from
+*your line being bad* — opposite problems with opposite fixes — and impossible to say anything
+about lines the player will face but has not yet met.
+
+**Problem two — there is no service.** The hosted build was never deployed, so the documented
+route to using this software runs through Git LFS, a 79 MB engine download and two local servers.
+Until a URL exists, no amount of product work is reachable by anyone.
+
+These are independent. Phase 0 below is worth doing under either, because shipping a consumer
+product on top of statistics that can be wrong just distributes bad advice faster.
+
+---
+
+## Principles
+
+1. **Never state a number more precisely than the evidence supports.** A percentage without a
+   sample size is a lie of omission; a percentage from three games is mostly noise.
+2. **The sentence is the product, the table is the appendix.** A learner needs to know what to do,
+   not what the centipawn delta was.
+3. **Every phase ships something usable.** No phase exists only to enable the next one.
+4. **Offline and local stay first-class.** The hosted build is an additional surface, never a
+   replacement, and the CLI must keep working with no network.
+5. **Reuse before building.** The review pane already plays lines out; the book already knows reply
+   frequencies. Most of the plan below is assembly, not invention.
+
+---
+
+## Phase 0 — Make the numbers trustworthy  ·  `S1` `S2` `S5`
+
+**Status: in progress**
+
+The highest-severity correctness problem in the codebase. `min_db_games` gates the *position*
+total, but `PositionStats.move()` returns statistics for a move seen as few as twice, so
+`db_move_score_pct` can read a confident `100.0` drawn from two games in a 2013 dump — and
+`score_gap_vs_db_pct`, `lost_points` and `priority` all inherit that noise straight to the top of
+the report. On the player's side, `min_games` of 3 means "you score 33%" is one of only four values
+three games can produce, rendered to one decimal beside a figure drawn from thousands.
+
+### Work
+
+- [x] Score confidence intervals for win/draw/loss records, using the trinomial variance of the
+      score rather than a binomial approximation (score is `win + 0.5·draw`, not a coin flip).
+- [x] Shrink a book move's score toward the position mean in proportion to its sample size, so a
+      2-game move contributes almost nothing and a 2000-game move is taken at face value.
+- [x] Require a minimum number of book games on the *move* before it may be used as a baseline at
+      all; fall back to the position score below that.
+- [x] Suppress `WINRATE_DECLINE` unless the player's score is below the baseline even at the
+      generous end of its own confidence interval.
+- [x] Rank by a conservative points-lost estimate, so thin evidence sorts down on its own instead
+      of needing to be filtered out by hand.
+- [x] Carry sample sizes and a confidence label through the CSV, the API and the dashboard, and
+      never render a personal score to a decimal place.
+- [x] Tests with fixed records covering: tiny samples not flagged, large samples still flagged,
+      shrinkage behaviour, interval maths.
+
+### Acceptance
+
+A move the player has made three times, scoring 33% against a book move with four games, produces
+no flag. The same 33% over twenty games against a well-sampled book move still does. Every
+percentage on screen is accompanied by the count behind it.
+
+---
+
+### Calibration note
+
+The confidence test is one-sided at 80% (`Z_CONFIDENCE`), not the 90% first tried. At 90% a
+player scoring 11% over 9 games against a 23% baseline is not flagged — a real and useful
+finding thrown away. In a coaching tool a missed leak costs as much as a spurious one, so the
+threshold is set where it suppresses three-game noise without suppressing nine-game signal, and
+is exposed as `analyze(confidence_z=)` for anyone who disagrees.
+
+## Phase 1 — Say it in words  ·  `S5` `C04` `X2` (`B1`/`B2` from Phase 2 requirements)
+
+**Status: in progress**
+
+The vocabulary on screen is `EVAL_DROP`, `WINRATE_DECLINE`, `OFFBEAT_MOVE`, centipawns, MultiPV,
+FEN, EPD, and a priority formula printed as `points lost + eval drop × games × 0.25`. The target
+reader is a club player who knows none of these terms. The numbers to write a plain sentence are
+all already computed.
+
+### Work
+
+- [x] Generate one plain-language explanation per flagged row, server-side, from the figures
+      already in hand, and carry it as a first-class CSV column so the CLI, the API and both
+      dashboards share one wording.
+- [x] Show the sentence as the leading element of the finding panel, above the figures.
+- [x] Report personal scores as whole numbers with the record behind them, and mark low-confidence
+      rows in the table.
+- [ ] Move the remaining figures behind a "details" toggle.
+- [ ] Promote a "fix list" of the top three findings to directly under the run panel, above the
+      table (`X2`).
+- [ ] Replace flag codes with human labels throughout the UI, keeping the codes in the CSV for
+      anyone parsing it.
+- [ ] Split `priority` into its two visible components — how often, how bad — instead of one opaque
+      number (`S5`).
+
+### Acceptance
+
+A first-time user can name their three worst lines within 30 seconds of the run finishing, without
+reading the table.
+
+---
+
+## Phase 2 — One hole, one fix  ·  `R3`
+
+Nodes are keyed `(epd, uci)`, so a single bad decision at move 6 surfaces again as its downstream
+consequences at moves 8, 10 and 12, each competing separately for the top of the report. The
+learner sees five problems where they have one, and fixing the earliest dissolves the rest.
+
+### Work
+
+- [ ] Group flagged rows into a tree by `line_uci` prefix.
+- [ ] Report the earliest divergence in each branch as the headline item, with downstream leaks
+      nested beneath it as supporting evidence.
+- [ ] Sort top-level items by points summed across the branch, not per-row priority.
+- [ ] Keep the flat CSV as-is for compatibility; grouping is a view over it.
+
+### Acceptance
+
+A player who repeats one bad move at move 6 sees one finding, not five, and the nested rows explain
+why the rest of the line went wrong.
+
+---
+
+## Phase 3 — The repertoire object  ·  `R1` `R2`
+
+The structural gap. A repertoire tree lets the report distinguish memory failures from bad lines,
+and — more valuable — lets the tool talk about lines the player has *not* faced, which is the
+question a club player actually arrives with.
+
+### Work
+
+- [ ] A repertoire tree per side: root move, named lines, target depth, stored as EPD → intended
+      UCI. Local-first (SQLite), same schema wherever it is hosted later.
+- [ ] Seed it automatically from the player's own most-played choices on the first run, and confirm
+      it in one sentence rather than asking them to build it by hand.
+- [ ] Re-label every finding as *off-book* (you know this, you played something else), *weak book*
+      (your intended move is the problem) or *uncharted*.
+- [ ] Coverage pass: walk the tree, read reply shares from the book at every opponent node,
+      multiply down the branch, and rank replies the player has never faced by how likely they are
+      to appear.
+
+### Acceptance
+
+The report can say: "3.e5 appears in 41% of your Caro-Kanns from here. You have faced it twice and
+have no prepared answer." Two runs a month apart show which lines improved.
+
+---
+
+## Phase 4 — Real training  ·  `R4` `S4`
+
+Practice currently takes the top 15 rows, asks for one move, grades it against a depth-12 engine
+search, and forgets everything on reload. Opening memory is built by recalling a sequence,
+repeatedly, over days.
+
+### Work
+
+- [ ] Play the line out to the repertoire's target depth with the book answering — reuse of the
+      review pane, not new machinery.
+- [ ] Requeue failed positions later in the same session.
+- [ ] Persist attempts and schedule reviews on an SM-2-style interval. Feature-detect
+      `localStorage` rather than disabling persistence everywhere because one preview iframe
+      blocks it.
+- [ ] Grade against the union of engine moves within tolerance and well-sampled book moves, and
+      say so explicitly when the answer is the main line (`S4`).
+
+### Acceptance
+
+From any finding, three clicks to a drill that rehearses the whole line, and a session that
+remembers what was missed last time.
+
+---
+
+## Phase 5 — Become a service  ·  `C01` `C02` `C07` `R5`
+
+Everything above is reachable only by someone who can run a terminal. This phase is what turns it
+into something a person can visit.
+
+### Work
+
+- [ ] Deploy the hosted build; put a domain on it; invert the README so the link comes first and
+      the clone instructions become the "run it yourself" section.
+- [ ] Replace the single synchronous 60-second function with a job queue and worker keyed by job
+      id, so a closed tab does not lose a run.
+- [ ] Return the statistics pass immediately (it needs no engine) and let engine results refine the
+      report as they arrive, replacing the animated bar that currently measures nothing.
+- [ ] Persist finished reports so a job id is a permanent, re-openable link.
+- [ ] Public read-only report URLs plus an Open Graph image of the top three findings, and a share
+      button (`C07`).
+- [ ] PGN export with variations and comments, importable into a Lichess study (`R5`).
+- [ ] Mobile-first report layout: one finding per full-width card, board at the top (`C07`).
+
+### Acceptance
+
+A person can open a link on a phone, type a username, and get a readable report they can send to a
+friend.
+
+---
+
+## Phase 6 — A reason to return  ·  `C06`
+
+No accounts, no history, no saved report; the last username used lives in a plain variable.
+Improving at chess is a months-long habit.
+
+### Work
+
+- [ ] Device-local run history in IndexedDB — no backend, no signup, immediate run-over-run
+      comparison.
+- [ ] Per-finding deltas between runs: gone, new, worse.
+- [ ] Accounts, once there is a reason: sync across devices, and email when a fix stops leaking.
+- [ ] Scheduled re-analysis, so the user does not have to remember to re-run.
+
+---
+
+## Cross-cutting, do alongside
+
+| Item | Finding | Note |
+| --- | --- | --- |
+| Keyboard-operable board, live regions for verdicts, chart text alternatives | `X3` | Squares carry `tabindex="-1"`; drill feedback is announced to nobody |
+| Replace Unicode pieces with inline SVG | `X4` | Windows renders both colours from one outline font |
+| Vendor Chart.js and the fonts locally | `X5` | The page claims "no network calls" while loading two CDNs |
+| Lock CORS to localhost origins; rate limit; descriptive User-Agent | `X6` `C08` | Currently `allow_origins=["*"]` and no throttle anywhere |
+| Lichess OAuth instead of pasting an API token into a form | `C05` | Teaches a habit users should not have |
+| Consumer-readable error states; no shell commands in the UI | `C05` | |
+| Privacy page: what is fetched, retention, deletion | `C08` | Table stakes for asking for an account name |
+| Book banded by rating, selected from the player's own rating | `S3` | `moves.rating_sum` is populated and never read |
+
+---
+
+## Testing
+
+Every analysis rule gets a unit test with fixed records, per the existing non-functional target.
+Statistical changes are tested against hand-computed values, not golden files, so an intentional
+change to the model is visible as an intentional change to the test.
+
+Baseline before this work: **34 passed, 5 skipped** (skips need the LFS book or a local engine).
+After Phase 0: **54 passed, 5 skipped**.
+
+The five skips cover the engine and the LFS opening book, neither of which is available in every
+environment. Phase 0 was therefore also verified by hand against a book built from the sample
+archive (`tools/build_local_db.py --pgn sample_pgns`), driving the real API and the real dashboard
+in a browser, since the automated end-to-end tests that assert on flags are among the skipped.

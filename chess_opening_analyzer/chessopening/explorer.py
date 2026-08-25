@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import time
+import math
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -19,6 +20,52 @@ from dataclasses import dataclass
 LICHESS_DB = "https://explorer.lichess.ovh/lichess"
 MASTERS_DB = "https://explorer.lichess.ovh/masters"
 USER_AGENT = "chess-opening-analyzer/1.0 (+https://github.com/)"
+
+# One-sided 80% normal quantile, used to ask "is the player below the book even at the
+# generous end of their own record?".
+#
+# Calibrated deliberately: at 90% a player scoring 11% over 9 games against a 23% baseline
+# is not flagged, which throws away a real and useful finding. This is a coaching tool, so a
+# missed leak costs as much as a spurious one — 80% keeps that case while still suppressing
+# the three-game samples that motivated the check. Tunable per run via `analyze(confidence_z=)`.
+Z_CONFIDENCE = 0.8416
+
+# Games of the position's own average a book move is shrunk toward. A move with 2 games ends
+# up almost entirely at the position mean; a move with 2000 keeps its own score.
+BOOK_PRIOR_GAMES = 50
+
+
+def score_interval(
+    white: int, draws: int, black: int, color: str, z: float = Z_CONFIDENCE
+) -> tuple[float, float, float] | None:
+    """`(score, low, high)` for `color` from a win/draw/loss record.
+
+    The per-game score takes three values (1, 0.5, 0), so the spread is the trinomial
+    variance of that score rather than the binomial variance a plain win rate would use —
+    a record full of draws is genuinely more certain than one that swings between wins and
+    losses, and this reflects that.
+    """
+    n = white + draws + black
+    if n <= 0:
+        return None
+    wins = white if color == "white" else black
+    losses = black if color == "white" else white
+    score = (wins + 0.5 * draws) / n
+    variance = (
+        wins * (1.0 - score) ** 2 + draws * (0.5 - score) ** 2 + losses * score**2
+    ) / n
+    # A record with one repeated result has zero sample variance, which would claim
+    # certainty from very little evidence. Never let the standard error fall below the
+    # effect of half a point spread over the games seen.
+    stderr = max(math.sqrt(variance / n), 0.5 / n)
+    return score, max(0.0, score - z * stderr), min(1.0, score + z * stderr)
+
+
+def shrink_toward(score: float, games: int, prior_score: float, prior_games: int = BOOK_PRIOR_GAMES) -> float:
+    """Pull a thinly-sampled score toward a prior, in proportion to how thin it is."""
+    if games <= 0:
+        return prior_score
+    return (score * games + prior_score * prior_games) / (games + prior_games)
 
 
 @dataclass
@@ -75,6 +122,31 @@ class PositionStats:
         if not total or m is None:
             return None
         return m.games / total
+
+    def baseline_for(
+        self, uci: str, color: str, min_move_games: int = 30, prior_games: int = BOOK_PRIOR_GAMES
+    ) -> tuple[float, str, int] | None:
+        """The score to hold the player to for this move: `(score, source, games)`.
+
+        A move needs `min_move_games` behind it before its own record is used at all, and
+        even then it is shrunk toward the position average — two games in a 2013 dump must
+        not be able to claim a confident 100%. Below the floor the position's own score is
+        the honest comparison, and `source` records which was used so the interface can say.
+        """
+        position_score = self.score_for(color)
+        if position_score is None:
+            return None
+        move = self.move(uci)
+        if move is None or move.games < min_move_games:
+            return position_score, "position", self.games
+        move_score = move.score_for(color)
+        if move_score is None:
+            return position_score, "position", self.games
+        return (
+            shrink_toward(move_score, move.games, position_score, prior_games),
+            "move",
+            move.games,
+        )
 
     def best_by_score(self, color: str, min_games: int = 50) -> list[MoveStats]:
         cands = [m for m in self.moves if m.games >= min_games]
