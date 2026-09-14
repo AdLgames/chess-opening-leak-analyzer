@@ -30,6 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from chessopening.analyze import analyze
+from chessopening.demo import load_or_build_demo
 from chessopening.board import BoardError, cp_text, engine_lines, position_payload
 from chessopening.engine import find_engine
 from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch_games,
@@ -48,6 +49,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 JOBS: dict[str, dict[str, Any]] = {}
 LOCK = threading.Lock()
+DEMO_LOCK = threading.Lock()  # one demo build at a time, however many tabs ask
 MAX_UPLOAD_BYTES = 40 * 1024 * 1024
 ENGINE_CACHE = os.path.join(os.path.expanduser("~"), ".cache", "leaklab", "board_evals.json")
 
@@ -336,6 +338,31 @@ def report_csv(job_id: str) -> Response:
     if not path or not os.path.exists(path):
         raise HTTPException(404, "No CSV for this job")
     return FileResponse(path, media_type="text/csv", filename=f"opening_leaks_{job_id}.csv")
+
+
+@app.get("/api/demo-report")
+def demo_report() -> JSONResponse:
+    """A finished run over the bundled sample archive, computed once and kept.
+
+    The first visitor to ask for it pays for the engine pass; everyone after that
+    gets the cached payload, which is the point — the demo has to feel instant.
+    """
+    if not os.path.isdir(SAMPLE_DIR):
+        raise HTTPException(404, "Sample archive is not installed")
+    try:
+        with DEMO_LOCK:
+            return JSONResponse(load_or_build_demo(
+                SAMPLE_DIR,
+                os.path.join(JOBS_ROOT, "_demo"),
+                baked_paths=(os.path.join(ROOT, "demo_report.json"),),
+                cache_path=os.path.join(JOBS_ROOT, "_demo", "demo_report.json"),
+                cache_dir=os.path.join(JOBS_ROOT, "_cache"),
+            ))
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        traceback.print_exc()
+        raise HTTPException(500, f"{type(exc).__name__}: {exc}") from exc
 
 
 @app.get("/api/sample-archive")

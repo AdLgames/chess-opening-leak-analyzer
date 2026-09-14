@@ -195,15 +195,15 @@ def test_end_to_end_report_flags_winrate_decline_and_eval_drop(tmp_path):
     italian = [r for r in rows if r["variation_line"].endswith("Bc4 Bc5 Nxe5")]
     assert italian, "Nxe5 decision missing from report"
     row = italian[0]
-    assert "EVAL_DROP" in row["flag"]
-    assert "WINRATE_DECLINE" in row["flag"]
+    assert "blunder" in row["flag"]
+    assert "underperforming" in row["flag"]
     assert row["eco"] == "C50"
     assert float(row["eval_drop_pawns"]) > 0.8
     assert float(row["score_gap_vs_db_pct"]) < 0
     assert row["engine_best_1"] and row["engine_best_1_cp"]
-    # rows are ordered by priority
-    priorities = [float(r["priority"]) for r in rows]
-    assert priorities == sorted(priorities, reverse=True)
+    # rows are ordered by cost
+    costs = [float(r["cost"]) for r in rows]
+    assert costs == sorted(costs, reverse=True)
     assert os.path.exists(result["summary"])
 
 

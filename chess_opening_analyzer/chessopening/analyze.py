@@ -52,8 +52,20 @@ class Node:
             self.games.append(rec.game_id)
 
 
+# Canonical leak flags. These keys are the contract between the analyzer, the CSV,
+# the API and the dashboard vocabulary module; nothing downstream invents its own.
+FLAG_BLUNDER = "blunder"                # the move itself loses ground
+FLAG_UNDERPERFORMING = "underperforming"  # playable, but your results trail the book
+FLAG_UNFAMILIAR = "unfamiliar"          # a position you meet but have barely played
+FLAG_THIN = "thin"                      # too few games to be sure
+
+#: `cost` = (score points shed per game + a quarter of the eval drop) x games,
+#: shrunk by games / (games + COST_PRIOR) so a habit seen three times cannot
+#: outrank one seen thirty.
+COST_PRIOR = 4.0
+
 REPORT_FIELDS = [
-    "priority",
+    "cost",
     "flag",
     "eco",
     "opening",
@@ -148,6 +160,7 @@ def analyze(
     color: str = "both",
     min_games: int = 3,
     min_ply: int = 2,
+    thin_games: int = 6,
     eval_drop_threshold: float = 0.8,
     score_gap_threshold: float = 0.06,
     db: str = "lichess",
@@ -243,18 +256,25 @@ def analyze(
 
         flags = []
         if gap is not None and gap <= -score_gap_threshold:
-            flags.append("WINRATE_DECLINE")
+            flags.append(FLAG_UNDERPERFORMING)
         if ev and ev.eval_drop_pawns >= eval_drop_threshold:
-            flags.append("EVAL_DROP")
+            flags.append(FLAG_BLUNDER)
         if mv and stats:
             pop = stats.popularity(node.played_uci)
             if pop is not None and pop < 0.02 and (gap is None or gap < 0):
-                flags.append("OFFBEAT_MOVE")
+                flags.append(FLAG_UNFAMILIAR)
         if not flags:
             continue
+        if node.n < thin_games:
+            flags.append(FLAG_THIN)
 
         lost_points = round(-gap * node.n, 2) if gap is not None and gap < 0 else 0.0
-        priority = round(lost_points + (ev.eval_drop_pawns * node.n * 0.25 if ev else 0.0), 2)
+        # frequency x severity, held back while the sample is small
+        severity = (-gap if gap is not None and gap < 0 else 0.0) + (
+            ev.eval_drop_pawns * 0.25 if ev else 0.0
+        )
+        confidence = node.n / (node.n + COST_PRIOR)
+        cost = round(severity * node.n * confidence, 2)
 
         alt_cells: dict[str, str] = {}
         for i in range(3):
@@ -267,7 +287,7 @@ def analyze(
             )
 
         rows.append({
-            "priority": priority,
+            "cost": cost,
             "flag": "+".join(flags),
             "eco": (stats.eco if stats and stats.eco else node.eco),
             "opening": (stats.name if stats and stats.name else node.opening),
@@ -297,7 +317,7 @@ def analyze(
             **alt_cells,
         })
 
-    rows.sort(key=lambda r: (-float(r["priority"]), r["ply"]))
+    rows.sort(key=lambda r: (-float(r["cost"]), r["ply"]))
     report_path = os.path.join(out_dir, "opening_leaks.csv")
     with open(report_path, "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=REPORT_FIELDS)
@@ -327,6 +347,9 @@ def analyze(
         "games": len(games),
         "nodes": len(nodes),
         "repeated": len(repeated),
+        # how many game-appearances the judged decisions account for: the denominator
+        # of the repertoire coverage figure the dashboard shows
+        "repeated_games": sum(n.n for n in repeated.values()),
         "rows": len(rows),
         "report": report_path,
         "summary": summary_path,

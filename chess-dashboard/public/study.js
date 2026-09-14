@@ -23,9 +23,38 @@
     drill: null,
     library: null,
     session: { seen: 0, best: 0, good: 0, missed: 0 },
+    onQueueChange: null,
   };
 
   /* ------------------------------------------------------------------ shared */
+  /* One "Ask the engine" everywhere: same label, same states, same output.
+     Callers supply the button, the pane, and where the position comes from. */
+  const ENGINE_LABEL = 'Ask the engine';
+
+  async function askEngine({ button, pane, position, onPlay }) {
+    const btn = $(button);
+    const target = $(pane);
+    btn.disabled = true;
+    btn.textContent = 'Thinking…';
+    target.innerHTML = '<p class="muted small">Stockfish is thinking…</p>';
+    try {
+      const pos = position();
+      if (!pos) throw new Error('no position on the board yet');
+      const result = await LB.engine(pos.fen, { depth: DEPTH, multipv: 3 });
+      LB.renderEngine(target, result, {
+        onPlay: (uci) => {
+          const move = pos.legal.find((m) => m.uci === uci);
+          if (move && onPlay) onPlay(move);
+        },
+      });
+    } catch (err) {
+      target.innerHTML = `<p class="muted small">Engine unavailable: ${esc(err.message)}</p>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = ENGINE_LABEL;
+    }
+  }
+
   function sanToMove(legal, san) {
     if (!san) return null;
     const clean = String(san).replace(/[!?]+$/, '');
@@ -231,24 +260,20 @@
       $('reviewStatus').className = 'board-status is-good';
     },
 
-    async askEngine() {
-      const btn = $('reviewEngineBtn');
-      const target = $('reviewEngine');
-      btn.disabled = true;
-      target.innerHTML = '<p class="muted small">Stockfish is thinking…</p>';
-      try {
-        const result = await LB.engine(this.current.fen, { depth: DEPTH, multipv: 3 });
-        LB.renderEngine(target, result, {
-          onPlay: (uci) => {
-            const move = this.current.legal.find((m) => m.uci === uci);
-            if (move) this.play(move);
-          },
-        });
-      } catch (err) {
-        target.innerHTML = `<p class="muted small">Engine unavailable: ${esc(err.message)}</p>`;
-      } finally {
-        btn.disabled = false;
-      }
+    askEngine() {
+      return askEngine({
+        button: 'reviewEngineBtn',
+        pane: 'reviewEngine',
+        position: () => this.current,
+        onPlay: (move) => this.play(move),
+      });
+    },
+
+    /* The move the user has actually put on the board, if any: what "Commit this
+       move" commits. Falls back to the engine's first choice. */
+    currentAnswer() {
+      if (this.history.length) return this.history[0].san;
+      return this.row ? this.row.engine_best_1 || '' : '';
     },
   };
 
@@ -263,17 +288,34 @@
       this.queue = rows
         .filter((r) => r.fen && r.your_move)
         .slice()
-        .sort((a, b) => (num(b.priority) || 0) - (num(a.priority) || 0))
+        .sort((a, b) => (num(b.cost) || 0) - (num(a.cost) || 0))
         .slice(0, 15);
       state.session = { seen: 0, best: 0, good: 0, missed: 0 };
       this.index = 0;
-      $('practiceEmpty').hidden = this.queue.length > 0;
-      $('practiceBody').hidden = this.queue.length === 0;
-      $('practiceHint').textContent = this.queue.length
-        ? `${this.queue.length} position${this.queue.length === 1 ? '' : 's'} from your own games`
-        : 'Run an analysis to build a drill set';
+      this.announce();
       if (this.queue.length) this.load(0);
       this.renderScore();
+    },
+
+    /** Put one position at the front of the queue — the "Drill this" button. */
+    add(row) {
+      const at = this.queue.findIndex((r) => r.fen === row.fen && r.your_move === row.your_move);
+      if (at >= 0) {
+        this.announce();
+        this.load(at);
+        return at;
+      }
+      this.queue.unshift(row);
+      this.announce();
+      this.load(0);
+      return 0;
+    },
+
+    /* The practice view owns its own headings, so tell it what is in the queue
+       rather than writing into elements that only exist on one screen. */
+    announce() {
+      $('practiceBody').hidden = this.queue.length === 0;
+      if (state.onQueueChange) state.onQueueChange(this.queue.slice());
     },
 
     async load(i) {
@@ -379,9 +421,17 @@
         else if (verdict.kind === 'good') state.session.good += 1;
         else state.session.missed += 1;
         this.row.solved = verdict.kind === 'best' || verdict.kind === 'good';
+        this.record(this.row, this.row.solved);
         this.renderScore();
         this.renderQueue();
       }
+    },
+
+    /** One attempt, kept so Progress can show retention and a review date. */
+    record(row, correct) {
+      if (!window.Store || !row) return;
+      const label = `${row.opening || row.eco || 'Opening'} · ${row.variation_line || row.your_move}`;
+      window.Store.drills.attempt(window.Store.leakKey(row), correct, label);
     },
 
     async reveal() {
@@ -407,6 +457,7 @@
           this.answered = true;
           state.session.seen += 1;
           state.session.missed += 1;
+          this.record(this.row, false);
           this.renderScore();
         }
       } catch (err) {
@@ -529,24 +580,13 @@
       }
     },
 
-    async askEngine() {
-      const btn = $('libEngineBtn');
-      const target = $('libEngine');
-      btn.disabled = true;
-      target.innerHTML = '<p class="muted small">Stockfish is thinking…</p>';
-      try {
-        const result = await LB.engine(this.pos.fen, { depth: DEPTH, multipv: 3 });
-        LB.renderEngine(target, result, {
-          onPlay: (uci) => {
-            const move = this.pos.legal.find((m) => m.uci === uci);
-            if (move) this.play(move);
-          },
-        });
-      } catch (err) {
-        target.innerHTML = `<p class="muted small">Engine unavailable: ${esc(err.message)}</p>`;
-      } finally {
-        btn.disabled = false;
-      }
+    askEngine() {
+      return askEngine({
+        button: 'libEngineBtn',
+        pane: 'libEngine',
+        position: () => this.pos,
+        onPlay: (move) => this.play(move),
+      });
     },
   };
 
@@ -560,10 +600,10 @@
     $('reviewAuto').addEventListener('change', (e) => {
       review.auto = e.target.checked;
     });
-    $('reviewDrill').addEventListener('click', () => {
-      const i = drill.queue.findIndex((r) => r === review.row);
-      if (i >= 0) drill.load(i);
-      document.getElementById('practice').scrollIntoView({ behavior: 'smooth' });
+    $('drillBtn').addEventListener('click', () => {
+      if (!review.row) return;
+      drill.add(review.row);
+      if (window.App) window.App.go('practice');
     });
 
     $('drillNext').addEventListener('click', () => drill.load(drill.index + 1));
@@ -600,5 +640,15 @@
       state.rows = rows || [];
       drill.setRows(state.rows);
     },
+    /** Called with the drill queue whenever it changes, so the practice view can
+        render its own heading and empty state. */
+    onQueueChange(fn) {
+      state.onQueueChange = fn;
+      if (state.rows.length || drill.queue.length) drill.announce();
+    },
+    queue: () => drill.queue.slice(),
+    /** The move currently on the board in the fix panel. */
+    currentAnswer: () => review.currentAnswer(),
+    currentRow: () => review.row || null,
   };
 })();

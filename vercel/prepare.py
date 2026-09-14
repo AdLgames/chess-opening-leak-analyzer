@@ -77,6 +77,20 @@ def ensure_database() -> None:
     say(f"database ready ({os.path.getsize(path) / 1e6:.1f} MB)")
 
 
+def copy_demo_report() -> None:
+    """Take the baked demo payload along if one has been generated.
+
+    Without it the first visitor to click the demo waits for a real engine pass;
+    with it the function answers from the file. See tools/bake_demo_report.py.
+    """
+    src = os.path.join(DASHBOARD, "demo_report.json")
+    if not os.path.isfile(src):
+        say("no baked demo report — the first demo run will compute one")
+        return
+    shutil.copyfile(src, os.path.join(HERE, "demo_report.json"))
+    say(f"baked demo report copied ({os.path.getsize(src) / 1e6:.1f} MB)")
+
+
 def ensure_engine() -> None:
     dest = os.path.join(HERE, "engine")
     installer = os.path.join(ANALYZER, "tools", "install_stockfish.py")
@@ -90,6 +104,7 @@ def main() -> int:
               skip=("bin",))
     copy_tree(os.path.join(ANALYZER, "sample_pgns"), os.path.join(HERE, "sample_pgns"))
     copy_tree(os.path.join(DASHBOARD, "public"), os.path.join(HERE, "public"))
+    copy_demo_report()
     ensure_database()
     ensure_engine()
     say("bundle ready")

@@ -59,7 +59,8 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse, Response  # noqa: E402
 
-from chessopening.analyze import analyze  # noqa: E402
+from chessopening.analyze import analyze
+from chessopening.demo import load_or_build_demo  # noqa: E402
 from chessopening.board import (BoardError, cp_text, engine_lines,  # noqa: E402
                                 position_payload)
 from chessopening.engine import find_engine  # noqa: E402
@@ -343,6 +344,33 @@ def _csv_text(rows: list[dict[str, str]]) -> str:
     writer.writeheader()
     writer.writerows(rows)
     return buf.getvalue()
+
+
+@app.get("/api/demo-report")
+def demo_report() -> JSONResponse:
+    """A finished sample run, served from a cache so the demo feels instant.
+
+    A baked payload committed with the deployment answers straight away; failing
+    that the first invocation on an instance computes one into /tmp, which warm
+    invocations then reuse.
+    """
+    if not os.path.isdir(SAMPLE_DIR):
+        raise HTTPException(404, "Sample archive is not installed")
+    try:
+        return JSONResponse(load_or_build_demo(
+            SAMPLE_DIR,
+            os.path.join(WORK_ROOT, "demo"),
+            baked_paths=(os.path.join(ROOT, "demo_report.json"),),
+            cache_path=os.path.join(WORK_ROOT, "demo", "demo_report.json"),
+            cache_dir=os.path.join(WORK_ROOT, "_cache"),
+            max_games=int(LIMITS["max_games"]),
+            engine_budget_s=float(LIMITS["time_budget_s"]),
+        ))
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        traceback.print_exc()
+        raise HTTPException(500, f"{type(exc).__name__}: {exc}") from exc
 
 
 @app.get("/api/sample-archive")

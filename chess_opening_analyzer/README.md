@@ -49,6 +49,7 @@ folders work. Useful flags:
 | `--db local` | Default. Bundled SQLite database, no network |
 | `--local-db PATH` | Use a different database file (e.g. one built from master games) |
 | `--min-db-games 20` | Ignore local-database positions thinner than this |
+| `--thin-games 6` | Below this many repetitions a finding is flagged `thin` rather than dropped |
 | `--max-moves 15` | Opening window in full moves (default 15 → first 30 plies) |
 | `--min-games 3` | Only judge decisions you have repeated at least this often |
 | `--min-ply 2` | Ignore decisions before this ply (skips the bare first-move choice) |
@@ -69,7 +70,8 @@ indexed by board EPD, so transpositions merge and queries are instant.
 ## What comes out
 
 `out/opening_leaks.csv` — one row per flagged decision (position + move you chose), sorted by
-`priority` (score points lost, weighted by how often you repeat the mistake):
+`cost`: frequency x severity, shrunk by `games / (games + 4)` so a habit seen three times cannot
+outrank one seen thirty.
 
 - **Identity**: `eco`, `opening`, `variation_line` (SAN up to your move), `move_number`, `ply`,
   `player_color`, `your_move`, `fen` (the exact position before your move — paste into any board)
@@ -80,8 +82,9 @@ indexed by board EPD, so transpositions merge and queries are instant.
   `eval_drop_pawns`, `engine_rank_of_your_move`
 - **Missed opportunities**: `engine_best_1..3` with `_cp` and `_db_score_pct`, i.e. the engine's
   top choices *and* how humans in your rating pool actually score with them
-- `flag`: `WINRATE_DECLINE` (you underperform the database baseline in this exact position),
-  `EVAL_DROP` (Stockfish loss ≥ threshold), `OFFBEAT_MOVE` (<2% popularity and below-par results)
+- `flag`, one or more of: `underperforming` (you score below the database baseline in this exact
+  position), `blunder` (Stockfish loss ≥ threshold), `unfamiliar` (<2% popularity and below-par
+  results), `thin` (fewer than `--thin-games` repetitions, so the sample is too small to act on)
 - `sample_games`: up to 8 game IDs/URLs to review
 
 `out/variation_summary.csv` — rollup by ECO/opening: decisions, W/D/L, score%.
@@ -98,6 +101,9 @@ indexed by board EPD, so transpositions merge and queries are instant.
   Positions the database has never seen leave those columns blank rather than reporting zeros.
 - A decision is only judged after `--min-games` repetitions, which is what makes a decline
   "consistent" rather than one bad game.
+- **Cost** = `(score points shed per game + eval drop / 4) x games x games / (games + 4)`. The
+  last term is the cautious part: it holds a finding back while its sample is small, and
+  approaches 1 once you have played the position often.
 
 ## Layout
 
@@ -106,7 +112,8 @@ chessopening/pgn_loader.py   folder walk, PGN parsing, opening-phase ply records
 chessopening/explorer.py     Lichess Opening Explorer client (cache, throttle, offline mode)
 chessopening/localdb.py      offline SQLite opening database, same lookup() API as the Explorer
 chessopening/engine.py       Stockfish UCI wrapper: MultiPV, eval drops, alternatives
-chessopening/analyze.py      aggregation, flagging, CSV writers
+chessopening/analyze.py      aggregation, flagging, cost, CSV writers
+chessopening/demo.py         the cached demo report both backends serve
 chessopening/cli.py          argparse entry point (python -m chessopening)
 chessopening/bin/stockfish   engine, fetched per machine by tools/install_stockfish.py (git-ignored)
 chessopening/data/           openings.sqlite (move stats) + eco.tsv (opening names)
@@ -114,14 +121,16 @@ tools/install_stockfish.py   platform-aware engine installer (--check, --force, 
 tools/setup_env.py           one-command bootstrap: deps, engine, database check, smoke run
 tools/build_local_db.py      builds openings.sqlite from Lichess dumps or your own PGNs
 tools/make_sample_pgns.py    generates a synthetic 83-game archive for demos
-tests/test_pipeline.py       12 tests: PGN, database, engine, end-to-end CSV contract
+tools/bake_demo_report.py    pre-computes the dashboard's demo report so it loads instantly
+tests/test_pipeline.py       PGN, database, engine, end-to-end CSV contract
+tests/test_summary.py        the roll-up the dashboards read: totals, flags, coverage denominator
 ```
 
 ## Tests
 
 ```bash
 python tools/make_sample_pgns.py
-python -m pytest tests -q      # 12 passed
+python -m pytest tests -q
 ```
 
 Coverage: PGN discovery and player detection, ply-record correctness, score math, Explorer parsing
