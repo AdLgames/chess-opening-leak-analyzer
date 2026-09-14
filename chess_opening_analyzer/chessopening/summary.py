@@ -50,8 +50,11 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         "games": stats["games"],
         "decisions": stats["nodes"],
         "judged": stats["repeated"],
+        # every game-appearance behind a judged decision: the denominator of coverage
+        "judged_games": stats.get("repeated_games", 0),
         "leaks": len(rows),
         "lost_points": round(sum(_f(r["lost_points"]) for r in rows), 2),
+        "cost": round(sum(_f(r.get("cost")) for r in rows), 2),
         "blunders": sum(1 for r in rows if _f(r["eval_drop_pawns"]) >= 0.8),
         "flags": dict(flags),
         "by_opening": openings[:12],
