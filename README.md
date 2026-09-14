@@ -10,7 +10,7 @@ Two ways to use it:
 | --- | --- |
 | `chess_opening_analyzer/` | Python package + CLI. Parses PGNs with python-chess, compares every repeated opening decision against the opening database, runs Stockfish over the first N moves, writes a CSV report. |
 | `vercel/` | Hosted deployment of the same dashboard: a Python serverless function that bundles Stockfish and the opening book. See [vercel/README.md](vercel/README.md). |
-| `chess-dashboard/` | Opening Leak Lab — a FastAPI backend and a static front end that wraps the same package: drop PGNs, watch the run log, then browse KPIs, charts, a sortable leak table, and a board view of each flagged position with the engine's alternatives. |
+| `chess-dashboard/` | Opening Leak Lab — a FastAPI backend and a static front end that wraps the same package: give it a username or a PGN, then work through the leak table, commit answers into a repertoire you can see, drill them, and watch coverage move between runs. |
 
 ## Setup
 
@@ -71,7 +71,7 @@ python -m chessopening --user hikaru --provider chesscom --max-games 200 --depth
 python -m chessopening --pgn-dir sample_pgns --db local --min-db-games 20 --depth 16 --out-dir out
 ```
 
-`out/opening_leaks.csv` holds one row per flagged decision, sorted by priority, with the
+`out/opening_leaks.csv` holds one row per flagged decision, sorted by cost, with the
 FEN, your record, the book record, the eval swing, and Stockfish's top three alternatives.
 
 ### Fetching by username
@@ -93,40 +93,67 @@ python api_server.py                  # API on :8000
 python -m http.server 8080 -d public  # UI on :8080
 ```
 
-Then open `http://localhost:8080`. The dashboard opens on the account tab: type your
-Chess.com or Lichess username, check the profile it finds, pick time controls and a game
-count, and run. The PGN files tab keeps the offline upload path, and the demo archive tab
-runs the bundled sample games.
+Then open `http://localhost:8080`. The first screen is one decision: type your Chess.com or
+Lichess username and run, or take the sample archive one click away — it answers from a
+cached report rather than making you sit through an engine pass. Uploading a PGN instead is
+a link below, and the tuning knobs are behind "Advanced settings". Once a run finishes the
+report appears, and the nav opens up: Repertoire, Practice and Progress.
 
 ## Learning from the report
 
 Every report row opens on an interactive board, so a leak is something you can work on
 rather than only read about:
 
-- **Fix the mistake** — the board sits on the position before the flagged move. *Show my
+- **Report** — selecting a leak puts the board on the position before the flagged move. *Show my
   move* draws it in red, *show the better moves* draws the engine's pick in green and the
   book alternatives in amber. Play any legal move on the board and the local book answers
   with its most common reply, so you can walk your improvement out a few moves. The book
   table lists every move played from that position with games, share and win/draw/loss; the
   engine panel runs Stockfish on demand from whatever position you have reached.
-- **Practice the fixes** — the 15 costliest leaks become a drill queue. You get the
+- **Practice** — the 15 costliest leaks become a drill queue. You get the
   position and your own history with it ("you played Nc3 here 9 times, scoring 11%"), you
   play a move, and Stockfish grades it against the best move: engine's pick, close enough,
   playable, or gives ground away. Reveal the answer or retry, and a session counter tracks
   how you did.
-- **Openings library** — search 3,810 named openings by name or ECO code, jump to any of
+- **Library** — search 3,810 named openings by name or ECO code, jump to any of
   them, and walk the line move by move with book statistics and engine lines at each node.
 
 Move legality, opening naming and book statistics are all decided on the server by
 python-chess and the local SQLite book — the browser never guesses.
 
-## How a leak is flagged
+## Building a repertoire, not just diagnosing one
+
+A finding is only worth something once you have decided what to do about it, so the fix
+panel offers three: commit the move you would rather play, dismiss the finding, or send it
+to practice. Those decisions are the repertoire.
+
+- **Repertoire** shows what you have committed as a move tree, White and Black separately,
+  alongside the holes left in it — the positions you demonstrably reach with no answer,
+  ranked by how often they come up.
+- **Coverage** is the single number the whole product is trying to move: the share of your
+  opening decisions, weighted by how often you play them, that are not an open leak.
+- **Progress** plots coverage per run, lists the leaks that have gone since the last one and
+  what they were costing you, and tracks how your drills are holding up.
+- **Exports** take it elsewhere: the repertoire as PGN with variations nested (ChessBase,
+  SCID, or a Lichess study), the drill set as PGN with FENs, the leak table as CSV.
+
+These decisions live in your browser's local storage. Nothing about them is sent anywhere.
+
+## How a leak is flagged, and how it is ranked
 
 Score is win% + half of draw%, matching Lichess convention.
 
-- `eval` — Stockfish's evaluation drops by at least the threshold (default 0.8 pawns) on the move you played.
-- `win-rate` — a decision you repeat often scores below the book by more than the gap threshold (default 6%).
-- `offbeat` — your move is played by under 5% of games in the database for that position.
+- `blunder` — "Loses ground". Stockfish's evaluation drops by at least the threshold
+  (default 0.8 pawns) on the move you played.
+- `underperforming` — "Not working for you". A decision you repeat often scores below the
+  book by more than the gap threshold (default 6%).
+- `unfamiliar` — a move played by under 2% of games in the database for that position, and
+  not working for you either.
+- `thin` — "Worth watching". Real, but seen too few times to act on yet.
+
+Rows are ranked by **cost**: `(score points shed per game + eval drop / 4) x games`, shrunk
+by `games / (games + 4)`. The shrinkage is the point — it stops a habit seen three times
+outranking one seen thirty.
 
 ## What ships in the repo
 
