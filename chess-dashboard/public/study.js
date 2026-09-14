@@ -548,6 +548,29 @@
       await this.load();
     },
 
+    /** Jump the board to a named line: a leak's variation, or a trap's setup.
+
+        The SAN history is what lets the backend name the opening and number the
+        moves, so it is preferred; a bare FEN is the fallback when the line will
+        not replay. */
+    async openLine(san, fen) {
+      let start = fen || null;
+      if (san && san.length) {
+        try {
+          const pos = await LB.position(null, null, san);
+          start = pos.fen;
+        } catch (err) {
+          if (!start) throw err;
+        }
+      }
+      this.fromFen = start;
+      this.startTurn = String(start).split(' ')[1] === 'b' ? 'black' : 'white';
+      this.moves = [];
+      this.history = [];
+      $('libResults').querySelectorAll('li').forEach((n) => n.classList.remove('is-current'));
+      await this.load();
+    },
+
     async search(q) {
       const target = $('libResults');
       try {
@@ -647,6 +670,10 @@
       if (state.rows.length || drill.queue.length) drill.announce();
     },
     queue: () => drill.queue.slice(),
+    /** Put a line on the explorer board (used by the openings explorer). */
+    explore: (san, fen) => library.openLine(san, fen).catch((err) => {
+      $('libStats').textContent = `Could not replay that line: ${err.message}`;
+    }),
     /** The move currently on the board in the fix panel. */
     currentAnswer: () => review.currentAnswer(),
     currentRow: () => review.row || null,

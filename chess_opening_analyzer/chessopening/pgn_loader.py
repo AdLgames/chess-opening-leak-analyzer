@@ -48,6 +48,9 @@ class GameSummary:
     eco: str
     opening: str
     date: str
+    # the opening phase as played, both sides, space-separated SAN: what the trap
+    # scanner matches against
+    line_san: str = ""
     plies: list[PlyRecord] = field(default_factory=list)
 
 
@@ -180,4 +183,5 @@ def load_games(
                     history_uci.append(move.uci())
                     history_san.append(san)
                     board.push(move)
+                summary.line_san = " ".join(history_san)
                 yield summary

@@ -89,6 +89,20 @@ outrank one seen thirty.
 
 `out/variation_summary.csv` — rollup by ECO/opening: decisions, W/D/L, score%.
 
+`out/opening_profiles.json` — one profile per opening family per colour, plus the traps
+this player walked into:
+
+- **Per opening**: `games`, W/D/L, `score_pct` against `book_score_pct` (what the book gets
+  from the same positions) and the `gap_pct` between them, `first_break` (the move number
+  the line stops holding), `breaks` (the spread of break points), `cost`, and the flagged
+  decisions with `play_instead` — the engine's move when the run had one, otherwise the
+  book's best move with at least 20 games.
+- **`break_moves`**: the run-wide spread of where openings break down, by move number.
+- **`worst_against`**: the openings whose score falls furthest below the book, weighted by
+  how often they come up. Openings with fewer than three games are never called a weakness.
+- **`traps`**: which of the catalogued trap lines the player met, and how often they walked
+  in rather than holding.
+
 ## How the numbers are defined
 
 - **Eval drop** = `eval(best move)` − `eval(your move)`, both from the mover's point of view at
@@ -113,10 +127,12 @@ chessopening/explorer.py     Lichess Opening Explorer client (cache, throttle, o
 chessopening/localdb.py      offline SQLite opening database, same lookup() API as the Explorer
 chessopening/engine.py       Stockfish UCI wrapper: MultiPV, eval drops, alternatives
 chessopening/analyze.py      aggregation, flagging, cost, CSV writers
+chessopening/profiles.py     per-opening profiles: record vs book, break point, what to play instead
+chessopening/traps.py        matches games against the known-trap catalogue
 chessopening/demo.py         the cached demo report both backends serve
 chessopening/cli.py          argparse entry point (python -m chessopening)
 chessopening/bin/stockfish   engine, fetched per machine by tools/install_stockfish.py (git-ignored)
-chessopening/data/           openings.sqlite (move stats) + eco.tsv (opening names)
+chessopening/data/           openings.sqlite (move stats), eco.tsv (opening names), traps.json (trap catalogue)
 tools/install_stockfish.py   platform-aware engine installer (--check, --force, CPU-build fallback)
 tools/setup_env.py           one-command bootstrap: deps, engine, database check, smoke run
 tools/build_local_db.py      builds openings.sqlite from Lichess dumps or your own PGNs
@@ -124,6 +140,8 @@ tools/make_sample_pgns.py    generates a synthetic 83-game archive for demos
 tools/bake_demo_report.py    pre-computes the dashboard's demo report so it loads instantly
 tests/test_pipeline.py       PGN, database, engine, end-to-end CSV contract
 tests/test_summary.py        the roll-up the dashboards read: totals, flags, coverage denominator
+tests/test_profiles.py       per-opening profiles: families, break points, recommendations
+tests/test_traps.py          the trap catalogue's consistency and the scan over a player's games
 ```
 
 ## Tests

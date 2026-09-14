@@ -49,7 +49,12 @@ Five destinations, each named the same in the nav and in its heading:
 3. **Practice** — the drill set built from the report, scored as you go.
 4. **Progress** — coverage per run, the leaks that have gone and what they were
    costing you, and per-position drill retention with a review date.
-5. **Library** — the opening explorer.
+5. **Explorer** — the openings explorer, read through your own games: the move number
+   your openings tend to break on, a row per opening you play (your record against what
+   the book scores from the same positions, the move your line holds to, what it costs),
+   the selected opening in full with what to play instead at each break, and the known
+   trap lines you have actually faced — whether you walked in or held, and the move that
+   avoids each one. The book explorer, which is the same for everyone, sits underneath.
 
 Run options beyond colour and how many games to read live behind "Advanced
 settings", which stays shut until you open it and then remembers that. Engine and
@@ -85,6 +90,9 @@ and their eval cache live under `/tmp/leaklab-jobs/`.
   given user-facing names.
 - Your repertoire decisions, drill history and last report are kept in the
   browser's local storage, never on the server.
+- The explorer's data rides along in the report summary as `explorer`; the analyzer
+  builds it in `profiles.py` and `traps.py`. A trap is only reported when a game
+  followed its line move for move, so transpositions are never claimed as hits.
 - The demo report is cached. `python ../chess_opening_analyzer/tools/bake_demo_report.py`
   writes `demo_report.json` here, and the server serves that instead of running
   the pipeline.

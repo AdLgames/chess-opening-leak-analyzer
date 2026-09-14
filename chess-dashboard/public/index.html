@@ -42,7 +42,7 @@
           <a href="#repertoire" class="nav-item" data-view="repertoire">Repertoire</a>
           <a href="#practice" class="nav-item" data-view="practice">Practice</a>
           <a href="#progress" class="nav-item" data-view="progress">Progress</a>
-          <a href="#library" class="nav-item" data-view="library">Library</a>
+          <a href="#explorer" class="nav-item" data-view="explorer">Explorer</a>
         </nav>
       </aside>
 
@@ -291,8 +291,43 @@
           <div id="progressBody"></div>
         </section>
 
-        <!-- =================================================== library -->
-        <section class="view" id="viewLibrary" hidden>
+        <!-- =================================================== explorer -->
+        <section class="view" id="viewExplorer" hidden>
+          <!-- the personal half: only rendered once a run has something to say -->
+          <div class="explorer-personal" id="explorerPersonal" hidden>
+            <div class="summary-band" id="breakBand"></div>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Your openings</h2>
+                <div class="segmented" id="explorerColour" role="tablist">
+                  <button class="seg is-active" data-colour="all" role="tab">All</button>
+                  <button class="seg" data-colour="white" role="tab">As White</button>
+                  <button class="seg" data-colour="black" role="tab">As Black</button>
+                </div>
+              </div>
+              <p class="panel-note" id="openingNote"></p>
+              <div class="table-scroll">
+                <table id="openingTable">
+                  <caption class="sr-only">Every opening you play, worst first</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Opening</th>
+                      <th scope="col" class="num">Games</th>
+                      <th scope="col" class="num">You vs book</th>
+                      <th scope="col" class="num">Holds to</th>
+                      <th scope="col" class="num">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody id="openingBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="panel" id="openingDetail" hidden></section>
+            <section class="panel" id="trapPanel" hidden></section>
+          </div>
+
           <section class="panel library-panel">
             <div class="library-body">
               <div class="board-col">
@@ -313,7 +348,7 @@
               </div>
               <div class="library-side">
                 <label class="field">
-                  <span>Find an opening<i>by name or ECO code</i></span>
+                  <span>Find any opening<i>by name or ECO code</i></span>
                   <input id="libSearch" type="search" placeholder="e.g. Sicilian, Nimzo, C50" autocomplete="off" />
                 </label>
                 <ol class="opening-list" id="libResults"></ol>
@@ -555,6 +590,7 @@
     <script src="./board.js"></script>
     <script src="./study.js"></script>
     <script src="./repertoire.js"></script>
+    <script src="./explorer.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>
