@@ -27,6 +27,10 @@ from typing import Any, Callable, Iterable, Sequence
 #: Book moves thinner than this are not worth recommending.
 MIN_BOOK_GAMES = 20
 
+#: Leaks kept per opening. The costly ones are the ones worth fixing, and the
+#: payload travels to the browser with every report.
+MAX_LEAKS_PER_OPENING = 12
+
 
 def family(name: str) -> str:
     """The opening family: everything before the first variation marker."""
@@ -180,6 +184,8 @@ def build_profiles(
         for leak in prof["leaks"]:
             spread[leak["move_number"]] += leak["games"]
         prof["breaks"] = [{"move_number": mv, "games": n} for mv, n in sorted(spread.items())]
+        prof["leak_count"] = len(prof["leaks"])
+        prof["leaks"] = prof["leaks"][:MAX_LEAKS_PER_OPENING]
         prof["name"] = prof["variants"].most_common(1)[0][0] if prof["variants"] else prof["family"]
         prof["eco"] = prof["_ecos"].most_common(1)[0][0] if prof["_ecos"] else ""
         prof.pop("variants")

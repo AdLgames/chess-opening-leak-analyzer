@@ -115,8 +115,13 @@ rather than only read about:
   play a move, and Stockfish grades it against the best move: engine's pick, close enough,
   playable, or gives ground away. Reveal the answer or retry, and a session counter tracks
   how you did.
-- **Library** — search 3,810 named openings by name or ECO code, jump to any of
-  them, and walk the line move by move with book statistics and engine lines at each node.
+- **Explorer** — the same 3,810 named openings, searchable by name or ECO code and
+  walkable move by move with book statistics and engine lines — over a personal profile of
+  every opening you actually play: your record against what the book scores from the same
+  positions, the move number your line stops holding, the spread of where things break
+  down, what to play instead at each break, and which known traps have caught you. Traps
+  are matched move for move against fifteen catalogued lines (`chessopening/data/traps.json`),
+  so a reported hit is one you really played into.
 
 Move legality, opening naming and book statistics are all decided on the server by
 python-chess and the local SQLite book — the browser never guesses.
