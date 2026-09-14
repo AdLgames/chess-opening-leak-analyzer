@@ -1,4 +1,10 @@
 /* Opening Leak Lab — dashboard client.
+
+   The page has three states: `empty` asks for games and nothing else, `running`
+   collapses that to one line plus progress, and `report` is the finished thing.
+   Only one is ever in the document, which is what keeps the first screen to a
+   single decision.
+
    Talks to a local FastAPI analyzer on :8000, or to a same-origin serverless API
    when hosted (the backend reports `serverless: true` from /api/meta). */
 const PORT_PROXY = '__PORT_8000__';
@@ -15,7 +21,24 @@ const API = PORT_PROXY.startsWith('__')
   : PORT_PROXY;
 
 const $ = (id) => document.getElementById(id);
+const V = window.Vocab;
+const S = window.Store;
+
+/* How many rows the table shows before "Show all". A 2,000-game archive should
+   not open with 400 rows. */
+const ROW_CAP = 25;
+
+const VIEWS = {
+  report: { title: 'Report', needsRun: false },
+  repertoire: { title: 'Repertoire', needsRun: true },
+  practice: { title: 'Practice', needsRun: true },
+  progress: { title: 'Progress', needsRun: true },
+  library: { title: 'Library', needsRun: false },
+};
+
 const state = {
+  view: 'report',
+  app: 'empty',
   files: [],
   mode: 'username',
   provider: 'chesscom',
@@ -27,10 +50,16 @@ const state = {
   rows: [],
   summary: null,
   player: null,
-  sort: { key: 'priority', dir: -1 },
-  filter: { flag: 'all', color: 'all', q: '' },
+  source: '',
+  account: null,
+  options: null,
+  demo: false,
+  sort: { dir: -1 },
+  filter: { flag: 'all', q: '' },
+  showAll: false,
   selected: null,
-  charts: {},
+  chart: null,
+  chartKind: 'lost',
   meta: null,
 };
 
@@ -40,12 +69,86 @@ const num = (v) => {
 };
 const fmt = (v, digits = 1, suffix = '') => (num(v) === null ? '—' : num(v).toFixed(digits) + suffix);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/* The hosted function has a time budget, so cap the controls it cannot honour. */
+/* ------------------------------------------------------------------- states */
+function setAppState(next) {
+  state.app = next;
+  $('app').dataset.state = next;
+  $('gate').hidden = next !== 'empty';
+  $('runStrip').hidden = next !== 'running';
+  $('report').hidden = next !== 'report';
+  $('headerActions').hidden = next !== 'report';
+  mountRunForm(next === 'empty' ? 'gateSlot' : 'dialogSlot');
+  renderNav();
+  renderViewHead();
+}
+
+/* The form has one instance; it moves between the empty screen and the dialog so
+   no control is ever rendered twice. */
+function mountRunForm(slotId) {
+  const form = $('runForm');
+  const slot = $(slotId);
+  if (form && slot && form.parentNode !== slot) slot.appendChild(form);
+}
+
+function hasReport() {
+  return state.rows.length > 0 || state.summary !== null;
+}
+
+function renderNav() {
+  const unlocked = hasReport() || S.repertoire.all().length > 0;
+  document.querySelectorAll('.nav-item').forEach((a) => {
+    const view = a.dataset.view;
+    a.hidden = VIEWS[view].needsRun && !unlocked;
+    a.classList.toggle('is-active', view === state.view);
+  });
+}
+
+function go(view) {
+  if (!VIEWS[view]) view = 'report';
+  if (VIEWS[view].needsRun && !hasReport() && !S.repertoire.all().length) view = 'report';
+  state.view = view;
+  Object.keys(VIEWS).forEach((name) => {
+    $(`view${name[0].toUpperCase()}${name.slice(1)}`).hidden = name !== view;
+  });
+  if (location.hash !== `#${view}`) history.replaceState(null, '', `#${view}`);
+  renderNav();
+  renderViewHead();
+  if (view === 'repertoire') window.Repertoire.renderRepertoire(reportContext());
+  if (view === 'progress') window.Repertoire.renderProgress(reportContext());
+  $('main').scrollTop = 0;
+}
+
+function reportContext() {
+  return { rows: state.rows, summary: state.summary, player: state.player };
+}
+
+function renderViewHead() {
+  $('viewTitle').textContent = VIEWS[state.view].title;
+  $('viewSub').textContent = subtitle();
+}
+
+function subtitle() {
+  if (state.view === 'repertoire') return 'The lines you have committed to, and the gaps left in them';
+  if (state.view === 'practice') {
+    const queued = window.Study ? window.Study.queue().length : 0;
+    return queued
+      ? `${plural(queued, 'position')} from your own games`
+      : 'The positions your report turned into drills';
+  }
+  if (state.view === 'progress') return 'What has changed between runs';
+  if (state.view === 'library') return 'Walk any line and see what the book did with it';
+  if (state.app !== 'report' || !state.summary) return '';
+  const s = state.summary;
+  const engine = state.options && state.options.no_engine ? 'engine skipped' : `depth ${state.options ? state.options.depth : '—'}`;
+  return `${state.player} · ${plural(s.games, 'game')} · ${plural(s.judged, 'repeated decision')} · ${plural(s.leaks, 'leak')} · ${engine}`;
+}
+
+/* --------------------------------------------------------------------- meta */
 function applyHostedLimits(limits) {
   const depth = $('optDepth');
   if (limits.max_depth) {
-    // setting max makes the browser clamp value for us, so mirror it into the label
     depth.max = String(limits.max_depth);
     if (Number(depth.value) > limits.max_depth) depth.value = String(limits.max_depth);
     $('depthOut').textContent = depth.value;
@@ -57,12 +160,8 @@ function applyHostedLimits(limits) {
     $('maxGamesOut').textContent = games.value;
   }
   if (limits.max_upload_mb) {
-    $('uploadHint').textContent =
-      `Up to ${limits.max_upload_mb} MB per run · parsed with python-chess`;
+    $('uploadHint').textContent = `Up to ${limits.max_upload_mb} MB per run · parsed with python-chess`;
   }
-  $('sideFoot').textContent =
-    'Everything runs inside the deployed function: a bundled Stockfish build and a bundled '
-    + 'SQLite opening book. No API keys, no rate limits.';
   $('hostedNoticeText').textContent =
     `Runs here are capped at depth ${limits.max_depth}, ${limits.max_games} games and `
     + `${limits.max_upload_mb} MB per upload, and the engine pass stops after `
@@ -70,7 +169,6 @@ function applyHostedLimits(limits) {
   $('hostedNotice').hidden = false;
 }
 
-/* --------------------------------------------------------------------- meta */
 async function loadMeta() {
   try {
     const meta = await (await fetch(`${API}/api/meta`)).json();
@@ -80,13 +178,12 @@ async function loadMeta() {
     const e = meta.engine || {};
     const d = meta.database || {};
 
-    $('pillEngine').className = 'pill ' + (e.available ? 'ok' : 'bad');
-    $('pillEngine').lastChild.textContent = e.available ? e.name + (e.bundled ? ' · bundled' : '') : 'Engine missing';
-    $('pillDb').className = 'pill ' + (d.available ? 'ok' : 'bad');
-    $('pillDb').lastChild.textContent = d.available ? `${(d.games / 1000).toFixed(0)}k book games` : 'No book';
-    $('sideEngine').textContent = e.available ? e.name.replace('Stockfish ', 'SF ') : 'missing';
-    $('sideGames').textContent = d.available ? d.games.toLocaleString() : '—';
-    $('sidePositions').textContent = d.available ? d.positions.toLocaleString() : '—';
+    setStatus(
+      e.available && d.available ? 'ok' : 'warn',
+      e.available
+        ? `${e.name.replace('Stockfish ', 'SF ')} · ${d.available ? `${(d.games / 1000).toFixed(0)}k book games` : 'no book'}`
+        : 'no engine · statistics only',
+    );
 
     $('engineFacts').innerHTML = e.available
       ? `<dt>Build</dt><dd>${esc(e.name)}</dd><dt>Path</dt><dd>${esc(e.path)}</dd>
@@ -102,50 +199,60 @@ async function loadMeta() {
          <dt>File size</dt><dd>${d.size_mb} MB</dd>`
       : '<dt>Status</dt><dd>not built</dd>';
 
-    if (!meta.sample.available) {
-      $('sampleBtn').disabled = true;
-      $('sampleDl').style.display = 'none';
-    }
-    $('sampleDl').href = `${API}/api/sample-archive`;
+    if (meta.sample && !meta.sample.available) $('sampleBtn').disabled = true;
     $('engineNotice').hidden = e.available !== false;
     if (e.available === false) {
       $('optNoEngine').checked = true;
       $('optNoEngine').disabled = true;
     }
-    $('footStatus').textContent = e.available && d.available ? 'engine + book ready' : 'degraded';
+    renderPrivacy();
   } catch (err) {
-    $('pillEngine').className = 'pill bad';
-    $('pillEngine').lastChild.textContent = 'Backend offline';
-    $('footStatus').textContent = 'backend offline';
+    setStatus('bad', 'backend offline');
+    renderPrivacy();
   }
 }
 
-/* ------------------------------------------------------------- source panel */
+function setStatus(kind, text) {
+  $('statusDot').className = `status-dot is-${kind}`;
+  $('statusText').textContent = text;
+}
+
+/* Step 11: say what this deployment actually does with the games, rather than
+   describing a different one. */
+function renderPrivacy() {
+  const hosted = state.serverless;
+  $('privacyTitle').textContent = hosted ? 'Where your games go' : 'Where your games go';
+  $('privacyBody').innerHTML = hosted
+    ? `<p>This is a hosted instance of a local-first tool. When you enter a username, this
+         server fetches your public game archive from Chess.com or Lichess, analyses it
+         inside the deployed function, and returns the report. Nothing is written to a
+         database and there are no accounts; fetched archives sit in the function's
+         temporary storage and go when the instance is recycled.</p>
+       <p>Your repertoire decisions, your drill history and your last report are kept in
+         this browser only — they are never sent anywhere.</p>
+       <p>To keep the games on your own machine instead, clone
+         <a href="https://github.com/AdLgames/chess-opening-leak-analyzer" target="_blank" rel="noopener">the repository</a>
+         and run <code>make setup</code>: the local build does the same work with a local
+         Stockfish and a local SQLite book, and makes no outbound requests beyond the
+         archive fetch you ask for.</p>`
+    : `<p>This is the local build. Your games are read on this machine, by a local
+         Stockfish and a local SQLite opening book. The only outbound request is the
+         archive fetch you ask for, straight to Chess.com or Lichess.</p>
+       <p>Your repertoire decisions, your drill history and your last report are kept in
+         this browser only.</p>`;
+  $('costExplainer').textContent = `${V.METRICS.cost.definition} ${V.METRICS.cost.why}`;
+  $('costFormula').textContent = V.METRICS.cost.formula;
+  $('flagLegend').innerHTML = V.FLAG_ORDER.map(
+    (k) => `<li><span class="chip chip-${V.FLAGS[k].tone}">${esc(V.FLAGS[k].label)}</span> ${esc(V.FLAGS[k].definition)}</li>`,
+  ).join('');
+}
+
+/* --------------------------------------------------------------- run inputs */
 const PROVIDERS = {
   chesscom: { label: 'Chess.com', placeholder: 'e.g. hikaru', hint: 'your Chess.com username' },
   lichess: { label: 'Lichess', placeholder: 'e.g. DrNykterstein', hint: 'your Lichess username' },
 };
-/* The last account used, held in memory for this page view. Browser storage is not
-   available in the hosted preview iframe, so persistence waits for user accounts. */
 let lastAccount = null;
-
-function remember(value) {
-  lastAccount = value;
-}
-function recall() {
-  return lastAccount;
-}
-
-function setMode(mode) {
-  state.mode = mode;
-  const panels = { username: 'panelAccount', upload: 'panelUpload', sample: 'panelDemo' };
-  const tabs = { username: 'tabAccount', upload: 'tabUpload', sample: 'tabDemo' };
-  Object.entries(panels).forEach(([key, id]) => ($(id).hidden = key !== mode));
-  Object.entries(tabs).forEach(([key, id]) => {
-    $(id).classList.toggle('is-active', key === mode);
-    $(id).setAttribute('aria-selected', key === mode ? 'true' : 'false');
-  });
-}
 
 function setProvider(provider) {
   state.provider = provider;
@@ -171,7 +278,7 @@ function clearProfile() {
 
 function updateRunLabel() {
   const name = $('optUser').value.trim();
-  $('runBtn').textContent = name ? `Analyse ${name}'s games` : 'Analyse my games';
+  $('runBtn').textContent = name ? `Analyse ${name}'s games` : V.ACTIONS.analyse.button;
 }
 
 function showFetchProblem(message, hint, downloadUrl) {
@@ -184,20 +291,20 @@ function showFetchProblem(message, hint, downloadUrl) {
 }
 
 const speedList = () =>
-  Array.from(document.querySelectorAll('#speedChips input:checked')).map((c) => c.value);
+  $('speedChips')
+    ? Array.from(document.querySelectorAll('#speedChips input:checked')).map((c) => c.value)
+    : ['blitz', 'rapid', 'classical'];
 
 async function checkAccount({ quiet = false } = {}) {
   const username = $('optUser').value.trim();
   if (!username) return null;
   const seq = ++state.lookupSeq;
-  $('checkBtn').disabled = true;
-  $('checkBtn').textContent = 'Checking…';
   try {
     const res = await fetch(
       `${API}/api/lookup?provider=${encodeURIComponent(state.provider)}&username=${encodeURIComponent(username)}`,
     );
     const body = await res.json();
-    if (seq !== state.lookupSeq) return null;          // a newer lookup already ran
+    if (seq !== state.lookupSeq) return null;
     if (!body.found) {
       state.profile = null;
       $('profileCard').hidden = true;
@@ -205,14 +312,12 @@ async function checkAccount({ quiet = false } = {}) {
       return null;
     }
     renderProfile(body.profile);
-    remember({ provider: state.provider, username: body.profile.username });
+    lastAccount = { provider: state.provider, username: body.profile.username };
+    S.prefs.set('account', lastAccount);
     return body.profile;
   } catch (err) {
     if (!quiet) showFetchProblem('Could not reach the lookup service', err.message, '');
     return null;
-  } finally {
-    $('checkBtn').disabled = false;
-    $('checkBtn').textContent = 'Check';
   }
 }
 
@@ -240,7 +345,6 @@ function renderProfile(profile) {
   updateRunLabel();
 }
 
-/* ---------------------------------------------------------------- run panel */
 function renderFiles() {
   const list = $('fileList');
   list.hidden = state.files.length === 0;
@@ -248,38 +352,73 @@ function renderFiles() {
     .map((f) => `<li><span>${esc(f.name)}</span><span>${(f.size / 1024).toFixed(0)} KB</span></li>`)
     .join('');
   $('runUploadBtn').textContent = state.files.length
-    ? `Analyse ${state.files.length} file${state.files.length > 1 ? 's' : ''}`
-    : 'Analyse my games';
+    ? `Analyse ${plural(state.files.length, 'file')}`
+    : V.ACTIONS.analyse.button;
+}
+
+/* Advanced settings are optional chrome: read them defensively so a build that
+   drops the whole block still runs on the defaults. */
+function val(id, fallback) {
+  const el = $(id);
+  if (!el) return fallback;
+  if (el.type === 'checkbox') return el.checked;
+  const v = typeof el.value === 'string' ? el.value.trim() : el.value;
+  return v === '' ? fallback : v;
 }
 
 function collectOptions(mode) {
   const fd = new FormData();
   fd.append('source', mode);
   fd.append('use_sample', mode === 'sample' ? 'true' : 'false');
-  fd.append('player', $('optPlayer').value.trim());
-  fd.append('color', $('optColor').value);
-  fd.append('depth', $('optDepth').value);
-  fd.append('max_moves', $('optMoves').value);
-  fd.append('min_games', $('optMinGames').value);
-  fd.append('eval_drop', $('optEvalDrop').value);
-  fd.append('score_gap', $('optScoreGap').value);
-  fd.append('min_db_games', $('optMinDb').value);
-  fd.append('no_engine', $('optNoEngine').checked ? 'true' : 'false');
+  fd.append('player', val('optPlayer', ''));
+  fd.append('color', val('optColor', 'both'));
+  fd.append('depth', val('optDepth', 16));
+  fd.append('max_moves', val('optMoves', 15));
+  fd.append('min_games', val('optMinGames', 3));
+  fd.append('eval_drop', val('optEvalDrop', 0.8));
+  fd.append('score_gap', val('optScoreGap', 6));
+  fd.append('min_db_games', val('optMinDb', 20));
+  fd.append('no_engine', val('optNoEngine', false) ? 'true' : 'false');
   if (mode === 'upload') state.files.forEach((f) => fd.append('files', f, f.name));
   if (mode === 'username') {
     fd.append('username', $('optUser').value.trim());
     fd.append('provider', state.provider);
-    fd.append('max_games', $('optMaxGames').value);
+    fd.append('max_games', val('optMaxGames', 200));
     fd.append('time_classes', speedList().join(','));
-    fd.append('include_unrated', $('optRated').checked ? 'false' : 'true');
-    fd.append('since', $('optSince').value);
-    fd.append('until', $('optUntil').value);
-    fd.append('refresh', $('optRefresh').checked ? 'true' : 'false');
-    if (state.provider === 'lichess') fd.append('lichess_token', $('optToken').value.trim());
+    fd.append('include_unrated', val('optRated', true) ? 'false' : 'true');
+    fd.append('since', val('optSince', ''));
+    fd.append('until', val('optUntil', ''));
+    fd.append('refresh', val('optRefresh', false) ? 'true' : 'false');
+    if (state.provider === 'lichess') fd.append('lichess_token', val('optToken', ''));
   }
   return fd;
 }
 
+/* An estimate good enough to warn with: fetch and parse dominate, the engine pass
+   is the part worth offering to skip. */
+function estimateSeconds() {
+  const games = Number(val('optMaxGames', 200));
+  const depth = Number(val('optDepth', 16));
+  if (val('optNoEngine', false)) return games * 0.05;
+  return games * 0.05 + games * 0.02 * Math.pow(1.25, depth - 12);
+}
+
+function updateSpeedHint() {
+  const secs = estimateSeconds();
+  const hint = $('speedHint');
+  hint.hidden = secs < 60 || val('optNoEngine', false);
+  if (!hint.hidden) {
+    hint.innerHTML =
+      `About ${Math.round(secs / 60)} minute${secs >= 120 ? 's' : ''} at these settings. `
+      + '<button type="button" class="link-btn" id="skipEngine">Run without the engine instead</button>';
+    $('skipEngine').addEventListener('click', () => {
+      if ($('optNoEngine')) $('optNoEngine').checked = true;
+      updateSpeedHint();
+    });
+  }
+}
+
+/* ----------------------------------------------------------------- the run */
 async function startRun(mode) {
   if (mode === 'upload' && !state.files.length) {
     $('dropzone').classList.add('is-over');
@@ -299,19 +438,18 @@ async function startRun(mode) {
     }
     $('fetchNotice').hidden = true;
   }
+  closeDialog('runDialog');
   setBusy(true);
-  showKpiSkeleton();
-  $('progressCard').hidden = false;
+  setAppState('running');
   $('spinner').className = 'spinner';
   $('progressTitle').textContent = {
-    sample: 'Analysing demo archive',
+    sample: 'Analysing the sample archive',
     upload: 'Analysing your files',
     username: `Fetching ${$('optUser').value.trim() || 'your'} games`,
   }[mode];
   $('log').textContent = 'Queued…';
   $('barFill').style.width = '8%';
   $('barFill').classList.remove('is-error');
-  $('headerSub').textContent = 'Run in progress — engine and book lookups are local.';
 
   try {
     if (state.serverless) return await runSynchronous(mode);
@@ -324,8 +462,30 @@ async function startRun(mode) {
   }
 }
 
-/* Hosted deployment: one request returns the finished report, so there is no job
-   to poll. Animate the bar while the function works. */
+/* The sample archive answers from a cached report, so the demo is one click and
+   no wait. If the backend has no cache it falls back to a real run. */
+async function runDemo() {
+  setBusy(true);
+  setAppState('running');
+  $('spinner').className = 'spinner';
+  $('progressTitle').textContent = 'Loading the sample report';
+  $('progressElapsed').textContent = '0.0s';
+  $('log').textContent = 'Reading the cached sample run.';
+  $('barFill').style.width = '40%';
+  try {
+    const res = await fetch(`${API}/api/demo-report`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const body = await res.json();
+    $('barFill').style.width = '100%';
+    $('spinner').className = 'spinner is-done';
+    state.csvText = body.csv || '';
+    applyReport(body, { options: body.options, source: 'sample', demo: true });
+    setBusy(false);
+  } catch (err) {
+    startRun('sample');
+  }
+}
+
 async function runSynchronous(mode) {
   const started = Date.now();
   $('log').textContent = 'Running in the hosted function — engine and book are bundled with it.';
@@ -346,7 +506,6 @@ async function runSynchronous(mode) {
     const lines = (body.log || []).slice();
     (body.notes || []).forEach((n) => lines.push(`note: ${n}`));
     $('log').textContent = lines.join('\n');
-    $('log').scrollTop = $('log').scrollHeight;
     state.csvText = body.csv || '';
     applyReport(body, { options: body.options, source: body.source || mode, account: body.account });
     setBusy(false);
@@ -363,8 +522,9 @@ function failRun(message) {
   $('log').textContent = message;
   $('barFill').style.width = '100%';
   $('barFill').classList.add('is-error');
-  $('headerSub').textContent = 'Last run failed — see the log.';
-  $('kpis').innerHTML = '';
+  // back to whichever screen the user can act on
+  setAppState(hasReport() ? 'report' : 'empty');
+  if (!hasReport()) showFetchProblem('The run did not finish', message, '');
 }
 
 async function poll() {
@@ -393,260 +553,280 @@ async function poll() {
     $('barFill').style.width = '100%';
     $('spinner').className = 'spinner is-done';
     $('progressTitle').textContent = `Done in ${job.elapsed}s`;
-    await loadReport(job);
+    const data = await (await fetch(`${API}/api/report/${state.jobId}`)).json();
+    state.csvText = '';
+    applyReport(data, job);
     setBusy(false);
   };
   step();
 }
 
 function setBusy(busy) {
-  ['runBtn', 'runUploadBtn', 'sampleBtn', 'runTop', 'checkBtn'].forEach((id) => ($(id).disabled = busy));
-  $('runTop').textContent = busy ? 'Running…' : 'Run analysis';
+  ['runBtn', 'runUploadBtn', 'sampleBtn', 'runAgainBtn'].forEach((id) => {
+    const el = $(id);
+    if (el) el.disabled = busy;
+  });
+  $('runAgainBtn').textContent = busy ? 'Running…' : V.ACTIONS.rerun.button;
 }
 
-/* ------------------------------------------------------------------ reports */
-async function loadReport(job) {
-  const data = await (await fetch(`${API}/api/report/${state.jobId}`)).json();
-  state.csvText = '';
-  applyReport(data, job);
-}
-
-function applyReport(data, job) {
-  state.rows = data.rows;
+/* ------------------------------------------------------------------ report */
+function applyReport(data, job, { cached = false } = {}) {
+  state.rows = data.rows || [];
   state.summary = data.summary;
   state.player = data.player;
-  $('csvBtn').disabled = false;
-  const s = data.summary;
-  const engineNote = job.options.no_engine ? 'engine skipped' : `depth ${job.options.depth}`;
-  $('headerSub').textContent = `${state.player} · ${s.games} games · ${s.judged} repeated decisions · ${s.leaks} leaks · ${engineNote}`;
-  const sourceLabel = job.source === 'sample'
-    ? 'Demo archive'
-    : job.source === 'username'
-      ? `${(job.account && PROVIDERS[job.account.provider].label) || 'Fetched'} · ${(job.account && job.account.username) || state.player}`
-      : 'Your upload';
-  $('overviewHint').textContent = `${sourceLabel} · ${s.games} games`;
-  $('footStatus').textContent = state.serverless
-    ? `hosted run · ${s.leaks} leaks`
-    : `job ${state.jobId} · ${s.leaks} leaks`;
-  renderKpis(s);
-  renderCharts(s);
+  state.options = (job && job.options) || data.options || null;
+  state.source = (job && job.source) || data.source || '';
+  state.account = (job && job.account) || data.account || null;
+  state.demo = Boolean((job && job.demo) || data.demo || state.source === 'sample');
+  state.showAll = false;
+  state.selected = null;
+
+  $('demoBanner').hidden = !state.demo;
+  setAppState('report');
+  renderSummaryBand();
+  renderChart();
+  renderFilters();
   renderTable();
   if (window.Study) window.Study.setRows(state.rows);
-  const first = sortedRows()[0];
+
+  const first = visibleRows().rows[0];
   if (first) selectRow(first);
+
+  if (!cached) {
+    S.lastReport.save({
+      rows: state.rows,
+      summary: state.summary,
+      player: state.player,
+      options: state.options,
+      source: state.source,
+      account: state.account,
+      demo: state.demo,
+      csv: state.csvText,
+      at: Date.now(),
+    });
+    if (!state.demo) recordRun();
+  }
+  renderNav();
+  renderViewHead();
 }
 
-function showKpiSkeleton() {
-  $('kpis').innerHTML = Array.from({ length: 6 })
-    .map(() => '<div class="kpi kpi-skeleton"><div class="kpi-label">loading</div><div class="kpi-value">0.0</div><div class="kpi-note">loading</div></div>')
-    .join('');
+/* One line per run, so Progress has something to plot. */
+function recordRun() {
+  const cov = window.Repertoire.coverage(reportContext());
+  S.runs.record({
+    id: `${state.player}:${Date.now()}`,
+    at: Date.now(),
+    player: state.player,
+    games: state.summary.games,
+    leaks: state.summary.leaks,
+    cost: state.summary.cost || 0,
+    coverage: cov.pct,
+    keys: state.rows.map((r) => S.leakKey(r)),
+    labels: Object.fromEntries(
+      state.rows.map((r) => [S.leakKey(r), `${r.opening || r.eco || 'Opening'} · ${r.your_move}`]),
+    ),
+    perGame: state.rows.map((r) => ({ key: S.leakKey(r), lost: num(r.lost_points) || 0 })),
+  });
 }
 
-function renderKpis(s) {
+function renderSummaryBand() {
+  const s = state.summary;
+  const cov = window.Repertoire.coverage(reportContext());
   const worst = s.by_opening[0];
   const cards = [
-    { label: 'Games parsed', value: s.games, note: `${s.decisions} distinct decisions` },
-    { label: 'Repeated decisions', value: s.judged, note: 'played often enough to judge' },
-    { label: 'Leaks flagged', value: s.leaks, cls: 'accent', note: `${s.white_leaks} white · ${s.black_leaks} black` },
-    { label: 'Points shed', value: s.lost_points.toFixed(1), cls: 'bad', note: 'vs book expectation' },
-    { label: 'Engine drops', value: s.blunders, cls: 'bad', note: '≥0.8 pawns lost on the spot' },
-    { label: 'Worst opening', value: worst ? worst.lost_points.toFixed(1) : '0', cls: 'accent', note: worst ? worst.opening : 'nothing flagged' },
+    { label: V.METRICS.coverage.label, value: `${cov.pct}%`, note: cov.note, cls: 'accent', title: V.METRICS.coverage.definition },
+    { label: 'Leaks', value: s.leaks, note: `${s.white_leaks} white · ${s.black_leaks} black` },
+    { label: 'Points shed', value: s.lost_points.toFixed(1), note: 'against the book expectation' },
+    { label: 'Games read', value: s.games, note: `${plural(s.judged, 'repeated decision')}` },
+    { label: 'Worst opening', value: worst ? worst.lost_points.toFixed(1) : '0', note: worst ? worst.opening : 'nothing flagged' },
   ];
-  $('kpis').innerHTML = cards
+  $('summaryBand').innerHTML = cards
     .map(
-      (c) => `<div class="kpi ${c.cls || ''}">
+      (c) => `<div class="kpi ${c.cls || ''}"${c.title ? ` title="${esc(c.title)}"` : ''}>
         <div class="kpi-label">${esc(c.label)}</div>
-        <div class="kpi-value" data-target="${typeof c.value === 'number' ? c.value : ''}">${esc(c.value)}</div>
-        <div class="kpi-note">${esc(c.note)}</div></div>`
+        <div class="kpi-value">${esc(c.value)}</div>
+        <div class="kpi-note">${esc(c.note)}</div></div>`,
     )
     .join('');
-  countUp();
 }
 
-function countUp() {
-  document.querySelectorAll('.kpi-value[data-target]').forEach((el) => {
-    const target = parseFloat(el.dataset.target);
-    if (!Number.isFinite(target) || target === 0) return;
-    const started = performance.now();
-    const tick = (now) => {
-      const t = Math.min(1, (now - started) / 550);
-      el.textContent = Math.round(target * (1 - Math.pow(1 - t, 3)));
-      if (t < 1) requestAnimationFrame(tick);
-      else el.textContent = target;
-    };
-    requestAnimationFrame(tick);
-  });
-}
-
-/* ------------------------------------------------------------------- charts */
+/* One chart panel, one chart, a toggle between the two readings of it. */
 const CHART_FONT = { family: "'Inter', sans-serif", size: 11 };
-function chartBase() {
-  Chart.defaults.color = '#949c9f';
+function renderChart() {
+  // the chart library is a CDN script: without it the panel has nothing to say,
+  // so it does not render at all rather than leaving an empty frame
+  $('chartPanel').hidden = !window.Chart;
+  if (!window.Chart || !state.summary) return;
+  Chart.defaults.color = getComputedStyle(document.body).getPropertyValue('--text-muted').trim() || '#949c9f';
   Chart.defaults.font = CHART_FONT;
-  Chart.defaults.borderColor = '#252d33';
-}
-
-function renderCharts(s) {
-  if (!window.Chart) return;
-  document.querySelectorAll('.chart-empty').forEach((el) => el.remove());
-  chartBase();
-  const items = s.by_opening.slice(0, 8);
+  Chart.defaults.borderColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#252d33';
+  const items = state.summary.by_opening.slice(0, 8);
   const labels = items.map((o) => (o.opening.length > 30 ? o.opening.slice(0, 29) + '…' : o.opening));
+  const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#e3a44b';
+  const quiet = getComputedStyle(document.body).getPropertyValue('--neutral-bar').trim() || '#6f7a52';
+  if (state.chart) state.chart.destroy();
 
-  Object.values(state.charts).forEach((c) => c.destroy());
-  state.charts.lost = new Chart($('chartLost'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{ label: 'Points lost', data: items.map((o) => o.lost_points), backgroundColor: '#e3a44b', borderRadius: 3, barThickness: 16 }],
-    },
-    options: {
-      indexAxis: 'y',
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { afterLabel: (c) => `${items[c.dataIndex].leaks} leaks · ${items[c.dataIndex].games} games` } } },
-      scales: { x: { grid: { color: '#1c2327' }, ticks: { precision: 1 } }, y: { grid: { display: false } } },
-    },
-  });
-
-  state.charts.vs = new Chart($('chartVs'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Your score %', data: items.map((o) => o.your_score), backgroundColor: '#e06a5f', borderRadius: 3 },
-        { label: 'Book score %', data: items.map((o) => o.db_score), backgroundColor: '#79a9c9', borderRadius: 3 },
-      ],
-    },
-    options: {
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } } },
-      scales: {
-        x: { grid: { display: false }, ticks: { maxRotation: 40, minRotation: 40, autoSkip: false, font: { ...CHART_FONT, size: 9.5 } } },
-        y: { beginAtZero: true, max: 100, grid: { color: '#1c2327' }, ticks: { callback: (v) => v + '%' } },
+  if (state.chartKind === 'lost') {
+    $('chartNote').textContent = 'Half-points shed against the book expectation, by opening.';
+    state.chart = new Chart($('chartCanvas'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Points shed', data: items.map((o) => o.lost_points), backgroundColor: accent, borderRadius: 2, barThickness: 16 }] },
+      options: {
+        indexAxis: 'y',
+        maintainAspectRatio: false,
+        animation: prefersReducedMotion() ? false : undefined,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { afterLabel: (c) => `${plural(items[c.dataIndex].leaks, 'leak')} · ${plural(items[c.dataIndex].games, 'game')}` } },
+        },
+        scales: { x: { ticks: { precision: 1 } }, y: { grid: { display: false } } },
       },
-    },
-  });
+    });
+  } else {
+    $('chartNote').textContent = `${V.METRICS.score.definition} Your score against the book's, by opening.`;
+    state.chart = new Chart($('chartCanvas'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'You', data: items.map((o) => o.your_score), backgroundColor: accent, borderRadius: 2 },
+          { label: 'Book', data: items.map((o) => o.db_score), backgroundColor: quiet, borderRadius: 2 },
+        ],
+      },
+      options: {
+        maintainAspectRatio: false,
+        animation: prefersReducedMotion() ? false : undefined,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxRotation: 40, minRotation: 40, autoSkip: false, font: { ...CHART_FONT, size: 9.5 } } },
+          y: { beginAtZero: true, max: 100, ticks: { callback: (v) => v + '%' } },
+        },
+      },
+    });
+  }
 }
 
-/* -------------------------------------------------------------------- table */
-function sortedRows() {
-  const { key, dir } = state.sort;
+const prefersReducedMotion = () =>
+  window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ------------------------------------------------------------------- table */
+function renderFilters() {
+  const counts = {};
+  state.rows.forEach((r) => V.flagKeys(r.flag).forEach((k) => (counts[k] = (counts[k] || 0) + 1)));
+  const chips = [{ key: 'all', label: 'All', n: state.rows.length }].concat(
+    V.FLAG_ORDER.filter((k) => counts[k]).map((k) => ({ key: k, label: V.FLAGS[k].label, n: counts[k] })),
+  );
+  $('flagFilter').innerHTML = chips
+    .map(
+      (c) => `<button class="seg ${state.filter.flag === c.key ? 'is-active' : ''}" data-flag="${c.key}"
+        ${c.key === 'all' ? '' : `title="${esc(V.FLAGS[c.key].definition)}"`}>${esc(c.label)} <i>${c.n}</i></button>`,
+    )
+    .join('');
+  $('flagFilter').querySelectorAll('.seg').forEach((b) =>
+    b.addEventListener('click', () => {
+      state.filter.flag = b.dataset.flag;
+      state.showAll = false;
+      renderFilters();
+      renderTable();
+    }),
+  );
+  $('rankNote').innerHTML =
+    `Ranked by <b>cost</b>: how often you play the move, times how much it costs you, held back `
+    + `while the sample is thin — so a habit seen three times cannot outrank one seen thirty. `
+    + '<button type="button" class="link-btn" id="rankMore">How cost is worked out</button>';
+  $('rankMore').addEventListener('click', () => openDialog('dataDialog'));
+}
+
+function visibleRows() {
   const q = state.filter.q.toLowerCase();
-  return state.rows
+  const rows = state.rows
     .filter((r) => {
-      if (state.filter.flag !== 'all' && !(r.flag || '').includes(state.filter.flag)) return false;
-      if (state.filter.color !== 'all' && r.player_color !== state.filter.color) return false;
+      if (state.filter.flag !== 'all' && !V.flagKeys(r.flag).includes(state.filter.flag)) return false;
       if (q && !`${r.opening} ${r.eco} ${r.your_move} ${r.variation_line}`.toLowerCase().includes(q)) return false;
       return true;
     })
     .slice()
-    .sort((a, b) => {
-      const av = num(a[key]);
-      const bv = num(b[key]);
-      if (av !== null && bv !== null) return (av - bv) * dir;
-      return String(a[key] ?? '').localeCompare(String(b[key] ?? '')) * dir;
-    });
-}
-
-function flagChips(flag) {
-  return (flag || '')
-    .split('+')
-    .filter(Boolean)
-    .map((f) => {
-      const cls = f === 'EVAL_DROP' ? 'chip-eval' : f === 'WINRATE_DECLINE' ? 'chip-win' : 'chip-off';
-      const label = f === 'EVAL_DROP' ? 'eval' : f === 'WINRATE_DECLINE' ? 'win-rate' : 'offbeat';
-      return `<span class="chip ${cls}">${label}</span>`;
-    })
-    .join(' ');
+    .sort((a, b) => ((num(a.cost) || 0) - (num(b.cost) || 0)) * state.sort.dir);
+  return { rows, shown: state.showAll ? rows : rows.slice(0, ROW_CAP) };
 }
 
 function renderTable() {
-  const rows = sortedRows();
+  const { rows, shown } = visibleRows();
+  const worst = Math.max(1, ...state.rows.map((r) => num(r.cost) || 0));
   $('tableEmpty').hidden = rows.length > 0;
-  $('leakBody').innerHTML = rows
+  $('costHead').classList.toggle('is-asc', state.sort.dir === 1);
+  $('leakBody').innerHTML = shown
     .map((r, i) => {
+      const cost = num(r.cost) || 0;
+      const you = num(r.your_score_pct);
       const book = num(r.db_move_score_pct);
       const gap = num(r.score_gap_vs_db_pct);
-      const drop = num(r.eval_drop_pawns);
-      return `<tr data-i="${i}" class="${state.selected && state.selected.fen === r.fen && state.selected.your_move === r.your_move ? 'is-selected' : ''}">
-        <td class="num">${fmt(r.priority, 1)}</td>
-        <td>${flagChips(r.flag)}</td>
-        <td class="opening-cell"><span class="truncate" title="${esc(r.opening)}">${esc(r.opening || r.eco || '—')}</span></td>
-        <td class="line-cell"><span class="truncate" title="${esc(r.variation_line)}">${esc(r.variation_line)}</span></td>
-        <td class="move-cell">${r.move_number}${r.player_color === 'white' ? '.' : '…'} ${esc(r.your_move)}</td>
-        <td class="num">${esc(r.your_games)}</td>
-        <td class="num ${gap !== null && gap < 0 ? 'delta-bad' : ''}">${fmt(r.your_score_pct, 1, '%')}</td>
-        <td class="num book-val">${book === null ? '—' : book.toFixed(1) + '%'}</td>
-        <td class="num">${fmt(r.lost_points, 1)}</td>
-        <td class="num ${drop && drop >= 0.8 ? 'delta-bad' : ''}">${drop === null || drop === 0 ? '—' : '−' + drop.toFixed(2)}</td>
-        <td class="engine-cell">${esc(r.engine_best_1 || '—')}</td>
+      const decided = S.repertoire.byKey(S.leakKey(r));
+      const selected = state.selected && state.selected.fen === r.fen && state.selected.your_move === r.your_move;
+      return `<tr data-i="${i}" tabindex="0" class="${selected ? 'is-selected' : ''} ${decided ? 'is-decided' : ''}">
+        <td class="col-cost" data-label="Cost">
+          <span class="cost"><b class="mono">${cost.toFixed(1)}</b>
+          <span class="cost-bar"><i style="width:${Math.max(3, (cost / worst) * 100).toFixed(1)}%"></i></span></span>
+        </td>
+        <td class="col-opening" data-label="Opening">
+          <span class="opening-name">${esc([r.eco, r.opening].filter(Boolean).join(' ') || 'Unclassified')}</span>
+          <span class="opening-line mono">${esc(r.variation_line)}</span>
+        </td>
+        <td class="col-move" data-label="Your move">
+          <span class="mono move">${r.move_number}${r.player_color === 'white' ? '.' : '…'} ${esc(r.your_move)}</span>
+          ${V.chips(r.flag)}
+          ${decided ? `<span class="chip chip-done">${esc(decided.status === 'committed' ? V.ACTIONS.commit.done : V.ACTIONS.dismiss.done)}</span>` : ''}
+        </td>
+        <td class="num col-gap" data-label="You vs book">
+          <span class="${gap !== null && gap < 0 ? 'delta-bad' : ''}">${you === null ? '—' : you.toFixed(0) + '%'}</span>
+          <span class="muted"> vs ${book === null ? '—' : book.toFixed(0) + '%'}</span>
+        </td>
+        <td class="num" data-label="Games">${esc(r.your_games)}</td>
       </tr>`;
     })
     .join('');
   $('leakBody').querySelectorAll('tr').forEach((tr) => {
-    tr.addEventListener('click', () => selectRow(rows[+tr.dataset.i]));
-  });
-}
-
-/* ------------------------------------------------------------------- detail */
-const GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
-/* Kept for the no-JS-module fallback path: study.js owns the interactive board. */
-function renderBoardStatic(fen) {
-  const [placement, turn] = fen.split(' ');
-  const files = 'abcdefgh';
-  let html = '';
-  placement.split('/').forEach((rankStr, rankIdx) => {
-    let fileIdx = 0;
-    for (const ch of rankStr) {
-      if (/\d/.test(ch)) {
-        for (let k = 0; k < +ch; k++, fileIdx++) html += square(fileIdx, rankIdx, '');
-      } else {
-        html += square(fileIdx, rankIdx, ch);
-        fileIdx += 1;
+    const row = shown[+tr.dataset.i];
+    tr.addEventListener('click', () => selectRow(row));
+    tr.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        selectRow(row);
       }
-    }
+    });
   });
-  $('board').innerHTML = html;
-  $('board').setAttribute('aria-label', `Position with ${turn === 'w' ? 'white' : 'black'} to move`);
-
-  function square(f, r, piece) {
-    const light = (f + r) % 2 === 0;
-    const glyph = piece ? `<span class="piece ${piece === piece.toUpperCase() ? 'w' : 'b'}">${GLYPH[piece.toLowerCase()]}</span>` : '';
-    const coord = r === 7 ? `<span class="coord">${files[f]}${8 - r}</span>` : '';
-    return `<div class="sq ${light ? 'light' : 'dark'}">${glyph}${coord}</div>`;
-  }
+  const more = rows.length - shown.length;
+  $('showAll').hidden = more <= 0;
+  $('showAll').textContent = `Show all ${rows.length}`;
 }
 
-function cpText(cp, color) {
+/* ------------------------------------------------------------------ detail */
+function cpText(cp) {
   const v = num(cp);
   if (v === null) return '—';
   const pawns = v / 100;
-  const signed = (pawns >= 0 ? '+' : '') + pawns.toFixed(2);
-  return signed + (color === 'black' ? ' (yours)' : '');
+  return (pawns >= 0 ? '+' : '') + pawns.toFixed(2);
 }
 
 function selectRow(r) {
   if (!r) return;
   state.selected = r;
-  $('detailEmpty').hidden = true;
-  $('detailBody').hidden = false;
   $('posHint').textContent = `${r.eco || '—'} · move ${r.move_number} as ${r.player_color}`;
-  $('detailFlag').outerHTML = `<span class="chip" id="detailFlag">${flagChips(r.flag) || '—'}</span>`;
+  $('detailFlag').innerHTML = V.chips(r.flag);
   $('detailOpening').textContent = r.opening || r.eco || 'Unclassified';
   $('detailLine').textContent = r.variation_line;
   $('fenText').textContent = r.fen;
   $('lichessLink').href = `https://lichess.org/analysis/standard/${encodeURIComponent(r.fen.replace(/ /g, '_'))}`;
   if (window.Study) window.Study.review(r);
-  else renderBoardStatic(r.fen);
 
   const gap = num(r.score_gap_vs_db_pct);
   const stats = [
-    { label: 'Your score', value: fmt(r.your_score_pct, 1, '%'), note: `${r.your_wins}W ${r.your_draws}D ${r.your_losses}L` },
-    { label: 'Book score', value: num(r.db_move_score_pct) === null ? '—' : fmt(r.db_move_score_pct, 1, '%'), note: num(r.db_move_games) ? `${(+r.db_move_games).toLocaleString()} games` : 'not in book' },
-    { label: 'Gap', value: gap === null ? '—' : (gap < 0 ? '−' : '+') + Math.abs(gap).toFixed(1) + '%', note: 'you vs book' },
-    { label: 'Eval swing', value: num(r.eval_drop_pawns) ? '−' + fmt(r.eval_drop_pawns, 2) : '—', note: `${cpText(r.eval_before_cp)} → ${cpText(r.eval_after_cp)}` },
-    { label: 'Points shed', value: fmt(r.lost_points, 1), note: `over ${r.your_games} games` },
-    { label: 'Engine rank', value: r.engine_rank_of_your_move || '—', note: 'of your move' },
+    { label: V.METRICS.score.label, value: fmt(r.your_score_pct, 1, '%'), note: `${r.your_wins}W ${r.your_draws}D ${r.your_losses}L` },
+    { label: 'Book score', value: fmt(r.db_move_score_pct, 1, '%'), note: num(r.db_move_games) ? `${(+r.db_move_games).toLocaleString()} games` : 'not in the book' },
+    { label: V.METRICS.scoreGap.label, value: gap === null ? '—' : (gap < 0 ? '−' : '+') + Math.abs(gap).toFixed(1) + '%', note: 'your score against the book' },
+    { label: V.METRICS.evalDrop.label, value: num(r.eval_drop_pawns) ? '−' + fmt(r.eval_drop_pawns, 2) : '—', note: `${cpText(r.eval_before_cp)} → ${cpText(r.eval_after_cp)}` },
+    { label: V.METRICS.cost.label, value: fmt(r.cost, 1), note: `over ${plural(+r.your_games, 'game')}` },
+    { label: 'Engine rank', value: r.engine_rank_of_your_move || '—', note: 'of the move you played' },
   ];
   $('detailStats').innerHTML = stats
     .map((s) => `<div class="stat"><div class="stat-label">${esc(s.label)}</div><div class="stat-value">${esc(s.value)}</div><div class="kpi-note">${esc(s.note)}</div></div>`)
@@ -666,10 +846,10 @@ function selectRow(r) {
   $('altBody').innerHTML = alts
     .map(
       (a) => `<tr class="${a.mine ? 'is-yours' : ''}">
-        <td>${esc(a.move)}</td>
+        <td class="mono">${esc(a.move)}</td>
         <td class="num">${cpText(a.cp)}</td>
-        <td class="num book-val">${num(a.db) === null ? '—' : fmt(a.db, 1, '%')}</td>
-        <td class="muted">${esc(a.verdict)}</td></tr>`
+        <td class="num">${num(a.db) === null ? '—' : fmt(a.db, 1, '%')}</td>
+        <td class="muted">${esc(a.verdict)}</td></tr>`,
     )
     .join('');
   const games = (r.sample_games || '').split('; ').filter(Boolean);
@@ -679,14 +859,96 @@ function selectRow(r) {
         .map((g, i) => (g.startsWith('http') ? `<a href="${esc(g)}" target="_blank" rel="noopener">game ${i + 1}</a>` : esc(g)))
         .join(', ')}`
     : '';
+  renderCommitBar();
   renderTable();
 }
 
-/* -------------------------------------------------------------------- wiring */
+function renderCommitBar() {
+  const r = state.selected;
+  if (!r) return;
+  const answer = (window.Study && window.Study.currentAnswer()) || r.engine_best_1 || '';
+  const decided = S.repertoire.byKey(S.leakKey(r));
+  $('commitBtn').textContent = answer ? `Commit ${answer}` : V.ACTIONS.commit.button;
+  $('commitBtn').disabled = !answer;
+  $('dismissBtn').textContent = V.ACTIONS.dismiss.button;
+  $('drillBtn').textContent = V.ACTIONS.drill.button;
+  $('commitState').textContent = decided
+    ? decided.status === 'committed'
+      ? `${V.ACTIONS.commit.done}: ${decided.answer}`
+      : V.ACTIONS.dismiss.done
+    : '';
+  $('commitState').className = `commit-state ${decided ? `is-${decided.status}` : ''}`;
+  $('commitHint').textContent = answer
+    ? 'Committing writes this line into your repertoire and takes it off the holes list.'
+    : 'Play the move you would rather have here on the board, then commit it.';
+}
+
+function commitSelected() {
+  const r = state.selected;
+  if (!r) return;
+  const answer = (window.Study && window.Study.currentAnswer()) || r.engine_best_1 || '';
+  if (!answer) return;
+  S.repertoire.commit(r, answer);
+  afterDecision();
+}
+
+function dismissSelected() {
+  if (!state.selected) return;
+  S.repertoire.dismiss(state.selected);
+  afterDecision();
+}
+
+function afterDecision() {
+  renderCommitBar();
+  renderTable();
+  renderSummaryBand();
+  renderNav();
+  if (state.view === 'repertoire') window.Repertoire.renderRepertoire(reportContext());
+}
+
+/* ----------------------------------------------------------------- exports */
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCsv() {
+  if (state.csvText) return download('opening_leaks.csv', state.csvText, 'text/csv');
+  if (state.jobId) return window.open(`${API}/api/report/${state.jobId}/csv`, '_blank');
+  const rows = state.rows;
+  if (!rows.length) return;
+  const cols = Object.keys(rows[0]);
+  const body = rows.map((r) => cols.map((c) => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(','));
+  download('opening_leaks.csv', [cols.join(','), ...body].join('\n'), 'text/csv');
+}
+
+/* ----------------------------------------------------------------- dialogs */
+function openDialog(id) {
+  const d = $(id);
+  if (typeof d.showModal === 'function') d.showModal();
+  else d.setAttribute('open', '');
+}
+function closeDialog(id) {
+  const d = $(id);
+  if (typeof d.close === 'function') d.close();
+  else d.removeAttribute('open');
+}
+
+/* -------------------------------------------------------------------- boot */
+function restoreAdvanced() {
+  const box = $('advanced');
+  if (!box) return;
+  box.open = S.prefs.get('advancedOpen', false) === true;
+  box.addEventListener('toggle', () => S.prefs.set('advancedOpen', box.open));
+}
+
 function bootAccount() {
-  const saved = recall();
+  const saved = S.prefs.get('account', null) || lastAccount;
   setProvider(saved && PROVIDERS[saved.provider] ? saved.provider : 'chesscom');
-  setMode('username');
   if (saved && saved.username) {
     $('optUser').value = saved.username;
     updateRunLabel();
@@ -694,7 +956,22 @@ function bootAccount() {
   }
 }
 
+function bootReport() {
+  const cached = S.lastReport.load();
+  if (!cached || !cached.rows || !cached.rows.length) return false;
+  state.csvText = cached.csv || '';
+  applyReport(cached, { options: cached.options, source: cached.source, account: cached.account, demo: cached.demo }, { cached: true });
+  return true;
+}
+
+/* Listeners on controls that only exist when Advanced is present. */
+function on(id, event, fn) {
+  const el = $(id);
+  if (el) el.addEventListener(event, fn);
+}
+
 function wire() {
+  // ---- run form
   $('fileInput').addEventListener('change', (e) => {
     state.files = Array.from(e.target.files);
     renderFiles();
@@ -708,13 +985,13 @@ function wire() {
     dz.addEventListener(ev, (e) => {
       e.preventDefault();
       dz.classList.add('is-over');
-    })
+    }),
   );
   ['dragleave', 'drop'].forEach((ev) =>
     dz.addEventListener(ev, (e) => {
       e.preventDefault();
       dz.classList.remove('is-over');
-    })
+    }),
   );
   dz.addEventListener('drop', (e) => {
     state.files = Array.from(e.dataTransfer.files).filter((f) => f.name.toLowerCase().endsWith('.pgn'));
@@ -723,17 +1000,31 @@ function wire() {
 
   $('runBtn').addEventListener('click', () => startRun('username'));
   $('runUploadBtn').addEventListener('click', () => startRun('upload'));
-  $('sampleBtn').addEventListener('click', () => startRun('sample'));
-  $('runTop').addEventListener('click', () => startRun(state.mode));
+  $('sampleBtn').addEventListener('click', () => runDemo());
+  $('uploadToggle').addEventListener('click', () => {
+    const open = $('panelUpload').hidden;
+    $('panelUpload').hidden = !open;
+    $('panelAccount').hidden = open;
+    state.mode = open ? 'upload' : 'username';
+    $('uploadToggle').textContent = open ? 'Use my account instead' : 'Upload a PGN instead';
+  });
+  $('runAgainBtn').addEventListener('click', () => {
+    mountRunForm('dialogSlot');
+    openDialog('runDialog');
+  });
+  $('runDialogClose').addEventListener('click', () => closeDialog('runDialog'));
+  $('demoExit').addEventListener('click', () => {
+    S.lastReport.clear();
+    state.rows = [];
+    state.summary = null;
+    state.demo = false;
+    setAppState('empty');
+    go('report');
+    $('optUser').focus();
+  });
 
-  // source tabs
-  $('tabAccount').addEventListener('click', () => setMode('username'));
-  $('tabUpload').addEventListener('click', () => setMode('upload'));
-  $('tabDemo').addEventListener('click', () => setMode('sample'));
-
-  // account panel
   document.querySelectorAll('#providerSeg .seg-btn').forEach((b) =>
-    b.addEventListener('click', () => setProvider(b.dataset.provider))
+    b.addEventListener('click', () => setProvider(b.dataset.provider)),
   );
   let lookupTimer = null;
   $('optUser').addEventListener('input', () => {
@@ -749,55 +1040,46 @@ function wire() {
       startRun('username');
     }
   });
-  $('checkBtn').addEventListener('click', () => checkAccount());
-  $('optMaxGames').addEventListener('input', (e) => ($('maxGamesOut').textContent = e.target.value));
-  $('optSince').max = new Date().toISOString().slice(0, 10);
-  $('optUntil').max = $('optSince').max;
-  $('csvBtn').addEventListener('click', () => {
-    if (state.csvText) {
-      const url = URL.createObjectURL(new Blob([state.csvText], { type: 'text/csv' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'opening_leaks.csv';
-      a.click();
-      URL.revokeObjectURL(url);
-    } else if (state.jobId) {
-      window.open(`${API}/api/report/${state.jobId}/csv`, '_blank');
-    }
+  $('optMaxGames').addEventListener('input', (e) => {
+    $('maxGamesOut').textContent = e.target.value;
+    updateSpeedHint();
   });
-  $('optDepth').addEventListener('input', (e) => ($('depthOut').textContent = e.target.value));
-  $('optMoves').addEventListener('input', (e) => ($('movesOut').textContent = `${e.target.value} moves`));
+  on('optDepth', 'input', (e) => {
+    $('depthOut').textContent = e.target.value;
+    updateSpeedHint();
+  });
+  on('optMoves', 'input', (e) => ($('movesOut').textContent = `${e.target.value} moves`));
+  on('optNoEngine', 'change', updateSpeedHint);
+  const today = new Date().toISOString().slice(0, 10);
+  ['optSince', 'optUntil'].forEach((id) => {
+    if ($(id)) $(id).max = today;
+  });
 
-  document.querySelectorAll('#flagFilter .seg').forEach((b) =>
-    b.addEventListener('click', () => {
-      document.querySelectorAll('#flagFilter .seg').forEach((x) => x.classList.remove('is-active'));
-      b.classList.add('is-active');
-      state.filter.flag = b.dataset.flag;
-      renderTable();
-    })
-  );
-  document.querySelectorAll('#colorFilter .seg').forEach((b) =>
-    b.addEventListener('click', () => {
-      document.querySelectorAll('#colorFilter .seg').forEach((x) => x.classList.remove('is-active'));
-      b.classList.add('is-active');
-      state.filter.color = b.dataset.color;
-      renderTable();
-    })
-  );
+  // ---- report
   $('search').addEventListener('input', (e) => {
     state.filter.q = e.target.value;
+    state.showAll = false;
     renderTable();
   });
-  document.querySelectorAll('th.sortable').forEach((th) =>
-    th.addEventListener('click', () => {
-      const key = th.dataset.sort;
-      state.sort = { key, dir: state.sort.key === key ? -state.sort.dir : -1 };
-      document.querySelectorAll('th.sortable').forEach((x) => x.classList.remove('is-sorted', 'asc'));
-      th.classList.add('is-sorted');
-      if (state.sort.dir === 1) th.classList.add('asc');
-      renderTable();
-    })
+  $('costHead').title = `${V.METRICS.cost.definition}\n${V.METRICS.cost.formula}`;
+  $('costHead').addEventListener('click', () => {
+    state.sort.dir = -state.sort.dir;
+    renderTable();
+  });
+  $('showAll').addEventListener('click', () => {
+    state.showAll = true;
+    renderTable();
+  });
+  document.querySelectorAll('#chartToggle .seg').forEach((b) =>
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#chartToggle .seg').forEach((x) => x.classList.remove('is-active'));
+      b.classList.add('is-active');
+      state.chartKind = b.dataset.chart;
+      renderChart();
+    }),
   );
+  $('commitBtn').addEventListener('click', commitSelected);
+  $('dismissBtn').addEventListener('click', dismissSelected);
   $('copyFen').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText($('fenText').textContent);
@@ -808,6 +1090,31 @@ function wire() {
       setTimeout(() => ($('copyFen').textContent = 'Copy FEN'), 1800);
     }
   });
+
+  // ---- exports
+  $('exportCsv').addEventListener('click', exportCsv);
+  $('exportRepertoire').addEventListener('click', () => {
+    const pgn = window.Repertoire.pgn(state.player);
+    if (pgn) download('repertoire.pgn', pgn, 'application/x-chess-pgn');
+  });
+  $('exportDrills').addEventListener('click', () => {
+    const pgn = window.Repertoire.drillPgn(window.Study ? window.Study.queue() : state.rows);
+    if (pgn) download('drill_set.pgn', pgn, 'application/x-chess-pgn');
+  });
+  $('exportStudy').addEventListener('click', (e) => {
+    e.target.href = window.Repertoire.studyUrl();
+  });
+  $('exportMenu').addEventListener('click', (e) => {
+    if (e.target.classList.contains('menu-item')) $('exportMenu').open = false;
+  });
+
+  // ---- chrome
+  $('dataBtn').addEventListener('click', () => openDialog('dataDialog'));
+  $('statusBtn').addEventListener('click', () => openDialog('dataDialog'));
+  $('dataDialogClose').addEventListener('click', () => closeDialog('dataDialog'));
+  $('privacyBtn').addEventListener('click', () => openDialog('privacyDialog'));
+  $('privacyDialogClose').addEventListener('click', () => closeDialog('privacyDialog'));
+
   const setDrawer = (open) => {
     $('sidebar').classList.toggle('is-open', open);
     $('scrim').hidden = !open;
@@ -819,27 +1126,29 @@ function wire() {
     if (e.key === 'Escape') setDrawer(false);
   });
 
-  const links = Array.from(document.querySelectorAll('.nav-item'));
-  links.forEach((a) =>
-    a.addEventListener('click', () => {
-      links.forEach((x) => x.classList.remove('is-active'));
-      a.classList.add('is-active');
+  document.querySelectorAll('.nav-item').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      go(a.dataset.view);
       setDrawer(false);
-    })
+    }),
   );
-  const spy = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((en) => {
-        if (!en.isIntersecting) return;
-        links.forEach((x) => x.classList.toggle('is-active', x.getAttribute('href') === `#${en.target.id}`));
-      });
-    },
-    { root: $('main'), rootMargin: '-30% 0px -60% 0px' }
-  );
-  document.querySelectorAll('.section').forEach((s) => spy.observe(s));
+  window.addEventListener('hashchange', () => go(location.hash.slice(1)));
+
+  if (window.Study) window.Study.onQueueChange(() => renderViewHead());
 }
 
+window.App = { go, reportContext: () => reportContext(), select: selectRow };
+
+// the form is a template so it can be parented into either the empty screen or
+// the Run again dialog; materialise it before anything looks its controls up
+$('runFormTemplate').replaceWith($('runFormTemplate').content);
+mountRunForm('gateSlot');
 wire();
+restoreAdvanced();
 if (window.Study) window.Study.init(API);
 bootAccount();
+setAppState('empty');
+bootReport();           // a cached run boots straight into `report`
+go(location.hash.slice(1) || 'report');
 loadMeta();
