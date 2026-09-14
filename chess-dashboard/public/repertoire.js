@@ -63,20 +63,34 @@
     return root;
   }
 
+  /* A line is a row of moves; the tree only indents where it actually branches. */
   function renderTree(root) {
     if (!root.children.length) return '';
-    const node = (n) => {
-      const label = `${Math.floor(n.ply / 2) + 1}${n.ply % 2 === 0 ? '.' : '…'} ${n.san}`;
-      return `<li>
-        <div class="tree-node ${n.status ? `is-${esc(n.status)}` : ''}">
-          <span class="mono move">${esc(label)}</span>
-          <span class="tree-games">${n.status && n.games ? plural(n.games, 'game') : ''}</span>
-          <span class="tree-status">${esc(n.status)}</span>
-        </div>
-        ${n.children.length ? `<ul>${n.children.map(node).join('')}</ul>` : ''}
-      </li>`;
-    };
-    return `<ul class="tree-root">${root.children.map(node).join('')}</ul>`;
+    return `<ul class="tree-root">${root.children.map(renderBranch).join('')}</ul>`;
+  }
+
+  function renderBranch(node) {
+    const run = [node];
+    let last = node;
+    while (last.children.length === 1) {
+      last = last.children[0];
+      run.push(last);
+    }
+    const moves = run
+      .map((n) => {
+        const label = `${Math.floor(n.ply / 2) + 1}${n.ply % 2 === 0 ? '.' : '…'} ${n.san}`;
+        const tail = n.status
+          ? `<span class="tree-games">${n.games ? plural(n.games, 'game') : ''}</span>`
+            + `<span class="tree-status">${esc(n.status)}</span>`
+          : '';
+        return `<span class="tree-move ${n.status ? `is-${esc(n.status)}` : ''}">`
+          + `<span class="mono move">${esc(label)}</span>${tail}</span>`;
+      })
+      .join('');
+    return `<li>
+      <div class="tree-line">${moves}</div>
+      ${last.children.length ? `<ul>${last.children.map(renderBranch).join('')}</ul>` : ''}
+    </li>`;
   }
 
   /* ------------------------------------------------------------------ views */

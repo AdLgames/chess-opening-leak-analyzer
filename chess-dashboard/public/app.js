@@ -221,7 +221,17 @@ function setStatus(kind, text) {
    describing a different one. */
 function renderPrivacy() {
   const hosted = state.serverless;
-  $('privacyTitle').textContent = hosted ? 'Where your games go' : 'Where your games go';
+  // Say which product this is in the first breath, not in a modal three clicks away.
+  $('gateHosted').hidden = !hosted;
+  if (hosted) {
+    $('gateHosted').innerHTML =
+      'This is a hosted instance of a local-first tool: the run happens on this server, and '
+      + '<button type="button" class="link-btn" id="gatePrivacy">what it does with your games</button> '
+      + 'is worth two sentences. To keep the games on your own machine, '
+      + '<a href="https://github.com/AdLgames/chess-opening-leak-analyzer" target="_blank" rel="noopener">clone the repo</a> '
+      + 'and run <code>make setup</code>.';
+    $('gatePrivacy').addEventListener('click', () => openDialog('privacyDialog'));
+  }
   $('privacyBody').innerHTML = hosted
     ? `<p>This is a hosted instance of a local-first tool. When you enter a username, this
          server fetches your public game archive from Chess.com or Lichess, analyses it
@@ -1135,7 +1145,12 @@ function wire() {
   );
   window.addEventListener('hashchange', () => go(location.hash.slice(1)));
 
-  if (window.Study) window.Study.onQueueChange(() => renderViewHead());
+  if (window.Study) {
+    window.Study.onQueueChange((queue) => {
+      $('practiceInvite').hidden = queue.length > 0;
+      renderViewHead();
+    });
+  }
 }
 
 window.App = { go, reportContext: () => reportContext(), select: selectRow };
