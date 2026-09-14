@@ -377,6 +377,45 @@ tr.is-decided { opacity: 0.62; }
 .hole-main span { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hole-meta { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 11.5px; color: var(--text-muted); }
 
+/* ----------------------------------------------------------------- explorer */
+.explorer-personal { display: flex; flex-direction: column; gap: 18px; }
+.detail-heading { font-size: 12.5px; color: var(--text); margin: 18px 0 10px; }
+
+/* where the leaks land, by move number — small enough to sit in a line of text */
+.spread { display: inline-flex; align-items: flex-end; gap: 3px; height: 34px; vertical-align: bottom; margin-left: 4px; }
+.spread-bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; width: 18px; }
+.spread-bar i { display: block; width: 100%; background: var(--accent); border-radius: 1px; }
+.spread-bar b { font-family: var(--mono); font-size: 9.5px; font-weight: 400; color: var(--text-faint); line-height: 1.4; }
+
+/* what to play instead */
+.fixes { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; counter-reset: fix; }
+.fixes li {
+  display: grid; grid-template-columns: minmax(0, 1.3fr) auto minmax(0, 1.4fr) auto;
+  align-items: center; gap: 16px; padding: 10px; border-bottom: 1px solid var(--line); font-size: 12.5px;
+}
+.fixes li:last-child { border-bottom: 0; }
+.fix-where { display: grid; gap: 2px; min-width: 0; }
+.fix-where b { font-weight: 500; }
+.fix-where span { font-size: 11px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fix-swap { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.fix-arrow { color: var(--text-faint); }
+.was { color: var(--text-muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.now { color: var(--accent); font-weight: 500; }
+.fix-why { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; font-size: 11.5px; }
+
+/* traps */
+.traps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.traps li {
+  display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  align-items: center; gap: 16px; padding: 10px; border-bottom: 1px solid var(--line); font-size: 12.5px;
+}
+.traps li:last-child { border-bottom: 0; }
+.traps li.is-caught { box-shadow: inset 2px 0 0 var(--accent); }
+.trap-main { display: grid; gap: 2px; min-width: 0; }
+.trap-main b { font-weight: 500; }
+.trap-main .mono { font-size: 11px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trap-verdict { display: grid; gap: 3px; font-size: 11.5px; }
+
 /* ----------------------------------------------------------------- progress */
 .spark { width: 100%; height: 130px; }
 .spark-line { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
@@ -451,16 +490,19 @@ tr.is-decided { opacity: 0.62; }
 }
 /* Below this the table stops being a table and becomes one card per leak. */
 @media (max-width: 700px) {
-  #leakTable thead { display: none; }
-  #leakTable, #leakTable tbody, #leakTable tr, #leakTable td { display: block; width: 100%; }
-  #leakTable tr { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; margin-bottom: 8px; }
-  #leakTable td { border: 0; padding: 3px 0; text-align: left; }
-  #leakTable td.num { text-align: left; }
-  #leakTable td[data-label]::before {
+  #leakTable thead, #openingTable thead { display: none; }
+  #leakTable, #leakTable tbody, #leakTable tr, #leakTable td,
+  #openingTable, #openingTable tbody, #openingTable tr, #openingTable td { display: block; width: 100%; }
+  #leakTable tr, #openingTable tr { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; margin-bottom: 8px; }
+  #leakTable td, #openingTable td { border: 0; padding: 3px 0; text-align: left; }
+  #leakTable td.num, #openingTable td.num { text-align: left; }
+  #leakTable td[data-label]::before, #openingTable td[data-label]::before {
     content: attr(data-label) ': ';
     color: var(--text-faint); font-family: var(--font); font-size: 11.5px;
   }
-  #leakTable td.col-cost::before, #leakTable td.col-opening::before { content: none; }
+  #leakTable td.col-cost::before, #leakTable td.col-opening::before,
+  #openingTable td.col-opening::before { content: none; }
+  .fixes li, .traps li { grid-template-columns: 1fr; gap: 6px; }
   .col-opening { max-width: none; }
   .coverage-figure b { font-size: 32px; }
 }

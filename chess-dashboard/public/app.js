@@ -33,7 +33,7 @@ const VIEWS = {
   repertoire: { title: 'Repertoire', needsRun: true },
   practice: { title: 'Practice', needsRun: true },
   progress: { title: 'Progress', needsRun: true },
-  library: { title: 'Library', needsRun: false },
+  explorer: { title: 'Explorer', needsRun: false },
 };
 
 const state = {
@@ -117,6 +117,7 @@ function go(view) {
   renderViewHead();
   if (view === 'repertoire') window.Repertoire.renderRepertoire(reportContext());
   if (view === 'progress') window.Repertoire.renderProgress(reportContext());
+  if (view === 'explorer') window.Explorer.render(reportContext());
   $('main').scrollTop = 0;
 }
 
@@ -138,7 +139,11 @@ function subtitle() {
       : 'The positions your report turned into drills';
   }
   if (state.view === 'progress') return 'What has changed between runs';
-  if (state.view === 'library') return 'Walk any line and see what the book did with it';
+  if (state.view === 'explorer') {
+    return hasReport()
+      ? 'Every opening you play, where it goes wrong, and what to play instead'
+      : 'Walk any line and see what the book did with it';
+  }
   if (state.app !== 'report' || !state.summary) return '';
   const s = state.summary;
   const engine = state.options && state.options.no_engine ? 'engine skipped' : `depth ${state.options ? state.options.depth : '—'}`;
@@ -597,6 +602,7 @@ function applyReport(data, job, { cached = false } = {}) {
   renderChart();
   renderFilters();
   renderTable();
+  window.Explorer.render(reportContext());
   if (window.Study) window.Study.setRows(state.rows);
 
   const first = visibleRows().rows[0];

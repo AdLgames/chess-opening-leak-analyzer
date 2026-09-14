@@ -57,6 +57,18 @@
       definition: "Your score with this move against the book's score with the same move.",
     },
     evalDrop: { label: 'Eval drop', definition: 'Engine evaluation change, in pawns.' },
+    breakPoint: {
+      label: 'Holds to',
+      definition:
+        'The move number where your line in this opening first goes wrong — the last move '
+        + 'before a leak shows up.',
+    },
+    trouble: {
+      label: 'Trouble',
+      definition:
+        'How far your score in an opening falls below what the book gets from the same '
+        + 'positions, weighted by how often you play it.',
+    },
     coverage: {
       label: 'Coverage',
       definition:
