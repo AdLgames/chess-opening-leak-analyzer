@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
 import time
 from collections import defaultdict
@@ -10,6 +11,8 @@ from dataclasses import dataclass, field
 from .engine import EngineAnalyzer, PositionEval
 from .explorer import OpeningExplorer, PositionStats
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
+from .profiles import build_profiles
+from .traps import scan_games
 from .pgn_loader import GameSummary, PlyRecord, load_games
 
 
@@ -341,6 +344,29 @@ def analyze(
             n = win + draw + loss
             w.writerow([eco, opening, n, win, draw, loss, f"{100 * (win + 0.5 * draw) / n:.1f}"])
 
+    # ---- Per-opening profiles and known traps ----
+    # Both fold data the run already has: the profiles say which openings go wrong
+    # and at which move, the trap scan says which named lines keep catching them.
+    trap_report = scan_games(games)
+    if trap_report["fell"]:
+        log(f"Traps: walked into {trap_report['fell']} of {trap_report['met']} known trap lines met")
+    name_for = explorer.opening_name if isinstance(explorer, LocalOpeningDatabase) else None
+    profile_report = build_profiles(
+        nodes=nodes.values(),
+        games=games,
+        rows=rows,
+        pos_stats=pos_stats,
+        name_for=name_for,
+        traps=trap_report["traps"],
+    )
+    profiles_path = os.path.join(out_dir, "opening_profiles.json")
+    with open(profiles_path, "w", encoding="utf-8") as fh:
+        json.dump({"openings": profile_report["openings"],
+                   "break_moves": profile_report["break_moves"],
+                   "worst_against": profile_report["worst_against"],
+                   "traps": trap_report}, fh, indent=1)
+    log(f"Profiled {len(profile_report['openings'])} openings -> {profiles_path}")
+
     log(f"Wrote {len(rows)} flagged rows -> {report_path}")
     log(f"Wrote variation rollup -> {summary_path}")
     return {
@@ -353,6 +379,9 @@ def analyze(
         "rows": len(rows),
         "report": report_path,
         "summary": summary_path,
+        "profiles": profiles_path,
+        "opening_profiles": profile_report,
+        "traps": trap_report,
         "explorer_stats": explorer.stats,
         "notes": notes,
     }

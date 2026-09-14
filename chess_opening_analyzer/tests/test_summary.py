@@ -24,6 +24,15 @@ ROWS = [
      "player_color": "black"},
 ]
 STATS = {"games": 140, "nodes": 320, "repeated": 48, "repeated_games": 410}
+EXPLORER_STATS = {
+    **STATS,
+    "opening_profiles": {
+        "openings": [{"key": "white:Italian Game", "family": "Italian Game", "first_break": 4}],
+        "break_moves": [{"move_number": 4, "leaks": 1, "games": 12}],
+        "worst_against": ["white:Italian Game"],
+    },
+    "traps": {"catalogue": 15, "met": 3, "fell": 1, "traps": [{"key": "fried_liver"}]},
+}
 
 
 def test_totals_and_flag_counts():
@@ -42,6 +51,19 @@ def test_openings_are_ranked_by_points_shed():
     s = summarise(ROWS, STATS)
     assert [o["opening"] for o in s["by_opening"]] == ["Italian Game", "Sicilian, Alapin"]
     assert s["by_opening"][0]["games"] == 12
+
+
+def test_the_explorer_payload_is_passed_through():
+    s = summarise(ROWS, EXPLORER_STATS)
+    assert s["explorer"]["openings"][0]["first_break"] == 4
+    assert s["explorer"]["break_moves"] == [{"move_number": 4, "leaks": 1, "games": 12}]
+    assert s["explorer"]["worst_against"] == ["white:Italian Game"]
+    assert s["explorer"]["traps"]["fell"] == 1
+
+
+def test_a_run_without_profiles_still_summarises():
+    s = summarise(ROWS, STATS)
+    assert s["explorer"] == {"openings": [], "break_moves": [], "worst_against": [], "traps": {}}
 
 
 def test_missing_judged_games_does_not_break_older_runs():

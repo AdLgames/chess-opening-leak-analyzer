@@ -45,6 +45,7 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         for k, v in by_opening.items()
     ]
     openings.sort(key=lambda d: -d["lost_points"])
+    profiles = stats.get("opening_profiles") or {}
 
     return {
         "games": stats["games"],
@@ -58,6 +59,14 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         "blunders": sum(1 for r in rows if _f(r["eval_drop_pawns"]) >= 0.8),
         "flags": dict(flags),
         "by_opening": openings[:12],
+        # everything the openings explorer needs: one profile per opening, the
+        # run-wide spread of break points, and the traps this player walks into
+        "explorer": {
+            "openings": profiles.get("openings", []),
+            "break_moves": profiles.get("break_moves", []),
+            "worst_against": profiles.get("worst_against", []),
+            "traps": stats.get("traps", {}),
+        },
         "white_leaks": sum(1 for r in rows if r["player_color"] == "white"),
         "black_leaks": sum(1 for r in rows if r["player_color"] == "black"),
         "top": rows[0] if rows else None,
