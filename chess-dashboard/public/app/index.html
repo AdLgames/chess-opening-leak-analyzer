@@ -336,6 +336,21 @@
             <div class="tree" id="repTree"></div>
           </section>
 
+          <!-- what you play, leaking or not: the report used to drop a line
+               entirely if you handled it well, which made the tool unable to
+               answer "what is my repertoire?" -->
+          <section class="panel" id="playedPanel">
+            <div class="panel-head">
+              <h2>Everything you play</h2>
+              <div class="segmented" id="playedFilter" role="tablist">
+                <button class="seg is-active" data-played="all" role="tab">All</button>
+                <button class="seg" data-played="leaking" role="tab">Leaking</button>
+                <button class="seg" data-played="clean" role="tab">Holding up</button>
+              </div>
+            </div>
+            <div class="played" id="playedBody"></div>
+          </section>
+
           <section class="panel">
             <div class="panel-head">
               <h2>Holes</h2>

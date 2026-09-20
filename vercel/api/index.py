@@ -352,6 +352,9 @@ async def analyse(
             "player": player,
             "summary": summarise(rows, result),
             "rows": rows,
+            # every repeated decision, not only the ones that leak: without it
+            # the app cannot show a line you play well
+            "tree": result.get("tree", []),
             "log": log[-40:],
             "notes": notes + list(result.get("notes", [])),
             "elapsed": round(time.time() - started, 1),
