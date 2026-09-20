@@ -626,7 +626,7 @@
     $('drillBtn').addEventListener('click', () => {
       if (!review.row) return;
       drill.add(review.row);
-      if (window.App) window.App.go('practice');
+      if (window.App) window.App.drill();
     });
 
     $('drillNext').addEventListener('click', () => drill.load(drill.index + 1));
@@ -670,6 +670,12 @@
       if (state.rows.length || drill.queue.length) drill.announce();
     },
     queue: () => drill.queue.slice(),
+    /** Put one leak on the drill board — the clinic's Drill tab. */
+    drillRow(row) {
+      const at = drill.queue.findIndex((r) => r.fen === row.fen && r.your_move === row.your_move);
+      if (at >= 0) drill.load(at);
+      else drill.add(row);
+    },
     /** Put a line on the explorer board (used by the openings explorer). */
     explore: (san, fen) => library.openLine(san, fen).catch((err) => {
       $('libStats').textContent = `Could not replay that line: ${err.message}`;

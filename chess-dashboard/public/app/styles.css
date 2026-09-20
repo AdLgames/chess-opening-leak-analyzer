@@ -527,6 +527,49 @@ tr.is-decided { opacity: 0.62; }
 .drill-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .is-due { color: var(--accent-text); }
 
+/* ------------------------------------------------- dashboard call to action */
+.train-cta {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  border: 1px solid var(--accent-line); background: var(--accent-soft);
+  border-radius: var(--r); padding: 16px 18px;
+}
+.train-cta p { margin: 0; font-size: 15px; flex: 1 1 260px; }
+.train-cta b { font-weight: 600; }
+
+/* ------------------------------------------------------------------ clinic */
+.clinic-head {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding-bottom: 12px; border-bottom: 1px solid var(--line);
+}
+.clinic-which { display: inline-flex; align-items: center; gap: 8px; }
+.clinic-which .btn { padding: 6px 11px; }
+.clinic-count { font-size: 12.5px; color: var(--text-muted); min-width: 68px; text-align: center; }
+.clinic-head .segmented { margin-left: auto; }
+
+/* --------------------------------------------------------- the tab bar */
+/* Three destinations, fixed to the bottom, where a drawer would be the wrong
+   shape. Desktop keeps the rail. */
+.tabbar { display: none; }
+@media (max-width: 860px) {
+  .tabbar {
+    position: fixed; inset: auto 0 0 0; z-index: 30;
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+    background: var(--raised); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-item {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 7px; text-decoration: none; color: var(--text-muted);
+    font-size: 11px; font-weight: 500;
+  }
+  .tab-item.is-active { color: var(--accent-text); }
+  .tab-item.is-active svg { color: var(--accent); }
+  /* the rail and its opener give way to the bar */
+  .sidebar, .icon-btn.only-mobile { display: none; }
+  .main { padding-bottom: 76px; }
+  .appfoot { margin-bottom: 8px; }
+}
+
 /* ------------------------------------------------------------------ footer */
 .appfoot {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -579,7 +622,6 @@ tr.is-decided { opacity: 0.62; }
   .header { padding: 12px 14px; flex-wrap: wrap; }
   .header-title h1 { font-size: 16px; }
   .header-actions { width: 100%; justify-content: flex-start; }
-  .icon-btn.only-mobile { display: inline-flex; }
   .main { padding: 16px 14px 40px; }
   .filters { margin-left: 0; width: 100%; }
   .search { flex: 1; min-width: 0; }

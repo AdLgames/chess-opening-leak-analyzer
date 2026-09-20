@@ -57,27 +57,25 @@ decision: a username, "Analyse my games", and a sample archive one click away.
 While a run is in flight that collapses to one line and a progress bar. After it,
 the report appears — and a cached report boots straight back into it.
 
-Five destinations, each named the same in the nav and in its heading:
+Three destinations, each named the same in the nav and in its heading. Macro and
+micro no longer share a page:
 
-1. **Report** — a summary band (coverage, leaks, points shed, games read, worst
-   opening), one chart panel with a toggle between points shed and you-vs-book, and
-   the leak table: cost with an inline bar, opening over its line, your move with
-   its flags, you vs book, games. Rows are capped with "Show all" and become cards
-   on a narrow screen. Selecting one fills the fix panel below: the board, your
-   record against the book, the eval swing, Stockfish's alternatives with their
-   book scores, the book moves from the position, and a live engine pane. From
-   there a finding can be committed, dismissed or sent to practice.
-2. **Repertoire** — the lines you have committed as a move tree per colour, the
-   holes left in it ranked by how often they come up, and the coverage figure.
-3. **Practice** — the drill set built from the report, scored as you go.
-4. **Progress** — coverage per run, the leaks that have gone and what they were
-   costing you, and per-position drill retention with a review date.
-5. **Explorer** — the openings explorer, read through your own games: the move number
-   your openings tend to break on, a row per opening you play (your record against what
-   the book scores from the same positions, the move your line holds to, what it costs),
-   the selected opening in full with what to play instead at each break, and the known
-   trap lines you have actually faced — whether you walked in or held, and the move that
-   avoids each one. The book explorer, which is the same for everyone, sits underneath.
+1. **Dashboard** — what is wrong. The summary band (coverage, leaks, points shed,
+   games read, worst opening), one call to action naming how many leaks are still
+   open, the chart, and the leak list itself: cost with an inline bar, opening
+   over its line, your move with its flags, you vs book, games. Tapping a row is
+   how you enter the Clinic.
+2. **Clinic** — how to fix it, one leak at a time. The board is the hero, with
+   your record against the book, the eval swing, the engine's alternatives and
+   the book moves beside it, and Commit / Not interested / Drill this as the
+   actions. A Study/Drill switch turns the same position into a flashcard, and
+   the arrows walk the queue in cost order.
+3. **Repertoire** — why, and what you have built. The committed tree per colour,
+   the holes left in it, coverage, progress between runs, a profile of every
+   opening you play with the traps that have caught you, and the book explorer.
+
+On a phone those three are a fixed bar at the bottom rather than a drawer; the
+rail returns above 860px.
 
 Run options beyond colour and how many games to read live behind "Advanced
 settings", which stays shut until you open it and then remembers that. Engine and

@@ -28,16 +28,17 @@ const S = window.Store;
    not open with 400 rows. */
 const ROW_CAP = 25;
 
+/* Three destinations: what is wrong, how to fix it, and what you have built.
+   Macro and micro no longer share a page. */
 const VIEWS = {
-  report: { title: 'Report', needsRun: false },
-  repertoire: { title: 'Repertoire', needsRun: true },
-  practice: { title: 'Practice', needsRun: true },
-  progress: { title: 'Progress', needsRun: true },
-  explorer: { title: 'Explorer', needsRun: false },
+  dashboard: { title: 'Dashboard', needsRun: false },
+  clinic: { title: 'Clinic', needsRun: true },
+  repertoire: { title: 'Repertoire', needsRun: false },
 };
 
 const state = {
-  view: 'report',
+  view: 'dashboard',
+  clinicMode: 'study',
   app: 'empty',
   files: [],
   mode: 'username',
@@ -102,16 +103,18 @@ function hasReport() {
 
 function renderNav() {
   const unlocked = hasReport() || S.repertoire.all().length > 0;
-  document.querySelectorAll('.nav-item').forEach((a) => {
+  document.querySelectorAll('.nav-item, .tab-item').forEach((a) => {
     const view = a.dataset.view;
     a.hidden = VIEWS[view].needsRun && !unlocked;
     a.classList.toggle('is-active', view === state.view);
+    if (view === state.view) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
   });
 }
 
 function go(view) {
-  if (!VIEWS[view]) view = 'report';
-  if (VIEWS[view].needsRun && !hasReport() && !S.repertoire.all().length) view = 'report';
+  if (!VIEWS[view]) view = 'dashboard';
+  if (VIEWS[view].needsRun && !hasReport() && !S.repertoire.all().length) view = 'dashboard';
   state.view = view;
   Object.keys(VIEWS).forEach((name) => {
     $(`view${name[0].toUpperCase()}${name.slice(1)}`).hidden = name !== view;
@@ -119,9 +122,12 @@ function go(view) {
   if (location.hash !== `#${view}`) history.replaceState(null, '', `#${view}`);
   renderNav();
   renderViewHead();
-  if (view === 'repertoire') window.Repertoire.renderRepertoire(reportContext());
-  if (view === 'progress') window.Repertoire.renderProgress(reportContext());
-  if (view === 'explorer') window.Explorer.render(reportContext());
+  if (view === 'clinic') renderClinic();
+  if (view === 'repertoire') {
+    window.Repertoire.renderRepertoire(reportContext());
+    window.Repertoire.renderProgress(reportContext());
+    window.Explorer.render(reportContext());
+  }
   $('main').scrollTop = 0;
 }
 
@@ -135,18 +141,13 @@ function renderViewHead() {
 }
 
 function subtitle() {
-  if (state.view === 'repertoire') return 'The lines you have committed to, and the gaps left in them';
-  if (state.view === 'practice') {
-    const queued = window.Study ? window.Study.queue().length : 0;
-    return queued
-      ? `${plural(queued, 'position')} from your own games`
-      : 'The positions your report turned into drills';
+  if (state.view === 'repertoire') {
+    return 'What you have committed, how it is moving, and every opening you play';
   }
-  if (state.view === 'progress') return 'What has changed between runs';
-  if (state.view === 'explorer') {
-    return hasReport()
-      ? 'Every opening you play, where it goes wrong, and what to play instead'
-      : 'Walk any line and see what the book did with it';
+  if (state.view === 'clinic') {
+    const r = state.selected;
+    if (!r) return 'One leak at a time: the board, the cost, and the fix';
+    return `${r.opening || r.eco || 'Unclassified'} · move ${r.move_number} as ${r.player_color}`;
   }
   if (state.app !== 'report' || !state.summary) return '';
   const s = state.summary;
@@ -613,7 +614,8 @@ function applyReport(data, job, { cached = false } = {}) {
   if (window.Study) window.Study.setRows(state.rows);
 
   const first = visibleRows().rows[0];
-  if (first) selectRow(first);
+  if (first) selectRow(first, { open: false });
+  renderTrainCta();
 
   if (!cached) {
     S.lastReport.save({
@@ -829,6 +831,63 @@ function renderTable() {
   $('showAll').textContent = `Show all ${rows.length}`;
 }
 
+/* ------------------------------------------------------------------ clinic */
+/* The queue the clinic walks: the leaks as the table has them ordered, so
+   "next" means the next most expensive thing to fix. */
+function clinicQueue() {
+  return visibleRows().rows;
+}
+
+function renderClinic() {
+  const queue = clinicQueue();
+  const has = queue.length > 0;
+  $('clinicHead').hidden = !has;
+  $('clinicEmpty').hidden = has;
+  $('fixPanel').hidden = !has || state.clinicMode !== 'study';
+  $('practiceBody').hidden = !has || state.clinicMode !== 'drill';
+  if (!has) return;
+  if (!state.selected || !queue.some((r) => S.leakKey(r) === S.leakKey(state.selected))) {
+    selectRow(queue[0], { open: false });
+  }
+  const at = queue.findIndex((r) => S.leakKey(r) === S.leakKey(state.selected));
+  $('clinicCount').textContent = `${at + 1} of ${queue.length}`;
+  $('clinicPrev').disabled = at <= 0;
+  $('clinicNext').disabled = at >= queue.length - 1;
+  document.querySelectorAll('#clinicMode .seg').forEach((b) =>
+    b.classList.toggle('is-active', b.dataset.mode === state.clinicMode));
+  if (state.clinicMode === 'drill' && window.Study) window.Study.drillRow(state.selected);
+  renderViewHead();
+}
+
+function stepClinic(delta) {
+  const queue = clinicQueue();
+  const at = queue.findIndex((r) => S.leakKey(r) === S.leakKey(state.selected));
+  const next = queue[Math.max(0, Math.min(queue.length - 1, at + delta))];
+  if (next) {
+    selectRow(next, { open: false });
+    renderClinic();
+  }
+}
+
+/* The dashboard's single call to action. */
+function renderTrainCta() {
+  const decided = new Set(S.repertoire.all().map((e) => e.key));
+  const open = state.rows.filter((r) => !decided.has(S.leakKey(r)));
+  $('trainCta').hidden = !state.rows.length;
+  if (!state.rows.length) return;
+  $('trainCtaText').innerHTML = open.length
+    ? `You have <b>${plural(open.length, 'open leak')}</b>. The costliest is `
+      + `${esc(open[0].opening || open[0].eco || 'an unclassified line')}.`
+    : 'Every leak in this report has an answer. Run again after a few dozen more games.';
+  $('trainBtn').textContent = open.length ? 'Start training' : 'Review them again';
+  $('trainBtn').onclick = () => {
+    const target = open[0] || state.rows[0];
+    if (target) selectRow(target, { open: false });
+    state.clinicMode = 'study';
+    go('clinic');
+  };
+}
+
 /* ------------------------------------------------------------------ detail */
 function cpText(cp) {
   const v = num(cp);
@@ -837,7 +896,7 @@ function cpText(cp) {
   return (pawns >= 0 ? '+' : '') + pawns.toFixed(2);
 }
 
-function selectRow(r) {
+function selectRow(r, { open = true } = {}) {
   if (!r) return;
   state.selected = r;
   $('posHint').textContent = `${r.eco || '—'} · move ${r.move_number} as ${r.player_color}`;
@@ -890,6 +949,10 @@ function selectRow(r) {
     : '';
   renderCommitBar();
   renderTable();
+  if (open) {
+    state.clinicMode = 'study';
+    go('clinic');
+  }
 }
 
 function renderCommitBar() {
@@ -931,7 +994,9 @@ function afterDecision() {
   renderCommitBar();
   renderTable();
   renderSummaryBand();
+  renderTrainCta();
   renderNav();
+  if (state.view === 'clinic') renderClinic();
   if (state.view === 'repertoire') window.Repertoire.renderRepertoire(reportContext());
 }
 
@@ -1159,6 +1224,14 @@ function wire() {
       renderChart();
     }),
   );
+  $('clinicPrev').addEventListener('click', () => stepClinic(-1));
+  $('clinicNext').addEventListener('click', () => stepClinic(1));
+  document.querySelectorAll('#clinicMode .seg').forEach((b) =>
+    b.addEventListener('click', () => {
+      state.clinicMode = b.dataset.mode;
+      renderClinic();
+    }),
+  );
   $('commitBtn').addEventListener('click', commitSelected);
   $('dismissBtn').addEventListener('click', dismissSelected);
   const copyFen = async (btn, fen) => {
@@ -1217,7 +1290,7 @@ function wire() {
     if (e.key === 'Escape') setDrawer(false);
   });
 
-  document.querySelectorAll('.nav-item').forEach((a) =>
+  document.querySelectorAll('.nav-item, .tab-item').forEach((a) =>
     a.addEventListener('click', (e) => {
       e.preventDefault();
       go(a.dataset.view);
@@ -1236,6 +1309,11 @@ function wire() {
 
 window.App = {
   go,
+  /* study.js asks for the drill tab when "Drill this" is pressed. */
+  drill: () => {
+    state.clinicMode = 'drill';
+    go('clinic');
+  },
   reportContext: () => reportContext(),
   select: selectRow,
   /* The board panes report the position they are showing, so "Copy FEN" copies
@@ -1255,6 +1333,6 @@ if (window.Study) window.Study.init(API);
 bootAccount();
 setAppState('empty');
 bootReport();           // a cached run boots straight into `report`
-go(location.hash.slice(1) || 'report');
+go(location.hash.slice(1) || 'dashboard');
 // `serverless` decides how a run is driven, so the handoff waits for /api/meta
 loadMeta().then(bootFromQuery);
