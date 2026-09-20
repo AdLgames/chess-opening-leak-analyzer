@@ -14,6 +14,7 @@ ask for that, and Chess.com additionally wants a descriptive User-Agent.
 from __future__ import annotations
 
 import datetime as _dt
+import hashlib
 import json
 import os
 import re
@@ -104,6 +105,33 @@ class FetchOptions:
 
 
 @dataclass
+class Excluded:
+    """Why games in the archive did not make it into the run.
+
+    Without this a short haul is indistinguishable from a small archive, and the
+    user is left guessing which of their own settings cost them the games.
+    """
+    seen: int = 0            # games in the archive the search covered
+    variant: int = 0         # not standard chess
+    unrated: int = 0
+    speed: int = 0           # a time control that was not ticked
+    out_of_range: int = 0    # outside since/until
+
+    @property
+    def total(self) -> int:
+        return self.variant + self.unrated + self.speed + self.out_of_range
+
+    def reasons(self) -> list[str]:
+        """Human-readable causes, biggest first, for the ones that did anything."""
+        named = (("were not in the time controls you picked", self.speed),
+                 ("were unrated", self.unrated),
+                 ("were outside the date range", self.out_of_range),
+                 ("were not standard chess", self.variant))
+        return [f"{n} {label}" for label, n in
+                sorted(named, key=lambda kv: -kv[1]) if n]
+
+
+@dataclass
 class FetchResult:
     provider: str
     username: str
@@ -114,9 +142,14 @@ class FetchResult:
     cached_months: int = 0
     months: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    excluded: "Excluded" = field(default_factory=lambda: Excluded())
+    shortfall: str = ""      # set when fewer games came back than were asked for
 
     def to_dict(self) -> dict:
         return {
+            "shortfall": self.shortfall,
+            "excluded": {"seen": self.excluded.seen, "total": self.excluded.total,
+                         "reasons": self.excluded.reasons()},
             "provider": self.provider,
             "username": self.username,
             "pgn_dir": self.pgn_dir,
@@ -179,6 +212,43 @@ def _date_bounds(opts: FetchOptions) -> tuple[_dt.date | None, _dt.date | None]:
     return since, until
 
 
+def _filter_tag(opts: FetchOptions) -> str:
+    """A short, stable name for the filters that shape a file's contents."""
+    key = "|".join((",".join(sorted(opts.speeds)), str(opts.rated_only),
+                    opts.since or "", opts.until or ""))
+    return hashlib.sha1(key.encode()).hexdigest()[:8]  # noqa: S324 - a cache name
+
+
+def _excluded_sentence(tally: Excluded) -> str:
+    reasons = tally.reasons()
+    if not reasons:
+        return ""
+    if len(reasons) > 1:
+        reasons[-1] = f"and {reasons[-1]}"
+    return f"Of the {tally.seen} games looked at, {', '.join(reasons)}."
+
+
+def _note_shortfall(opts: FetchOptions, result: FetchResult,
+                    months_searched: int, months_available: int) -> None:
+    """Say why fewer games came back than were asked for.
+
+    Coming up short is normal — most people have not played 120 rated blitz
+    games — but being told the number without being told why reads as the tool
+    ignoring the request.
+    """
+    if result.games >= opts.max_games:
+        return
+    where = (f"that is everything in all {months_available} months of your archive"
+             if months_searched >= months_available
+             else f"searched the most recent {months_searched} of "
+                  f"{months_available} months")
+    detail = _excluded_sentence(result.excluded)
+    result.shortfall = (
+        f"Found {result.games} games, not the {opts.max_games} asked for — {where}."
+        + (f" {detail}" if detail else "")).strip()
+    result.notes.append(result.shortfall)
+
+
 def _cache_path(opts: FetchOptions, name: str) -> str:
     folder = os.path.join(opts.cache_dir, opts.provider, opts.username.lower())
     os.makedirs(folder, exist_ok=True)
@@ -222,22 +292,66 @@ def _chesscom_months(opts: FetchOptions, progress: Progress) -> tuple[list[str],
     return list(archives), 1
 
 
-def _chesscom_keep(game: dict, opts: FetchOptions,
-                   since: _dt.date | None, until: _dt.date | None) -> bool:
-    if game.get("rules") != "chess" or not game.get("pgn"):
+def _chesscom_keep(game: dict, opts: FetchOptions, since: _dt.date | None,
+                   until: _dt.date | None, tally: Excluded | None = None) -> bool:
+    """Whether one archive game belongs in this run, counting why if not."""
+    def drop(reason: str) -> bool:
+        if tally is not None:
+            setattr(tally, reason, getattr(tally, reason) + 1)
         return False
+
+    if not game.get("pgn"):
+        return False
+    if tally is not None:
+        tally.seen += 1
+    if game.get("rules") != "chess":
+        return drop("variant")
     if opts.rated_only and not game.get("rated", False):
-        return False
+        return drop("unrated")
     if game.get("time_class") not in opts.speeds:
-        return False
+        return drop("speed")
     end = game.get("end_time")
     if (since or until) and end:
         day = _dt.datetime.fromtimestamp(int(end), _dt.timezone.utc).date()
-        if since and day < since:
-            return False
-        if until and day > until:
-            return False
+        if (since and day < since) or (until and day > until):
+            return drop("out_of_range")
     return True
+
+
+def _month_games(opts: FetchOptions, url: str, ym: str, this_month: str,
+                 result: FetchResult, progress: Progress) -> list[dict] | None:
+    """One month of the archive, unfiltered, from the cache or the network.
+
+    What is cached is the month as Chess.com sent it, not the subset that some
+    earlier run's filters happened to keep. Caching the filtered view was a bug:
+    the path is keyed on the username alone, so widening the time controls and
+    running again silently re-served the narrower result. Keeping the raw month
+    also means changing a filter costs nothing — the same download answers any
+    combination of them.
+    """
+    path = _cache_path(opts, f"{ym.replace('/', '-')}.month.json")
+    # The current month is still being played, so it is never cache-worthy.
+    if not (opts.refresh or ym == this_month) and os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                result.cached_months += 1
+                return json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            pass    # a truncated cache file is worth exactly one refetch
+    try:
+        raw = _get(url, timeout=opts.timeout, accept="application/json")
+    except urllib.error.HTTPError as exc:
+        progress(f"  {ym}: skipped (HTTP {exc.code})")
+        result.notes.append(f"{ym} could not be fetched (HTTP {exc.code}).")
+        return None
+    result.requests += 1
+    games = json.loads(raw).get("games") or []
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(games, fh)
+    except OSError:
+        pass        # an unwritable cache is slow, not broken
+    return games
 
 
 def _fetch_chesscom(opts: FetchOptions, progress: Progress) -> FetchResult:
@@ -247,6 +361,7 @@ def _fetch_chesscom(opts: FetchOptions, progress: Progress) -> FetchResult:
                          pgn_dir=_cache_path(opts, ""), requests=requests)
     this_month = _dt.date.today().strftime("%Y/%m")
     remaining = opts.max_games
+    months_searched = 0
 
     for url in reversed(archives):                     # newest month first
         if remaining <= 0:
@@ -256,44 +371,35 @@ def _fetch_chesscom(opts: FetchOptions, progress: Progress) -> FetchResult:
             break
         if until and ym > until.strftime("%Y/%m"):
             continue
-        path = _cache_path(opts, f"{ym.replace('/', '-')}.pgn")
-        fresh_needed = opts.refresh or ym == this_month or not os.path.isfile(path)
-        if not fresh_needed:
-            text = open(path, encoding="utf-8").read()
-            result.cached_months += 1
-        else:
-            try:
-                raw = _get(url, timeout=opts.timeout, accept="application/json")
-            except urllib.error.HTTPError as exc:
-                progress(f"  {ym}: skipped (HTTP {exc.code})")
-                result.notes.append(f"{ym} could not be fetched (HTTP {exc.code}).")
-                continue
-            result.requests += 1
-            games = json.loads(raw).get("games") or []
-            kept = [g["pgn"].strip() for g in games if _chesscom_keep(g, opts, since, until)]
-            text = ("\n\n".join(kept) + "\n") if kept else ""
-            with open(path, "w", encoding="utf-8") as fh:
-                fh.write(text)
-        count = _count_games(text)
-        if not count:
+        games = _month_games(opts, url, ym, this_month, result, progress)
+        if games is None:
             continue
-        if count > remaining:
-            text, count = _trim_to(text, remaining)
-            trimmed = _cache_path(opts, f"{ym.replace('/', '-')}.partial.pgn")
-            with open(trimmed, "w", encoding="utf-8") as fh:
-                fh.write(text)
-            path = trimmed
-        remaining -= count
-        result.games += count
+        months_searched += 1
+        kept = [g["pgn"].strip() for g in games
+                if _chesscom_keep(g, opts, since, until, result.excluded)]
+        if not kept:
+            continue
+        if len(kept) > remaining:
+            kept = kept[:remaining]
+        text = "\n\n".join(kept) + "\n"
+        # Written per run, under a name that says which filters shaped it, so a
+        # run never picks up a file some other set of filters produced.
+        path = _cache_path(opts, f"{ym.replace('/', '-')}.{_filter_tag(opts)}.pgn")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        remaining -= len(kept)
+        result.games += len(kept)
         result.files.append(path)
         result.months.append(ym)
-        progress(f"  {ym}: {count} games ({result.games}/{opts.max_games})")
+        progress(f"  {ym}: {len(kept)} games ({result.games}/{opts.max_games})")
 
     if not result.games:
         raise IngestError(
-            f"No games matched for {opts.username} on Chess.com.",
+            f"No games matched for {opts.username} on Chess.com. "
+            + _excluded_sentence(result.excluded),
             hint="Widen the date range or the time controls, or turn off rated-only.",
         )
+    _note_shortfall(opts, result, months_searched, len(archives))
     return result
 
 
@@ -322,7 +428,10 @@ def _fetch_lichess(opts: FetchOptions, progress: Progress) -> FetchResult:
     download_url = f"https://lichess.org/@/{opts.username}/download"
 
     stamp = _dt.date.today().isoformat()
-    path = _cache_path(opts, f"lichess-{stamp}-{opts.max_games}.pgn")
+    # The filters are part of what this file contains, so they belong in its
+    # name. Without them, widening the time controls re-served the old, narrower
+    # export — the same bug the Chess.com month cache had.
+    path = _cache_path(opts, f"lichess-{stamp}-{opts.max_games}-{_filter_tag(opts)}.pgn")
     result = FetchResult(provider="lichess", username=opts.username,
                          pgn_dir=_cache_path(opts, ""))
     if os.path.isfile(path) and not opts.refresh:
@@ -386,6 +495,16 @@ def _fetch_lichess(opts: FetchOptions, progress: Progress) -> FetchResult:
     result.games = count
     result.files.append(path)
     progress(f"  {count} games")
+    if count < opts.max_games:
+        # Lichess filters server-side, so there is no per-reason tally to give;
+        # what matters is still saying that the number is the archive's answer
+        # and not the request being ignored.
+        result.shortfall = (
+            f"Found {count} games, not the {opts.max_games} asked for — that is every game "
+            f"Lichess has for {opts.username} in "
+            f"{', '.join(opts.speeds)}{' , rated only' if opts.rated_only else ''}"
+            .replace(" , ", ", ") + ".")
+        result.notes.append(result.shortfall)
     return result
 
 

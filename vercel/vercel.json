@@ -7,13 +7,45 @@
       "runtime": "@vercel/python@4.7.2",
       "memory": 2048,
       "maxDuration": 60,
-      "includeFiles": "{chessopening/**,engine/**,sample_pgns/**}"
+      "includeFiles": "{chessopening/**,accounts/**,engine/**,sample_pgns/**}"
     }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/index"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+        }
+      ]
+    },
+    {
+      "source": "/og.png",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
     }
   ]
 }

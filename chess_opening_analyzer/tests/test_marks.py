@@ -37,31 +37,31 @@ def ignored(uci: str = BC4) -> Mark:
 def test_committing_silences_the_argument_about_taste():
     """"Others score better with something else" is exactly the complaint someone who has
     chosen their line does not need repeating."""
-    assert filter_flags(["WINRATE_DECLINE"], committed(), BC4) is None
-    assert filter_flags(["OFFBEAT_MOVE"], committed(), BC4) is None
-    assert filter_flags(["WINRATE_DECLINE", "OFFBEAT_MOVE"], committed(), BC4) is None
+    assert filter_flags(["underperforming"], committed(), BC4) is None
+    assert filter_flags(["unfamiliar"], committed(), BC4) is None
+    assert filter_flags(["underperforming", "unfamiliar"], committed(), BC4) is None
 
 
 def test_committing_does_not_silence_a_move_that_loses_material():
     """The one thing a preference cannot overrule: whether the position goes wrong."""
-    assert filter_flags(["EVAL_DROP"], committed(), BC4) == ["EVAL_DROP"]
-    assert filter_flags(["EVAL_DROP", "WINRATE_DECLINE"], committed(), BC4) == ["EVAL_DROP"]
+    assert filter_flags(["blunder"], committed(), BC4) == ["blunder"]
+    assert filter_flags(["blunder", "underperforming"], committed(), BC4) == ["blunder"]
 
 
 def test_ignoring_silences_everything_including_an_engine_drop():
     """Committing is "this is my line"; ignoring is "I have seen this, stop showing me"."""
-    assert filter_flags(["EVAL_DROP"], ignored(), BC4) is None
-    assert filter_flags(["WINRATE_DECLINE"], ignored(), BC4) is None
+    assert filter_flags(["blunder"], ignored(), BC4) is None
+    assert filter_flags(["underperforming"], ignored(), BC4) is None
 
 
 def test_a_decision_applies_only_to_the_move_it_was_made_about():
     """Switching to a different move is a new choice, and gets judged on its own."""
-    assert filter_flags(["WINRATE_DECLINE"], committed(BC4), "f1b5") == ["WINRATE_DECLINE"]
-    assert filter_flags(["EVAL_DROP"], ignored(BC4), "f1b5") == ["EVAL_DROP"]
+    assert filter_flags(["underperforming"], committed(BC4), "f1b5") == ["underperforming"]
+    assert filter_flags(["blunder"], ignored(BC4), "f1b5") == ["blunder"]
 
 
 def test_no_decision_changes_nothing():
-    assert filter_flags(["WINRATE_DECLINE"], None, BC4) == ["WINRATE_DECLINE"]
+    assert filter_flags(["underperforming"], None, BC4) == ["underperforming"]
 
 
 # ---------------- Storage ----------------
@@ -118,3 +118,34 @@ def test_the_listing_is_newest_first_and_renderable(tmp_path):
 
 def test_decisions_are_counted_by_kind():
     assert summarise_marks([committed(), ignored(), committed()]) == {"committed": 2, "ignored": 1}
+
+
+def test_the_objective_flag_is_the_one_the_analyser_uses():
+    """A stated preference may not overrule the engine — but only if the two
+    modules agree on what the engine's flag is called."""
+    from chessopening.analyze import FLAG_BLUNDER
+    from chessopening.marks import OBJECTIVE_FLAG
+
+    assert OBJECTIVE_FLAG == FLAG_BLUNDER
+
+
+def test_an_unwritable_state_path_reads_as_no_decisions(tmp_path):
+    """The serverless build has a read-only filesystem.
+
+    Creating the store there fails with OSError, not anything sqlite-shaped, and
+    "this player has made no decisions" is an ordinary state — not a reason to
+    fail their analysis. This is the merge's most load-bearing small fix.
+    """
+    from chessopening.marks import load_marks
+
+    blocked = tmp_path / "nowhere"
+    blocked.write_text("not a directory")
+    assert load_marks(str(blocked / "sub" / "repertoire.sqlite")) == {}
+
+
+def test_a_garbage_state_file_also_reads_as_no_decisions(tmp_path):
+    from chessopening.marks import load_marks
+
+    junk = tmp_path / "junk.sqlite"
+    junk.write_bytes(b"this is not a database")
+    assert load_marks(str(junk)) == {}

@@ -1,23 +1,22 @@
 """Aggregate PGN opening decisions, cross-reference Lichess stats, add engine verdicts, write CSVs."""
 from __future__ import annotations
 
-import chess
 import csv
+import json
 import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+from .bands import ALL, band_for, label as band_label
 from .engine import EngineAnalyzer, PositionEval
 from .evalstore import DEFAULT_EVALS, open_store
-from .explorer import BOOK_PRIOR_GAMES, OpeningExplorer, PositionStats, Z_CONFIDENCE, score_interval
+from .marks import DEFAULT_STATE, filter_flags, load_marks
+from .explorer import OpeningExplorer, PositionStats
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
-from .bands import ALL, band_for, label as band_label
-from .marks import (DEFAULT_STATE, apply_gap_decisions, filter_flags, load_gap_decisions,
-                    load_marks)
+from .profiles import build_profiles
+from .traps import scan_games
 from .pgn_loader import GameSummary, PlyRecord, load_games
-from .repertoire import (COVERAGE_FIELDS, best_reply, build_tree, find_gaps,
-                         tree_totals)
 
 
 @dataclass
@@ -39,6 +38,10 @@ class Node:
     draws: int = 0
     losses: int = 0
     games: list[str] = field(default_factory=list)
+    #: Every game this decision appeared in, not just the handful shown as
+    #: samples. It is what lets a later run tell "I have seen this twice more"
+    #: from "I am looking at the same two games again".
+    game_ids: list[str] = field(default_factory=list)
 
     @property
     def n(self) -> int:
@@ -57,10 +60,71 @@ class Node:
             self.losses += 1
         if len(self.games) < 8:
             self.games.append(rec.game_id)
+        self.game_ids.append(rec.game_id)
 
+
+# Canonical leak flags. These keys are the contract between the analyzer, the CSV,
+# the API and the dashboard vocabulary module; nothing downstream invents its own.
+FLAG_BLUNDER = "blunder"                # the move itself loses ground
+FLAG_UNDERPERFORMING = "underperforming"  # playable, but your results trail the book
+FLAG_UNFAMILIAR = "unfamiliar"          # a position you meet but have barely played
+FLAG_THIN = "thin"                      # too few games to be sure
+
+#: How deep a game is read before the opening is considered over, when the book
+#: is still following. A fixed move cutoff is the wrong shape for this: it stops
+#: a deep main line short at move 15 while spending the same effort on a gambit
+#: that left theory at move 6. So the window is "as long as the book knows the
+#: position", bounded by this ceiling so a transposition into a known endgame
+#: cannot drag the whole run along with it.
+BOOK_CEILING_PLY = 40
+
+#: `cost` = (score points shed per game + a quarter of the eval drop) x games,
+#: shrunk by games / (games + COST_PRIOR) so a habit seen three times cannot
+#: outrank one seen thirty.
+COST_PRIOR = 4.0
+
+#: Bumped whenever the formula above changes. Stored on every row, so a ranking
+#: can always be traced to the maths that produced it and old reports are never
+#: silently reshuffled by a new release.
+COST_VERSION = 1
+
+#: The one description of the metric. Served by /api/meta and shown in the
+#: interface, so the explanation cannot drift away from the calculation.
+COST_EXPLAINER = {
+    "version": COST_VERSION,
+    "label": "Cost",
+    "definition": "Frequency x severity, with a cautious estimate on thin samples.",
+    "formula": "cost = (score points shed per game + eval drop / 4) x games x games / (games + 4)",
+    "why": "The shrinkage is what stops a habit seen three times outranking one seen thirty.",
+}
+
+#: The repertoire tree: one row per repeated decision, whether or not it leaks.
+#: Deliberately narrower than REPORT_FIELDS — the engine columns only mean
+#: something for a decision the engine was actually spent on.
+TREE_FIELDS = [
+    "eco",
+    "opening",
+    "variation_line",
+    "move_number",
+    "ply",
+    "player_color",
+    "your_move",
+    "fen",
+    "your_games",
+    "your_score_pct",
+    "db_move_score_pct",
+    "db_position_score_pct",
+    "db_move_popularity_pct",
+    "score_gap_vs_db_pct",
+    "in_book",
+    "eligible",
+    "flag",
+    "cost",
+]
 
 REPORT_FIELDS = [
-    "priority",
+    "cost",
+    "cost_version",
     "flag",
     "eco",
     "opening",
@@ -69,28 +133,12 @@ REPORT_FIELDS = [
     "ply",
     "player_color",
     "your_move",
-    "your_move_uci",
     "fen",
     "your_games",
     "your_wins",
     "your_draws",
     "your_losses",
     "your_score_pct",
-    "your_score_lo_pct",
-    "your_score_hi_pct",
-    "confidence",
-    "category",
-    "category_label",
-    "committed",
-    "explanation",
-    "consequence",
-    "refutation",
-    "baseline_pct",
-    "baseline_source",
-    "baseline_games",
-    # Which population the comparison actually used. Named per row because a thin position
-    # widens back toward everybody, so it is not always the player's own band.
-    "baseline_band",
     "db_move_games",
     "db_move_score_pct",
     "db_move_popularity_pct",
@@ -98,15 +146,11 @@ REPORT_FIELDS = [
     "db_position_score_pct",
     "score_gap_vs_db_pct",
     "lost_points",
-    "lost_points_conservative",
     "eval_before_cp",
     "eval_after_cp",
     "eval_drop_pawns",
     "engine_rank_of_your_move",
     "engine_best_1",
-    # The move the drill teaches, so the review schedule can name it. Only the first
-    # alternative needs it; the others are read by people, not machines.
-    "engine_best_1_uci",
     "engine_best_1_cp",
     "engine_best_1_db_score_pct",
     "engine_best_2",
@@ -162,173 +206,6 @@ def _pct(x: float | None) -> str:
     return "" if x is None else f"{100 * x:.1f}"
 
 
-def flags_winrate_decline(
-    score_hi: float, baseline: float | None, gap: float | None, threshold: float
-) -> bool:
-    """Whether a repeated decision really is scoring below the book.
-
-    Two conditions, not one: the observed gap must be wide enough to matter, *and* the
-    player must still be behind at the generous end of their own confidence interval. The
-    second is what stops a three-game sample from reading as a crisis.
-    """
-    if gap is None or baseline is None:
-        return False
-    return gap <= -threshold and score_hi < baseline
-
-
-def _round_pct(fraction: float) -> int:
-    """A fraction as a whole percentage, rounding halves up.
-
-    Python's `round` rounds halves to even, so 62.5% becomes 62 while the browser's
-    `Math.round` makes it 63 — the same figure disagreeing with itself on one screen.
-    """
-    return int(100 * fraction + 0.5)
-
-
-# Four kinds of problem, because they need four different responses. An objective mistake is
-# a fact about the position and wants the correct move learned. A practical weakness is a
-# fact about the player's results and may want a different line altogether. A knowledge gap
-# wants preparation for something that has not happened yet. And a finding on thin evidence
-# wants nothing except another month of games.
-CATEGORIES = {
-    "objective": ("Loses ground", "The move itself is the problem: it hands over material or the advantage."),
-    "practical": ("Not working for you", "Playable, but your results with it are well below what the position is worth."),
-    "knowledge": ("Unfamiliar", "A position you will meet but have barely played."),
-    "unproven": ("Worth watching", "Too few games so far to be sure this is real."),
-}
-
-
-def classify(flags: list[str], confidence: str, eval_drop_pawns: float, threshold: float) -> str:
-    """Which of the four kinds of problem this finding is.
-
-    An engine drop outranks everything, including a thin sample: whether a move throws away
-    a piece is a property of the position, not of how many times it has been played. The
-    win-rate flags are the opposite — they are claims about the player's results, so on thin
-    evidence they are downgraded to `unproven` rather than asserted.
-    """
-    if eval_drop_pawns >= threshold:
-        return "objective"
-    if confidence == "low":
-        return "unproven"
-    if "WINRATE_DECLINE" in flags:
-        return "practical"
-    return "practical" if "OFFBEAT_MOVE" in flags else "unproven"
-
-
-def describe_consequence(fen: str, played_uci: str, refutation_uci: str) -> str:
-    """What the opponent's reply actually wins, in words.
-
-    "The engine prefers Bc4" tells a club player nothing. "Black replies Nxe5, winning a
-    piece" tells them what they missed, and it is derivable from the two moves themselves.
-    """
-    if not refutation_uci:
-        return ""
-    try:
-        board = chess.Board(fen)
-        mover = board.turn
-        before = _material(board, mover)
-        played = chess.Move.from_uci(played_uci)
-        # push() does not check legality, so a bad move would otherwise produce a
-        # confident sentence about a position that cannot happen.
-        if played not in board.legal_moves:
-            return ""
-        board.push(played)
-        reply_move = chess.Move.from_uci(refutation_uci)
-        if reply_move not in board.legal_moves:
-            return ""
-        reply_san = board.san(reply_move)
-        board.push(reply_move)
-        lost = before - _material(board, mover)
-    except (ValueError, AssertionError, IndexError):
-        return ""
-
-    side = "Black" if mover == chess.WHITE else "White"
-    # Bands named the way a player would say it. "A piece" starts at 200 so that winning a
-    # knight for a pawn — the commonest opening disaster there is — reads as a piece rather
-    # than being mistaken for the exchange, which is specifically rook for minor.
-    for cost, name in ((800, "the queen"), (400, "a rook"), (200, "a piece"),
-                       (140, "the exchange"), (60, "a pawn")):
-        if lost >= cost:
-            return f"{side} replies {reply_san}, winning {name}."
-    return f"{side} replies {reply_san}, and the position turns against you."
-
-
-def _material(board: chess.Board, color: chess.Color) -> int:
-    """Material in centipawns from `color`'s point of view."""
-    values = {chess.PAWN: 100, chess.KNIGHT: 320, chess.BISHOP: 330,
-              chess.ROOK: 500, chess.QUEEN: 900}
-    total = 0
-    for piece_type, value in values.items():
-        total += value * len(board.pieces(piece_type, color))
-        total -= value * len(board.pieces(piece_type, not color))
-    return total
-
-
-def confidence_label(your_games: int, baseline_games: int, baseline_source: str) -> str:
-    """How much weight the reader should put on this row's comparison.
-
-    Two things can be thin: how often the player made the decision, and how well the book
-    knows the position. The weaker of the two decides.
-    """
-    if your_games >= 15 and baseline_source == "move" and baseline_games >= 500:
-        return "high"
-    if your_games < 6 or baseline_games < 100:
-        return "low"
-    return "medium"
-
-
-def explain(
-    node: Node,
-    baseline: float | None,
-    baseline_source: str,
-    baseline_games: int,
-    ev: PositionEval | None,
-    best_san: str,
-    confidence: str,
-    committed: bool = False,
-) -> str:
-    """One plain sentence saying what is wrong, for a reader who does not know what a
-    centipawn is. Built from figures already computed, so the CLI, the API and both
-    dashboards can share the same wording."""
-    move_label = f"{node.move_number}{'.' if node.player_color == 'white' else '...'}{node.played_san}"
-    times = "once" if node.n == 1 else f"{node.n} times"
-    parts = [f"You played {move_label} {times} and scored {_round_pct(node.score)}%"]
-
-    if baseline is not None:
-        peers = (
-            f"players at this level score {_round_pct(baseline)}% with it"
-            if baseline_source == "move"
-            else f"the position is worth {_round_pct(baseline)}% on average"
-        )
-        parts.append(f", where {peers}")
-        shed = (baseline - node.score) * node.n
-        if shed > 0.5:
-            parts.append(f" — about {shed:.1f} points of results given away")
-    parts.append(".")
-
-    # What actually goes wrong, rather than which move an engine happens to prefer.
-    consequence = describe_consequence(node.fen, node.played_uci, ev.refutation_uci if ev else "")
-    if consequence:
-        parts.append(f" {consequence}")
-    if best_san:
-        instead = f" {best_san} keeps the position in hand"
-        if ev is not None and ev.eval_drop_pawns > 0:
-            parts.append(f"{instead} — {ev.eval_drop_pawns:.1f} pawns better than what you played.")
-        else:
-            parts.append(f"{instead}.")
-    elif ev is not None and ev.eval_drop_pawns > 0:
-        parts.append(f" The engine rates it {ev.eval_drop_pawns:.1f} pawns worse than the best move here.")
-
-    if confidence == "low":
-        parts.append(" Based on few games so far, so treat it as a hint rather than a verdict.")
-    if committed:
-        # They have already chosen this line. Say why it is still here rather than
-        # repeating an argument they have settled.
-        parts.append(" This is your chosen move, and it is only listed because the position "
-                     "itself goes wrong here — not because others prefer something else.")
-    return "".join(parts)
-
-
 def analyze(
     pgn_dir: str,
     player: str,
@@ -341,18 +218,14 @@ def analyze(
     max_moves: int = 15,
     color: str = "both",
     min_games: int = 3,
+    #: How often a decision must recur to appear in the tree at all. One, so the
+    #: line you met twice is still part of the picture of what you play — it
+    #: just cannot become a leak until it has been seen `min_games` times.
+    min_tree_games: int = 1,
     min_ply: int = 2,
+    thin_games: int = 6,
     eval_drop_threshold: float = 0.8,
     score_gap_threshold: float = 0.06,
-    min_db_move_games: int = 30,
-    book_prior_games: int = BOOK_PRIOR_GAMES,
-    confidence_z: float = Z_CONFIDENCE,
-    no_evals: bool = False,
-    eval_store_path: str = DEFAULT_EVALS,
-    marks_path: str = DEFAULT_STATE,
-    no_marks: bool = False,
-    coverage_off: bool = False,
-    coverage_min_reach: float = 0.02,
     db: str = "lichess",
     local_db_path: str = DEFAULT_DB,
     min_db_games: int = 0,
@@ -360,6 +233,15 @@ def analyze(
     ratings: str = "1600,1800,2000",
     offline: bool = False,
     no_engine: bool = False,
+    #: Precomputed evaluations, consulted before the engine is started. Opening
+    #: positions are the most analysed positions there are, so a public dataset
+    #: answers most of this far deeper than anything affordable on demand.
+    no_evals: bool = False,
+    eval_store_path: str = DEFAULT_EVALS,
+    #: Decisions the player has already settled. A tool that keeps flagging a
+    #: move somebody has deliberately chosen is a tool they stop believing.
+    marks_path: str = DEFAULT_STATE,
+    no_marks: bool = False,
     max_games: int | None = None,
     engine_budget_s: float | None = None,
     cache_dir: str | None = None,
@@ -368,7 +250,12 @@ def analyze(
     os.makedirs(out_dir, exist_ok=True)
     cache_dir = cache_dir or os.path.join(out_dir, ".cache")
     notes: list[str] = []
-    nodes, games = build_nodes(pgn_dir, player, max_moves=max_moves, color=color,
+    # Read past the fixed cutoff so the book has something to follow. Nothing
+    # beyond it is kept unless the book still knows the position (see below), so
+    # this costs parsing, not engine time.
+    follow_book = db == "local"
+    ceiling_moves = max(max_moves, BOOK_CEILING_PLY // 2) if follow_book else max_moves
+    nodes, games = build_nodes(pgn_dir, player, max_moves=ceiling_moves, color=color,
                               max_games=max_games)
     if max_games is not None and len(games) >= max_games:
         notes.append(f"stopped after the first {max_games} games")
@@ -376,7 +263,13 @@ def analyze(
     if not games:
         raise SystemExit(f"No games found for player '{player}' in {pgn_dir}")
 
-    repeated = {k: n for k, n in nodes.items() if n.n >= min_games and n.ply >= min_ply}
+    cutoff_ply = max_moves * 2
+    in_window = {k: n for k, n in nodes.items()
+                 if n.n >= max(1, min_tree_games) and n.ply >= min_ply
+                 and n.ply <= BOOK_CEILING_PLY}
+    candidates = {k: n for k, n in in_window.items() if n.n >= min_games}
+    repeated = {k: n for k, n in candidates.items() if n.ply <= cutoff_ply}
+    deep = {k: n for k, n in candidates.items() if n.ply > cutoff_ply}
     log(f"{len(repeated)} decisions were repeated at least {min_games} time(s) from ply {min_ply} on")
 
     # ---- Opening database cross-reference (local SQLite or Lichess Explorer) ----
@@ -392,28 +285,73 @@ def analyze(
             ratings=ratings,
             offline=offline,
         )
-    # Compare the player against players of their own strength, when the book can. The
-    # median of their own games is the right centre: a mean is dragged around by the odd
-    # game against somebody far stronger, and a provisional rating early in an archive.
+    # Compare the player against players of their own strength, when the book can.
+    # The median of their own games is the right centre: a mean is dragged around by
+    # the odd game against somebody far stronger, and by a provisional rating early
+    # in an archive.
     ratings_seen = sorted(g.player_rating for g in games if g.player_rating)
     player_rating = ratings_seen[len(ratings_seen) // 2] if ratings_seen else None
     player_band = band_for(player_rating)
     banded = db == "local" and getattr(explorer, "has_bands", False) and player_band != ALL
     if banded:
-        log(f"Your rating reads as about {player_rating}, so you are being compared against "
-            f"{band_label(player_band)} rather than everybody")
+        log(f"Your rating reads as about {player_rating}, so you are being compared "
+            f"against {band_label(player_band)} rather than everybody")
     elif db == "local" and player_band != ALL:
         log("This opening book has no rating bands, so the comparison is against all "
             "ratings together. Rebuilding it adds them.")
+        notes.append("the opening book has no rating bands, so you are compared against "
+                     "players of every strength at once")
 
     pos_stats: dict[str, PositionStats] = {}
-    for i, node in enumerate(repeated.values(), start=1):
+
+    def look_up(node: Node) -> PositionStats:
         parent = ",".join(node.line_uci.split(",")[:-1])  # position BEFORE the player's move
         if node.epd not in pos_stats:
             pos_stats[node.epd] = (explorer.lookup(parent, band=player_band) if banded
                                    else explorer.lookup(parent))
+        return pos_stats[node.epd]
+
+    # Every in-window decision gets a book lookup, not just the ones frequent
+    # enough to leak: a line played twice is still part of the repertoire, and
+    # without a baseline it cannot be shown as played well or badly. Only the
+    # local book is cheap enough for this; the network Explorer stays on the
+    # decisions that can actually be flagged.
+    looked_up = in_window if db == "local" else repeated
+    for i, node in enumerate(looked_up.values(), start=1):
+        look_up(node)
         if i % 25 == 0:
-            log(f"  opening db: {i}/{len(repeated)} positions looked up")
+            log(f"  opening db: {i}/{len(looked_up)} positions looked up")
+
+    # Past the fixed cutoff, the book decides. A decision only stays in the
+    # window while theory still covers the position it was made in, which is
+    # what lets a deep main line be followed to move 20 without dragging every
+    # offbeat game along for the ride.
+    # A book built to move 15 has nothing to say about move 16, so following it
+    # past its own depth is following nothing. Say so rather than appearing to
+    # search deeper than the data allows.
+    book_ply = explorer.max_ply if isinstance(explorer, LocalOpeningDatabase) else None
+    if deep and book_ply is not None and book_ply <= cutoff_ply:
+        notes.append(
+            f"the opening book only goes to move {book_ply // 2}, so decisions past "
+            f"move {max_moves} could not be checked against it — "
+            f"{len(deep)} were set aside. Rebuild the book with a larger --max-moves "
+            "to reach deeper theory.")
+        log(f"  book stops at move {book_ply // 2}: {len(deep)} deeper decisions set aside")
+        deep = {}
+    if deep:
+        kept_deep = 0
+        for node in deep.values():
+            stats = look_up(node)
+            if stats is not None and stats.games > 0:
+                repeated[(node.epd, node.played_uci)] = node
+                kept_deep += 1
+        if kept_deep:
+            deepest = max(n.move_number for k, n in deep.items()
+                          if k in repeated) if kept_deep else 0
+            log(f"  book still covers {kept_deep} decisions past move {max_moves} "
+                f"(to move {deepest})")
+            notes.append(f"followed the book past move {max_moves} for {kept_deep} "
+                         f"decisions, to move {deepest}")
     if db == "local":
         log(f"Local database: {explorer.stats['db_hits']} positions matched, "
             f"{explorer.stats['db_misses']} not found")
@@ -421,10 +359,11 @@ def analyze(
         log(f"Explorer: {explorer.stats['api_calls']} API calls, {explorer.stats['cache_hits']} cache hits, "
             f"{explorer.stats['errors']} errors")
 
-    # ---- Engine pass ----
-    # Precomputed evaluations first: opening positions are the most analysed positions there
-    # are, so a public dataset answers most of this at depths worth far more than anything
-    # affordable on demand. The engine only handles what is left.
+    # ---- Evaluations ----
+    # Precomputed first. Opening positions are the most analysed positions there are,
+    # so a public dataset answers most of this at depths far beyond anything
+    # affordable on demand, and the engine only has to handle what is left. That
+    # matters most exactly where the budget is tightest.
     evals: dict[tuple[str, str], PositionEval] = {}
     store = open_store(eval_store_path) if not no_evals else None
     if store is not None:
@@ -432,9 +371,10 @@ def analyze(
             found = store.evaluate_move(node.fen, node.played_uci)
             if found is not None:
                 evals[key] = found
-        deepest = max((e.depth for e in evals.values()), default=0)
-        log(f"Precomputed evaluations: {len(evals)}/{len(repeated)} positions answered from "
-            f"{os.path.basename(store.path)}, deepest {deepest} ply")
+        if evals:
+            deepest = max((e.depth for e in evals.values()), default=0)
+            log(f"Precomputed evaluations: {len(evals)}/{len(repeated)} positions answered "
+                f"from {os.path.basename(store.path)}, deepest {deepest} ply")
         store.close()
 
     remaining = {k: n for k, n in repeated.items() if k not in evals}
@@ -448,7 +388,7 @@ def analyze(
             cache_path=os.path.join(cache_dir, "engine_evals.json"),
         ) as eng:
             log(f"Engine: {eng.engine_path} (depth {depth}, MultiPV {multipv}) "
-                f"for the remaining {len(remaining)} positions")
+                f"for the remaining {len(remaining)}")
             engine_started = time.monotonic()
             for i, (key, node) in enumerate(remaining.items(), start=1):
                 if engine_budget_s is not None and time.monotonic() - engine_started > engine_budget_s:
@@ -463,96 +403,110 @@ def analyze(
                     eng.flush()
 
     # ---- Rows ----
-    # What the player has already decided about these positions. A choice they have made
-    # deliberately should not be re-argued every run.
-    marks = {} if no_marks else load_marks(marks_path)
-    if marks:
-        log(f"Repertoire decisions on file: {len(marks)}")
-    suppressed = 0
     rows: list[dict] = []
-    for key, node in repeated.items():
+    # Every repeated decision, flagged or not. The leak table is a strict filter
+    # over this, and keeping only the filtered rows made the tool unable to
+    # answer "what do I actually play?" — a line you handle perfectly left no
+    # trace in the output at all.
+    tree: list[dict] = []
+    # Past the fixed cutoff the book decides, for the tree as much as for the
+    # leak table: a decision at move 18 in a position theory has never heard of
+    # is a middlegame move, not part of the opening.
+    # What the player has already settled. A tool that keeps flagging a move
+    # somebody has deliberately chosen is a tool they stop believing.
+    marks = {} if no_marks else load_marks(marks_path)
+    suppressed = 0
+    tree_nodes = {k: n for k, n in in_window.items()
+                  if n.ply <= cutoff_ply or k in repeated}
+    # Every decision says which of this run's games it came from, as indices
+    # into one list rather than repeated identifiers. That is what lets a later
+    # run add up evidence without counting the same game twice — a rolling
+    # window of "your last 120 games" overlaps the previous one heavily.
+    game_index = {g.game_id: i for i, g in enumerate(games)}
+    for key, node in tree_nodes.items():
         stats = pos_stats.get(node.epd)
         if stats is not None and stats.games == 0:
             stats = None  # position unknown to the database: leave its columns blank
         mv = stats.move(node.played_uci) if stats else None
         db_move_score = mv.score_for(node.player_color) if mv else None
         db_pos_score = stats.score_for(node.player_color) if stats else None
-
-        # The comparison the player is held to. A book move needs a real sample behind it
-        # before its own record counts, and is shrunk toward the position average even then.
-        base = (
-            stats.baseline_for(
-                node.played_uci,
-                node.player_color,
-                min_move_games=min_db_move_games,
-                prior_games=book_prior_games,
-            )
-            if stats
-            else None
-        )
-        baseline, baseline_source, baseline_games = base if base else (None, "", 0)
+        baseline = db_move_score if db_move_score is not None else db_pos_score
         gap = (node.score - baseline) if baseline is not None else None
         ev = evals.get(key)
 
-        # The player's own record is a small sample too. `your_hi` is the generous end of it.
-        # Node counts are already from the player's point of view, so they need no colour
-        # mapping — "white" here just means "score the first column".
-        interval = score_interval(node.wins, node.draws, node.losses, "white", z=confidence_z)
-        _, your_lo, your_hi = interval if interval else (node.score, node.score, node.score)
-
+        # Only a decision seen often enough is eligible to be called a leak.
+        # The rest are still recorded — they are part of what the player plays.
+        eligible = key in repeated
         flags = []
-        if flags_winrate_decline(your_hi, baseline, gap, score_gap_threshold):
-            flags.append("WINRATE_DECLINE")
-        if ev and ev.eval_drop_pawns >= eval_drop_threshold:
-            flags.append("EVAL_DROP")
-        if mv and stats:
+        if eligible and gap is not None and gap <= -score_gap_threshold:
+            flags.append(FLAG_UNDERPERFORMING)
+        if eligible and ev and ev.eval_drop_pawns >= eval_drop_threshold:
+            flags.append(FLAG_BLUNDER)
+        if eligible and mv and stats:
             pop = stats.popularity(node.played_uci)
             if pop is not None and pop < 0.02 and (gap is None or gap < 0):
-                flags.append("OFFBEAT_MOVE")
-        if not flags:
-            continue
-
-        mark = marks.get((node.epd, node.player_color))
-        surviving = filter_flags(flags, mark, node.played_uci)
-        if surviving is None:
-            suppressed += 1
-            continue
-        committed = mark is not None and mark.uci == node.played_uci and mark.decision == "committed"
-        flags = surviving
+                flags.append(FLAG_UNFAMILIAR)
+        mark = marks.get((node.epd, node.player_color)) if marks else None
+        if flags:
+            surviving = filter_flags(flags, mark, node.played_uci)
+            if surviving is None:
+                # Settled: not a finding any more. It stays in the tree, because it
+                # is still part of what the player plays.
+                suppressed += 1
+                flags = []
+            else:
+                flags = surviving
+        if node.n < thin_games and flags:
+            flags.append(FLAG_THIN)
 
         lost_points = round(-gap * node.n, 2) if gap is not None and gap < 0 else 0.0
-        # What is lost even on the most generous reading of the player's record. Ranking on
-        # this rather than the observed figure sinks thin evidence without hiding it.
-        lost_conservative = (
-            round(max(0.0, baseline - your_hi) * node.n, 2) if baseline is not None else 0.0
+        # frequency x severity, held back while the sample is small
+        severity = (-gap if gap is not None and gap < 0 else 0.0) + (
+            ev.eval_drop_pawns * 0.25 if ev else 0.0
         )
-        priority = round(lost_conservative + (ev.eval_drop_pawns * node.n * 0.25 if ev else 0.0), 2)
+        confidence = node.n / (node.n + COST_PRIOR)
+        cost = round(severity * node.n * confidence, 2)
+
+        tree.append({
+            "eco": (stats.eco if stats and stats.eco else node.eco),
+            "opening": (stats.name if stats and stats.name else node.opening),
+            "variation_line": node.line_san,
+            "move_number": node.move_number,
+            "ply": node.ply,
+            "player_color": node.player_color,
+            "your_move": node.played_san,
+            "fen": node.fen,
+            "your_games": node.n,
+            "your_score_pct": _pct(node.score),
+            "db_move_score_pct": _pct(db_move_score),
+            "db_position_score_pct": _pct(db_pos_score),
+            "db_move_popularity_pct": _pct(stats.popularity(node.played_uci)) if stats else "",
+            "score_gap_vs_db_pct": _pct(gap),
+            "in_book": "yes" if stats else "no",
+            # a decision too rare to judge yet is marked as such, so the tree can
+            # say "seen twice" rather than silently implying "clean"
+            "eligible": "yes" if eligible else "no",
+            "flag": "+".join(flags),
+            "cost": cost if flags else 0.0,
+            "game_idx": sorted({game_index[g] for g in node.game_ids
+                                if g in game_index}),
+        })
+        if not flags:
+            continue
 
         alt_cells: dict[str, str] = {}
         for i in range(3):
             alt = ev.alternatives[i] if ev and i < len(ev.alternatives) else None
             alt_db = stats.move(alt.uci) if (alt and stats) else None
             alt_cells[f"engine_best_{i+1}"] = alt.san if alt else ""
-            if i == 0:
-                alt_cells["engine_best_1_uci"] = alt.uci if alt else ""
             alt_cells[f"engine_best_{i+1}_cp"] = alt.cp if alt else ""
             alt_cells[f"engine_best_{i+1}_db_score_pct"] = (
                 _pct(alt_db.score_for(node.player_color)) if alt_db else ""
             )
 
-        confidence = confidence_label(node.n, baseline_games, baseline_source)
-        category = classify(flags, confidence, ev.eval_drop_pawns if ev else 0.0,
-                            eval_drop_threshold)
-        consequence = describe_consequence(
-            node.fen, node.played_uci, ev.refutation_uci if ev else ""
-        )
-        explanation = explain(
-            node, baseline, baseline_source, baseline_games, ev,
-            alt_cells.get("engine_best_1", ""), confidence, committed=committed,
-        )
-
         rows.append({
-            "priority": priority,
+            "cost": cost,
+            "cost_version": COST_VERSION,
             "flag": "+".join(flags),
             "eco": (stats.eco if stats and stats.eco else node.eco),
             "opening": (stats.name if stats and stats.name else node.opening),
@@ -561,26 +515,12 @@ def analyze(
             "ply": node.ply,
             "player_color": node.player_color,
             "your_move": node.played_san,
-            "your_move_uci": node.played_uci,
             "fen": node.fen,
             "your_games": node.n,
             "your_wins": node.wins,
             "your_draws": node.draws,
             "your_losses": node.losses,
             "your_score_pct": _pct(node.score),
-            "your_score_lo_pct": _pct(your_lo),
-            "your_score_hi_pct": _pct(your_hi),
-            "confidence": confidence,
-            "category": category,
-            "category_label": CATEGORIES[category][0],
-            "committed": "yes" if committed else "",
-            "explanation": explanation,
-            "consequence": consequence,
-            "refutation": ev.refutation_san if ev else "",
-            "baseline_pct": _pct(baseline),
-            "baseline_source": baseline_source,
-            "baseline_games": baseline_games or "",
-            "baseline_band": stats.band if stats else "",
             "db_move_games": mv.games if mv else "",
             "db_move_score_pct": _pct(db_move_score),
             "db_move_popularity_pct": _pct(stats.popularity(node.played_uci)) if stats else "",
@@ -588,7 +528,6 @@ def analyze(
             "db_position_score_pct": _pct(db_pos_score),
             "score_gap_vs_db_pct": ("" if gap is None else f"{100 * gap:+.1f}"),
             "lost_points": lost_points,
-            "lost_points_conservative": lost_conservative,
             "eval_before_cp": ev.best_cp if ev else "",
             "eval_after_cp": ev.played_cp if ev else "",
             "eval_drop_pawns": ev.eval_drop_pawns if ev else "",
@@ -597,12 +536,20 @@ def analyze(
             **alt_cells,
         })
 
-    rows.sort(key=lambda r: (-float(r["priority"]), r["ply"]))
+    rows.sort(key=lambda r: (-float(r["cost"]), r["ply"]))
     report_path = os.path.join(out_dir, "opening_leaks.csv")
     with open(report_path, "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=REPORT_FIELDS)
         w.writeheader()
         w.writerows(rows)
+
+    # ---- The tree ----
+    tree.sort(key=lambda r: (-int(r["your_games"] or 0), -float(r["cost"] or 0)))
+    tree_path = os.path.join(out_dir, "repertoire_tree.csv")
+    with open(tree_path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=TREE_FIELDS, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(tree)
 
     # ---- Variation rollup ----
     roll: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0, 0])
@@ -621,79 +568,58 @@ def analyze(
             n = win + draw + loss
             w.writerow([eco, opening, n, win, draw, loss, f"{100 * (win + 0.5 * draw) / n:.1f}"])
 
+    # ---- Per-opening profiles and known traps ----
+    # Both fold data the run already has: the profiles say which openings go wrong
+    # and at which move, the trap scan says which named lines keep catching them.
+    trap_report = scan_games(games)
+    if trap_report["fell"]:
+        log(f"Traps: walked into {trap_report['fell']} of {trap_report['met']} known trap lines met")
+    name_for = explorer.opening_name if isinstance(explorer, LocalOpeningDatabase) else None
+    profile_report = build_profiles(
+        nodes=nodes.values(),
+        games=games,
+        rows=rows,
+        pos_stats=pos_stats,
+        name_for=name_for,
+        traps=trap_report["traps"],
+    )
+    profiles_path = os.path.join(out_dir, "opening_profiles.json")
+    with open(profiles_path, "w", encoding="utf-8") as fh:
+        json.dump({"openings": profile_report["openings"],
+                   "break_moves": profile_report["break_moves"],
+                   "worst_against": profile_report["worst_against"],
+                   "traps": trap_report}, fh, indent=1)
+    log(f"Profiled {len(profile_report['openings'])} openings -> {profiles_path}")
+
     if suppressed:
-        log(f"{suppressed} finding(s) held back by your own repertoire decisions")
+        log(f"{suppressed} findings set aside as already decided")
+        notes.append(f"{suppressed} findings are not shown because you have already "
+                     "committed to or ignored those moves")
     log(f"Wrote {len(rows)} flagged rows -> {report_path}")
+    log(f"Wrote {len(tree)} decisions you play -> {tree_path}")
     log(f"Wrote variation rollup -> {summary_path}")
-
-    # ---- Coverage: likely replies the player has barely met ----
-    # Needs a book that can be walked position by position, which the local database can do
-    # and the online Explorer cannot without a request per node.
-    coverage: list[dict] = []
-    if db == "local" and not coverage_off:
-        for side in (["white", "black"] if color == "both" else [color]):
-            found = find_gaps(explorer, nodes, side, max_plies=max_moves * 2,
-                              min_reach=coverage_min_reach)
-            coverage.extend(found)
-            log(f"Coverage ({side}): {len(found)} likely replies you have barely faced")
-        coverage.sort(key=lambda g: (-g["reach_pct"], g["times_faced"]))
-        # Each gap carries the move the player should meet it with, so "Practice" has
-        # something to grade against — a position they have never faced has no move of
-        # their own to compare. Looked up here, once, rather than per click.
-        for gap in coverage:
-            answer = best_reply(explorer.lookup_epd(" ".join(gap["fen"].split()[:4])),
-                                gap["player_color"])
-            if answer:
-                gap["answer_uci"] = answer["uci"]
-                gap["answer_san"] = answer["san"]
-                gap["answer_score_pct"] = answer["score_pct"]
-                gap["answer_games"] = answer["games"]
-        # The player's own decisions are a view over the ranking, not a change to it: the
-        # walk keeps producing the honest list and this drops what they have dismissed.
-        before = len(coverage)
-        coverage = apply_gap_decisions(coverage, {} if no_marks else load_gap_decisions(marks_path))
-        if before != len(coverage):
-            log(f"Coverage: {before - len(coverage)} gaps hidden by your own decisions")
-        coverage_path = os.path.join(out_dir, "repertoire_coverage.csv")
-        with open(coverage_path, "w", newline="", encoding="utf-8") as fh:
-            w = csv.DictWriter(fh, fieldnames=COVERAGE_FIELDS, extrasaction="ignore")
-            w.writeheader()
-            w.writerows(coverage)
-        log(f"Wrote coverage report -> {coverage_path}")
-
-    # ---- The repertoire as a picture ----
-    # Every decision already carries the line that reached it, so the tree is the trie of
-    # those lines. Marks and flags colour it in.
-    flagged = {(r["fen"], r["your_move_uci"]) for r in rows}
-    leak_keys = {(node.epd, node.played_uci) for node in repeated.values()
-                 if (node.fen, node.played_uci) in flagged}
-    tree = {
-        side: build_tree(nodes, side, leak_keys=leak_keys, marks=marks, gaps=coverage)
-        for side in (["white", "black"] if color == "both" else [color])
-    }
-    totals = {side: tree_totals(branch) for side, branch in tree.items()}
-    for side, counts in totals.items():
-        if counts["strong"] or counts["weak"]:
-            log(f"Repertoire as {side}: {counts['strong']} strong, {counts['weak']} weak, "
-                f"{counts['committed']} committed, {counts['gaps']} gaps")
-
     return {
-        "tree": tree,
-        "tree_totals": totals,
-        "coverage": coverage,
         "games": len(games),
         "nodes": len(nodes),
         "repeated": len(repeated),
+        # how many game-appearances the judged decisions account for: the denominator
+        # of the repertoire coverage figure the dashboard shows
+        "repeated_games": sum(n.n for n in repeated.values()),
         "rows": len(rows),
-        "report": report_path,
-        "summary": summary_path,
-        "explorer_stats": explorer.stats,
-        "suppressed_by_marks": suppressed,
-        # Who the player was actually measured against, so the dashboard can say it plainly
-        # rather than leaving "the book scores 54%" to mean whatever the reader assumes.
-        "player_rating": player_rating,
+        "tree": tree,
+        "tree_rows": len(tree),
+        "suppressed": suppressed,
         "player_band": player_band if banded else ALL,
         "player_band_label": band_label(player_band if banded else ALL),
         "book_has_bands": bool(banded),
+        # the run's own games, in the order `game_idx` refers to
+        "game_ids": [g.game_id for g in games],
+        "tree_path": tree_path,
+        "report": report_path,
+        "summary": summary_path,
+        "profiles": profiles_path,
+        "opening_profiles": profile_report,
+        "traps": trap_report,
+        "explorer_stats": explorer.stats,
         "notes": notes,
     }

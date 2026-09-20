@@ -13,6 +13,7 @@ vercel/chessopening/
 vercel/public/
 vercel/sample_pgns/
 vercel/engine/
+vercel/demo_report.json
 .vercel/
 
 # Precomputed evaluations: built per machine from the public Lichess dataset

@@ -55,11 +55,14 @@ def prepare_engine() -> str | None:
 
 ENGINE_PATH = prepare_engine()
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile  # noqa: E402
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse, Response  # noqa: E402
 
-from chessopening.analyze import analyze  # noqa: E402
+from accounts import auth, db, state  # noqa: E402
+
+from chessopening.analyze import COST_EXPLAINER, analyze
+from chessopening.demo import load_or_build_demo  # noqa: E402
 from chessopening.board import (BoardError, cp_text, engine_lines,  # noqa: E402
                                 position_payload)
 from chessopening.engine import find_engine  # noqa: E402
@@ -104,7 +107,33 @@ def board_db() -> LocalOpeningDatabase | None:
     return _BOARD_DB
 
 app = FastAPI(title="Opening Leak Lab API (serverless)")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# Sessions are cookie-borne, so the API is same-origin only: a wildcard CORS
+# policy plus credentials is exactly the combination that leaks an account.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=os.environ.get("LEAKLAB_CORS_ORIGINS", r"https?://(localhost|127\.0\.0\.1)(:\d+)?"),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(auth.router)
+app.include_router(state.router)
+
+
+def require_account(request: Request) -> dict[str, Any] | None:
+    """A run belongs to somebody — that is what makes progress trackable.
+
+    Accounts are only enforced where they can work: a deployment with no
+    database configured (a local preview, an unconfigured fork) still runs the
+    analyser rather than refusing every request with nothing to sign in to.
+    """
+    if not db.configured():
+        return None
+    user = auth.current_user(request)
+    if not user:
+        raise HTTPException(
+            401, "Sign in to run an analysis — that is how your progress is kept between runs.")
+    return user
 
 
 # ------------------------------------------------------------------------- meta
@@ -157,7 +186,10 @@ def meta() -> dict[str, Any]:
         "sample": {"available": bool(files), "files": len(files), "player": player},
         "defaults": {"depth": 12, "max_moves": 15, "min_games": 3, "eval_drop": 0.8,
                      "score_gap": 6.0, "min_db_games": 20, "multipv": 3},
+        # the metric the whole report is ranked by, described where it is computed
+        "metrics": {"cost": COST_EXPLAINER},
         "serverless": True,
+        "accounts": {"enabled": db.configured(), "required_to_run": db.configured()},
         "limits": LIMITS,
         "ingest": {"providers": ["chesscom", "lichess"], "default_provider": "chesscom",
                    "max_games": LIMITS["max_fetch_games"],
@@ -174,6 +206,7 @@ def _clamp(name: str, value: float, hi: float) -> tuple[float, str | None]:
 
 @app.post("/api/analyze")
 async def analyse(
+    request: Request,
     files: list[UploadFile] = File(default=[]),
     use_sample: str = Form("false"),
     source: str = Form(""),
@@ -197,6 +230,7 @@ async def analyse(
     min_db_games: int = Form(20),
     no_engine: str = Form("false"),
 ) -> JSONResponse:
+    user = require_account(request)
     started = time.time()
     log: list[str] = []
     notes: list[str] = []
@@ -238,7 +272,12 @@ async def analyse(
             pgn_dir = fetched.pgn_dir
             player = player or fetched.username
             account = {"provider": fetched.provider, "username": fetched.username,
-                       "label": provider_label(fetched.provider), "games": fetched.games}
+                       "label": provider_label(fetched.provider), "games": fetched.games,
+                       "requested": wanted,
+                       # why fewer games came back than were asked for, if fewer did
+                       "shortfall": fetched.shortfall,
+                       "excluded": {"seen": fetched.excluded.seen,
+                                    "reasons": fetched.excluded.reasons()}}
             notes.extend(fetched.notes)
         elif sample:
             pgn_dir = SAMPLE_DIR
@@ -304,6 +343,10 @@ async def analyse(
             max_games=int(LIMITS["max_games"]),
             engine_budget_s=float(LIMITS["time_budget_s"]),
             cache_dir=os.path.join(WORK_ROOT, "_cache"),
+            # Marks are the local build's way of recording what the player has
+            # settled. Here that job belongs to the account, so there is nothing
+            # to read and a read-only filesystem to not go looking on.
+            no_marks=True,
             log=lambda *parts: log.append(" ".join(str(p) for p in parts)),
         )
         with open(result["report"], encoding="utf-8") as fh:
@@ -313,6 +356,12 @@ async def analyse(
             "player": player,
             "summary": summarise(rows, result),
             "rows": rows,
+            # every repeated decision, not only the ones that leak: without it
+            # the app cannot show a line you play well
+            "tree": result.get("tree", []),
+            # which games this run read, so a later run can tell new evidence
+            # from the same games seen again
+            "game_ids": result.get("game_ids", []),
             "log": log[-40:],
             "notes": notes + list(result.get("notes", [])),
             "elapsed": round(time.time() - started, 1),
@@ -322,6 +371,7 @@ async def analyse(
                         "no_engine": no_engine.lower() == "true"},
             "csv": _csv_text(rows),
             "account": account,
+            "user": {"id": str(user["id"])} if user else None,
             "source": "username" if by_username else ("sample" if sample else "upload"),
         }
         return JSONResponse(payload)
@@ -343,6 +393,33 @@ def _csv_text(rows: list[dict[str, str]]) -> str:
     writer.writeheader()
     writer.writerows(rows)
     return buf.getvalue()
+
+
+@app.get("/api/demo-report")
+def demo_report() -> JSONResponse:
+    """A finished sample run, served from a cache so the demo feels instant.
+
+    A baked payload committed with the deployment answers straight away; failing
+    that the first invocation on an instance computes one into /tmp, which warm
+    invocations then reuse.
+    """
+    if not os.path.isdir(SAMPLE_DIR):
+        raise HTTPException(404, "Sample archive is not installed")
+    try:
+        return JSONResponse(load_or_build_demo(
+            SAMPLE_DIR,
+            os.path.join(WORK_ROOT, "demo"),
+            baked_paths=(os.path.join(ROOT, "demo_report.json"),),
+            cache_path=os.path.join(WORK_ROOT, "demo", "demo_report.json"),
+            cache_dir=os.path.join(WORK_ROOT, "_cache"),
+            max_games=int(LIMITS["max_games"]),
+            engine_budget_s=float(LIMITS["time_budget_s"]),
+        ))
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        traceback.print_exc()
+        raise HTTPException(500, f"{type(exc).__name__}: {exc}") from exc
 
 
 @app.get("/api/sample-archive")
@@ -426,7 +503,8 @@ def openings(q: str = "", limit: int = 30) -> dict[str, Any]:
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "engine": bool(ENGINE_PATH), "serverless": True}
+    return {"ok": True, "engine": bool(ENGINE_PATH), "serverless": True,
+            "database": db.configured()}
 
 
 # On Vercel the CDN serves `public/`, so this mount never sees traffic there. Locally it

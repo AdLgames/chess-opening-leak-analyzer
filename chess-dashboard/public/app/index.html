@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#F8FAFC" />
+    <title>Opening Leak Lab — chess opening leak analyzer</title>
+    <meta
+      name="description"
+      content="Find the opening moves that quietly cost you points: your games, cross-referenced against a Lichess-derived opening book and a bundled Stockfish, turned into drills."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231B2430'/%3E%3Cpath d='M9 23h14M11 20l1.5-7M21 20l-1.5-7M12.5 13h7M16 13V8' stroke='%23B8935A' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+
+    <!-- the canonical home, so the vercel.app deployment and any preview do not
+         compete with it in search results or in a shared link -->
+    <link rel="canonical" href="https://chessleaklab.co.uk/app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Opening Leak Lab" />
+    <meta property="og:url" content="https://chessleaklab.co.uk/app/" />
+    <meta property="og:title" content="Opening Leak Lab — find the opening moves that cost you points" />
+    <meta
+      property="og:description"
+      content="Your games, cross-referenced against a Lichess-derived opening book and a bundled Stockfish: which openings go wrong, at which move, and what to play instead."
+    />
+    <meta property="og:image" content="https://chessleaklab.co.uk/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Opening Leak Lab: a leak table over a chessboard in ivory and walnut." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Opening Leak Lab — find the opening moves that cost you points" />
+    <meta
+      name="twitter:description"
+      content="Your games against an opening book and Stockfish: which openings go wrong, at which move, and what to play instead."
+    />
+    <meta name="twitter:image" content="https://chessleaklab.co.uk/og.png" />
+  </head>
+  <body>
+    <div class="scrim" id="scrim" hidden></div>
+    <div class="app" id="app" data-state="empty">
+      <!-- ------------------------------------------------------------ sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <button class="drawer-close only-mobile" id="drawerClose" aria-label="Close navigation">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        </button>
+        <a class="brand" href="/" title="Back to the front page">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-label="Opening Leak Lab" role="img">
+            <rect x="0.75" y="0.75" width="30.5" height="30.5" rx="7.5" fill="none" stroke="currentColor" stroke-opacity=".28" />
+            <path d="M9 23.5h14" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" />
+            <path d="M11.6 20.6 13 13.6M20.4 20.6 19 13.6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" />
+            <path d="M12.4 13.6h7.2" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" />
+            <path d="M16 13.6V7.5" stroke="var(--accent)" stroke-width="2.1" stroke-linecap="round" />
+            <circle cx="16" cy="6" r="2.4" fill="var(--accent)" />
+          </svg>
+          <span class="brand-text"><strong>Opening Leak Lab</strong></span>
+        </a>
+
+        <nav class="nav" id="nav" aria-label="Sections">
+          <a href="#dashboard" class="nav-item is-active" data-view="dashboard">Dashboard</a>
+          <a href="#clinic" class="nav-item" data-view="clinic">Clinic</a>
+          <a href="#repertoire" class="nav-item" data-view="repertoire">Repertoire</a>
+        </nav>
+      </aside>
+
+      <!-- ------------------------------------------------------------- header -->
+      <header class="header">
+        <button class="icon-btn only-mobile" id="menuBtn" aria-label="Toggle navigation">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        </button>
+        <div class="header-title">
+          <h1 id="viewTitle">Report</h1>
+          <p id="viewSub"></p>
+        </div>
+        <div class="header-actions" id="headerActions" hidden>
+          <details class="menu" id="exportMenu">
+            <summary class="btn btn-ghost">Export</summary>
+            <div class="menu-body">
+              <button class="menu-item" id="exportRepertoire">Repertoire as PGN</button>
+              <button class="menu-item" id="exportDrills">Drill set as PGN</button>
+              <button class="menu-item" id="exportCsv">Leak table as CSV</button>
+              <a class="menu-item" id="exportStudy" href="#" target="_blank" rel="noopener">Open the repertoire as a Lichess study</a>
+            </div>
+          </details>
+          <button class="btn btn-ghost" id="runAgainBtn">Run again</button>
+        </div>
+        <!-- the account menu sits outside headerActions: it is there before a
+             report exists, which is exactly when signing in matters -->
+        <div class="header-account" id="headerAccount" hidden></div>
+      </header>
+
+      <!-- --------------------------------------------------------------- main -->
+      <main class="main" id="main">
+        <!-- ================================================ dashboard -->
+        <section class="view" id="viewDashboard">
+          <div class="gate" id="gate">
+            <div class="gate-inner">
+              <h2 class="gate-title">Find the opening moves that cost you points</h2>
+              <p class="gate-lead">
+                Read your games, compare every repeated opening decision against a Lichess-derived
+                opening book and a Stockfish evaluation, and turn what it finds into drills.
+              </p>
+              <p class="gate-hosted" id="gateHosted" hidden></p>
+              <!-- when accounts are on and nobody is signed in, the sign-in card
+                   takes this slot and the run form waits behind it -->
+              <div id="authGate" hidden></div>
+              <div id="gateSlot"></div>
+            </div>
+          </div>
+
+          <!-- running: the input collapses to one line plus progress -->
+          <div class="runstrip" id="runStrip" hidden>
+            <div class="runstrip-head">
+              <span class="spinner" id="spinner"></span>
+              <b id="progressTitle">Analysing</b>
+              <span class="mono muted" id="progressElapsed">0.0s</span>
+            </div>
+            <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+            <details class="log-wrap">
+              <summary class="muted small">Show the log</summary>
+              <pre class="log" id="log"></pre>
+            </details>
+          </div>
+
+          <!-- the macro view: what is wrong, and the way in -->
+          <div class="report" id="report" hidden>
+            <div class="notice is-info banner" id="demoBanner" hidden>
+              <span><b>This is the sample archive</b>, not your games — a finished report to look around in.</span>
+              <button class="btn btn-ghost" id="demoExit">Analyse my own games</button>
+            </div>
+
+            <!-- asking for 120 games and getting 12 is normal; being told the
+                 number without the reason is what makes it look broken -->
+            <div class="notice is-warn banner" id="shortBanner" hidden>
+              <span id="shortText"></span>
+              <button class="btn btn-ghost" id="shortFix">Change the filters</button>
+            </div>
+
+            <div class="summary-band" id="summaryBand"></div>
+            <!-- the one action the dashboard is for -->
+            <div class="train-cta" id="trainCta" hidden>
+              <p id="trainCtaText"></p>
+              <button class="btn btn-primary" id="trainBtn" type="button">Start training</button>
+            </div>
+
+            <section class="panel" id="chartPanel">
+              <div class="panel-head">
+                <h2>Where the points go</h2>
+                <div class="segmented" id="chartToggle" role="tablist">
+                  <button class="seg is-active" data-chart="lost" role="tab">Points shed</button>
+                  <button class="seg" data-chart="vs" role="tab">You vs book</button>
+                </div>
+              </div>
+              <p class="panel-note" id="chartNote"></p>
+              <div class="chart-wrap" id="chartWrap"></div>
+              <div class="chart-tip" id="chartTip" role="status" hidden></div>
+              <p class="chart-key" id="chartKey" hidden>
+                <span><i class="ch-swatch ch-you" aria-hidden="true"></i>Your score</span>
+                <span><i class="ch-swatch ch-ref" aria-hidden="true"></i>The book</span>
+              </p>
+            </section>
+
+            <section class="panel" id="tablePanel">
+              <div class="panel-head">
+                <h2>Leaks</h2>
+                <button type="button" class="info-btn" id="costHelp" aria-label="How cost is worked out">?</button>
+                <div class="filters">
+                  <div class="segmented" id="flagFilter" role="tablist"></div>
+                  <input id="search" class="search" type="search" placeholder="Filter opening or move" aria-label="Filter opening or move" />
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table id="leakTable">
+                  <caption class="sr-only">Leaks found in your games, most costly first</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" class="col-cost"><button type="button" class="th-btn" id="costHead">Cost</button></th>
+                      <th scope="col">Opening</th>
+                      <th scope="col">Your move</th>
+                      <th scope="col" class="num">You vs book</th>
+                      <th scope="col" class="num">Games</th>
+                    </tr>
+                  </thead>
+                  <tbody id="leakBody"></tbody>
+                </table>
+              </div>
+              <div class="table-foot">
+                <button class="btn btn-ghost" id="showAll" hidden></button>
+                <p class="empty-inline" id="tableEmpty" hidden>No leak matches that filter.</p>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- =================================================== clinic -->
+        <!-- one leak at a time: the board, what it costs, and the fix -->
+        <section class="view" id="viewClinic" hidden>
+          <!-- which leak is on the table, and how you want to work on it -->
+          <div class="clinic-head" id="clinicHead" hidden>
+            <div class="clinic-which">
+              <button class="btn btn-ghost" id="clinicPrev" type="button" aria-label="Previous leak">←</button>
+              <span class="clinic-count mono" id="clinicCount"></span>
+              <button class="btn btn-ghost" id="clinicNext" type="button" aria-label="Next leak">→</button>
+            </div>
+            <div class="segmented" id="clinicMode" role="tablist">
+              <button class="seg is-active" data-mode="study" role="tab">Study</button>
+              <button class="seg" data-mode="drill" role="tab">Drill</button>
+            </div>
+          </div>
+          <p class="invite" id="clinicEmpty" hidden>
+            Nothing to work on yet. Run a report and the leaks it finds land here, one at a time.
+          </p>
+            <section class="panel fix-panel" id="fixPanel">
+              <div class="panel-head">
+                <h2 id="fixHeading">Fix the mistake</h2>
+                <span class="hint mono" id="posHint"></span>
+              </div>
+              <div class="detail-body" id="detailBody">
+                <div class="board-col">
+                  <div class="board-meta">
+                    <b id="reviewName">—</b>
+                    <span class="mono muted" id="reviewTurn"></span>
+                  </div>
+                  <div class="board" id="board" aria-label="Board position"></div>
+                  <p class="board-status" id="reviewStatus">Play a move on the board to try an alternative.</p>
+                  <div class="move-strip mono" id="reviewLine"></div>
+                  <div class="board-bar">
+                    <button class="btn btn-ghost" id="reviewMine">Show my move</button>
+                    <button class="btn btn-ghost" id="reviewBest">Show the better moves</button>
+                    <button class="btn btn-ghost" id="reviewReset">Back to the position</button>
+                    <button class="btn btn-ghost" id="reviewFlip">Flip</button>
+                  </div>
+                  <label class="check"><input type="checkbox" id="reviewAuto" checked /><span>The book answers your moves</span></label>
+                </div>
+                <div class="detail-info">
+                  <div class="detail-title">
+                    <span class="chips" id="detailFlag"></span>
+                    <h3 id="detailOpening">Opening</h3>
+                    <p class="mono muted" id="detailLine">line</p>
+                  </div>
+
+                  <div class="commit-bar">
+                    <button class="btn btn-primary" id="commitBtn">Commit this move</button>
+                    <button class="btn btn-ghost" id="dismissBtn">Not interested</button>
+                    <button class="btn btn-ghost" id="drillBtn">Drill this</button>
+                    <span class="commit-state" id="commitState"></span>
+                  </div>
+                  <p class="muted small" id="commitHint"></p>
+
+                  <div class="stat-row" id="detailStats"></div>
+
+                  <details class="pane-block" id="altBlock" open>
+                    <summary><h4>Your move against the engine's top choices</h4></summary>
+                    <div class="alt-scroll">
+                      <table class="alt-table">
+                        <thead><tr><th>Move</th><th class="num">Engine eval</th><th class="num">Book score</th><th>Verdict</th></tr></thead>
+                        <tbody id="altBody"></tbody>
+                      </table>
+                    </div>
+                    <p class="muted small" id="detailGames"></p>
+                  </details>
+
+                  <details class="pane-block">
+                    <summary><h4>Book moves from this position</h4></summary>
+                    <p class="muted small">Click any move to play it on the board.</p>
+                    <div id="reviewBook"></div>
+                  </details>
+
+                  <details class="pane-block">
+                    <summary><h4>Engine, live</h4></summary>
+                    <div class="pane-head">
+                      <button class="btn btn-ghost" id="reviewEngineBtn">Ask the engine</button>
+                    </div>
+                    <div id="reviewEngine"></div>
+                  </details>
+
+                  <div class="board-links">
+                    <a class="btn btn-ghost" id="lichessLink" target="_blank" rel="noopener">Open on Lichess board</a>
+                    <button class="btn btn-ghost" id="copyFen">Copy FEN</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          <section class="panel practice-panel">
+            <p class="invite" id="practiceInvite" hidden>
+              Nothing to drill yet. Every leak the report finds becomes a position to solve —
+              open one in the report and send it here with "Drill this".
+            </p>
+            <div class="practice-body" id="practiceBody">
+              <div class="board-col">
+                <div class="board-meta">
+                  <b>Find the improvement</b>
+                  <span class="mono muted" id="drillCount">0 / 0</span>
+                </div>
+                <div class="board" id="drillBoard" aria-label="Drill position"></div>
+                <p class="board-status" id="drillPrompt"></p>
+                <div class="drill-feedback" id="drillFeedback" hidden></div>
+                <div class="board-bar">
+                  <button class="btn btn-ghost" id="drillPrev">Previous</button>
+                  <button class="btn btn-ghost" id="drillRetry">Try again</button>
+                  <button class="btn btn-ghost" id="drillAnswer">Show the answer</button>
+                  <button class="btn btn-ghost" id="drillFlip">Flip</button>
+                  <button class="btn btn-primary" id="drillNext">Next position</button>
+                </div>
+              </div>
+              <div class="practice-side">
+                <h4>This session</h4>
+                <div class="stat-row" id="drillScore"></div>
+                <h4>Your drill set</h4>
+                <p class="muted small">Ordered by what the move costs you.</p>
+                <ol class="drill-queue" id="drillQueue"></ol>
+                <button class="btn btn-ghost" id="nextBtn" hidden>Next</button>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <!-- =============================================== repertoire -->
+        <!-- the why: what you have committed, how it is moving, and the book -->
+        <section class="view" id="viewRepertoire" hidden>
+          <div class="coverage" id="coverageCard"></div>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Your lines</h2>
+              <div class="segmented" id="repColor" role="tablist">
+                <button class="seg is-active" data-color="white" role="tab">White</button>
+                <button class="seg" data-color="black" role="tab">Black</button>
+              </div>
+            </div>
+            <div class="tree" id="repTree"></div>
+          </section>
+
+          <!-- what you play, leaking or not: the report used to drop a line
+               entirely if you handled it well, which made the tool unable to
+               answer "what is my repertoire?" -->
+          <section class="panel" id="playedPanel">
+            <div class="panel-head">
+              <h2>Everything you play</h2>
+              <div class="segmented" id="playedFilter" role="tablist">
+                <button class="seg is-active" data-played="all" role="tab">All</button>
+                <button class="seg" data-played="leaking" role="tab">Leaking</button>
+                <button class="seg" data-played="clean" role="tab">Holding up</button>
+              </div>
+            </div>
+            <div class="played" id="playedBody"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Holes</h2>
+              <span class="hint">Positions you reach with no committed answer, most frequent first</span>
+            </div>
+            <ol class="holes" id="repHoles"></ol>
+          </section>
+
+          <section class="panel" id="progressPanel">
+            <div class="panel-head"><h2>Progress</h2>
+              <span class="hint">What has changed between runs</span></div>
+          <div id="progressBody"></div>
+          </section>
+
+          <!-- the personal half: only rendered once a run has something to say -->
+          <div class="explorer-personal" id="explorerPersonal" hidden>
+            <div class="summary-band" id="breakBand"></div>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Your openings</h2>
+                <div class="segmented" id="explorerColour" role="tablist">
+                  <button class="seg is-active" data-colour="all" role="tab">All</button>
+                  <button class="seg" data-colour="white" role="tab">As White</button>
+                  <button class="seg" data-colour="black" role="tab">As Black</button>
+                </div>
+              </div>
+              <p class="panel-note" id="openingNote"></p>
+              <div class="table-scroll">
+                <table id="openingTable">
+                  <caption class="sr-only">Every opening you play, worst first</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Opening</th>
+                      <th scope="col" class="num">Games</th>
+                      <th scope="col" class="num">You vs book</th>
+                      <th scope="col" class="num">Holds to</th>
+                      <th scope="col" class="num">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody id="openingBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="panel" id="openingDetail" hidden></section>
+            <section class="panel" id="trapPanel" hidden></section>
+          </div>
+
+          <section class="panel library-panel">
+            <div class="library-body">
+              <div class="board-col">
+                <div class="board-meta">
+                  <b id="libName">Starting position</b>
+                  <span class="mono muted" id="libTurn"></span>
+                </div>
+                <div class="board" id="libBoard" aria-label="Explorer board"></div>
+                <p class="board-status" id="libStats"></p>
+                <div class="move-strip mono" id="libLine"></div>
+                <div class="board-bar">
+                  <button class="btn btn-ghost" id="libBack">Back one move</button>
+                  <button class="btn btn-ghost" id="libReset">Start position</button>
+                  <button class="btn btn-ghost" id="libFlip">Flip</button>
+                  <a class="btn btn-ghost" id="libLichess" target="_blank" rel="noopener">Open on Lichess</a>
+                  <button class="btn btn-ghost" id="libCopyFen" type="button">Copy FEN</button>
+                </div>
+              </div>
+              <div class="library-side">
+                <label class="field">
+                  <span>Find any opening<i>by name or ECO code</i></span>
+                  <input id="libSearch" type="search" placeholder="e.g. Sicilian, Nimzo, C50" autocomplete="off" />
+                </label>
+                <ol class="opening-list" id="libResults"></ol>
+                <div class="pane-block">
+                  <h4>Book moves from here</h4>
+                  <div id="libBook"></div>
+                </div>
+                <div class="pane-block">
+                  <div class="pane-head">
+                    <h4>Engine</h4>
+                    <button class="btn btn-ghost" id="libEngineBtn">Ask the engine</button>
+                  </div>
+                  <div id="libEngine"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <!-- ==================================================== footer -->
+        <footer class="appfoot">
+          <button class="status" id="statusBtn" type="button" aria-haspopup="dialog">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">checking the engine and book</span>
+          </button>
+          <span class="foot-sep" aria-hidden="true"></span>
+          <button class="foot-link" id="dataBtn" type="button">Engine &amp; data</button>
+          <button class="foot-link" id="privacyBtn" type="button">Where your games go</button>
+          <button class="foot-link" id="themeBtn" type="button" aria-pressed="false">Dark</button>
+        </footer>
+      </main>
+      <nav class="tabbar" id="tabbar" aria-label="Sections">
+        <a href="#dashboard" class="tab-item is-active" data-view="dashboard">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z" fill="currentColor"/></svg>
+          <span>Dashboard</span>
+        </a>
+        <a href="#clinic" class="tab-item" data-view="clinic">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3v6M9 21h6M8 9h8l1 7a5 5 0 0 1-10 0z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Clinic</span>
+        </a>
+        <a href="#repertoire" class="tab-item" data-view="repertoire">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M17 7h2v13H8" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/></svg>
+          <span>Repertoire</span>
+        </a>
+      </nav>
+    </div>
+
+    <!-- the input form lives here and is moved into the empty screen or this dialog,
+         so there is exactly one of every control -->
+    <dialog class="dialog" id="runDialog">
+      <div class="dialog-head">
+        <h2>Run again</h2>
+        <button class="icon-btn is-visible" id="runDialogClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        </button>
+      </div>
+      <div id="dialogSlot"></div>
+    </dialog>
+
+    <dialog class="dialog" id="dataDialog">
+      <div class="dialog-head">
+        <h2>Engine &amp; data</h2>
+        <button class="icon-btn is-visible" id="dataDialogClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <div class="prov-grid">
+          <div class="prov-card">
+            <h3>Bundled engine</h3>
+            <dl id="engineFacts"></dl>
+            <p class="muted small">
+              Stockfish is GPLv3 and ships as a binary in <code>chessopening/bin/</code>; source at
+              <a href="https://github.com/official-stockfish/Stockfish" target="_blank" rel="noopener">official-stockfish/Stockfish</a>.
+            </p>
+          </div>
+          <div class="prov-card">
+            <h3>Opening book</h3>
+            <dl id="dbFacts"></dl>
+            <p class="muted small">
+              Built from monthly dumps at
+              <a href="https://database.lichess.org/" target="_blank" rel="noopener">database.lichess.org</a>
+              (CC0), with ECO names from
+              <a href="https://github.com/lichess-org/chess-openings" target="_blank" rel="noopener">lichess-org/chess-openings</a>
+              (CC0). Rebuild any month with <code>tools/build_local_db.py</code>.
+            </p>
+          </div>
+          <div class="prov-card">
+            <h3>How a finding is ranked</h3>
+            <p class="muted small" id="costExplainer"></p>
+            <p class="mono small" id="costFormula"></p>
+            <h3 class="spaced">What each flag means</h3>
+            <ul class="flag-legend" id="flagLegend"></ul>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="dialog dialog-narrow" id="authDialog">
+      <div class="dialog-head">
+        <h2>Sign in</h2>
+        <button class="icon-btn is-visible" id="authDialogClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body" id="authDialogBody"></div>
+    </dialog>
+
+    <dialog class="dialog" id="privacyDialog">
+      <div class="dialog-head">
+        <h2 id="privacyTitle">Where your games go</h2>
+        <button class="icon-btn is-visible" id="privacyDialogClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body" id="privacyBody"></div>
+    </dialog>
+
+    <!-- the one input form; JS parents it into the empty screen or the Run again dialog -->
+    <template id="runFormTemplate">
+      <form class="runform" id="runForm">
+        <div class="notice is-info" id="hostedNotice" hidden>
+          <b>Hosted deployment</b>
+          <span id="hostedNoticeText"></span>
+        </div>
+
+        <div class="notice" id="engineNotice" hidden>
+          <b>No engine found.</b>
+          <span>Statistics still work, but eval drops need Stockfish. Install it with
+            <code>python chess_opening_analyzer/tools/install_stockfish.py</code>
+            (or <code>make engine</code>), then reload this page.</span>
+        </div>
+
+        <div class="runform-main" id="panelAccount">
+          <div class="segmented" id="providerSeg" role="radiogroup" aria-label="Chess site">
+            <button type="button" class="seg-btn is-active" data-provider="chesscom" role="radio" aria-checked="true">Chess.com</button>
+            <button type="button" class="seg-btn" data-provider="lichess" role="radio" aria-checked="false">Lichess</button>
+          </div>
+
+          <div class="user-row">
+            <label class="field grow">
+              <span>Username<i id="userHint">the name you play under</i></span>
+              <input id="optUser" type="text" placeholder="e.g. hikaru" autocomplete="off" spellcheck="false" />
+            </label>
+            <button class="btn btn-primary" id="runBtn" type="button">Analyse my games</button>
+          </div>
+
+          <div class="profile" id="profileCard" hidden></div>
+
+          <div class="notice is-warn" id="fetchNotice" hidden>
+            <b id="fetchNoticeTitle">Could not read those games</b>
+            <span id="fetchNoticeText"></span>
+            <a class="link" id="fetchNoticeLink" href="#" target="_blank" rel="noopener" hidden>Download your games instead</a>
+          </div>
+
+          <div class="run-basics">
+            <label class="field">
+              <span>Colour<i>which side to read</i></span>
+              <select id="optColor">
+                <option value="both">Both</option>
+                <option value="white">White only</option>
+                <option value="black">Black only</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Games to read<i class="mono" id="maxGamesOut">200</i></span>
+              <input id="optMaxGames" type="range" min="20" max="400" step="20" value="200" />
+            </label>
+          </div>
+
+          <p class="run-hint" id="speedHint" hidden></p>
+        </div>
+
+        <div class="gate-demo">
+          <button class="btn btn-demo" id="sampleBtn" type="button">Or try it on a sample archive</button>
+          <button class="link-btn" id="uploadToggle" type="button">Upload a PGN instead</button>
+        </div>
+
+        <div class="upload-block" id="panelUpload" hidden>
+          <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose PGN files">
+            <p><b>Drop .pgn files</b> or click to browse</p>
+            <span class="muted" id="uploadHint">Up to 40 MB per run · parsed with python-chess</span>
+            <input type="file" id="fileInput" accept=".pgn" multiple hidden />
+          </div>
+          <ul class="file-list" id="fileList" hidden></ul>
+          <div class="drop-actions">
+            <button class="btn btn-primary" id="runUploadBtn" type="button">Analyse my games</button>
+            <span class="muted small">Exports from Lichess, Chess.com, SCID or ChessBase all work.</span>
+          </div>
+        </div>
+
+        <details class="advanced" id="advanced">
+          <summary>Advanced settings</summary>
+          <div class="advanced-body">
+            <label class="field">
+              <span>Player<i>blank = auto</i></span>
+              <input id="optPlayer" type="text" placeholder="auto" autocomplete="off" />
+              <em class="help">Whose moves to judge, when the PGN headers are ambiguous.</em>
+            </label>
+            <label class="field">
+              <span>Engine depth<i class="mono" id="depthOut">16</i></span>
+              <input id="optDepth" type="range" min="8" max="22" value="16" />
+              <em class="help">How hard Stockfish thinks about each position. Deeper is slower.</em>
+            </label>
+            <label class="field">
+              <span>Opening length<i class="mono" id="movesOut">15 moves</i></span>
+              <input id="optMoves" type="range" min="6" max="20" value="15" />
+              <em class="help">How far into the game still counts as the opening.</em>
+            </label>
+            <label class="field">
+              <span>Min games per line</span>
+              <input id="optMinGames" type="number" min="1" max="50" value="3" />
+              <em class="help">Ignore a decision you have not repeated at least this often.</em>
+            </label>
+            <label class="field">
+              <span>Eval drop</span>
+              <input id="optEvalDrop" type="number" min="0.2" max="5" step="0.1" value="0.8" />
+              <em class="help">Flag a move when the engine's evaluation falls by at least this much, in pawns.</em>
+            </label>
+            <label class="field">
+              <span>You vs book gap</span>
+              <input id="optScoreGap" type="number" min="1" max="50" step="1" value="6" />
+              <em class="help">Flag a move when your score trails the book's by at least this many points.</em>
+            </label>
+            <label class="field">
+              <span>Min book games</span>
+              <input id="optMinDb" type="number" min="0" max="5000" step="10" value="20" />
+              <em class="help">Ignore book positions thinner than this — small samples say little.</em>
+            </label>
+            <label class="field">
+              <span>Played from<i>optional</i></span>
+              <input id="optSince" type="date" />
+              <em class="help">Leave both dates blank to read your most recent games.</em>
+            </label>
+            <label class="field">
+              <span>Played to<i>optional</i></span>
+              <input id="optUntil" type="date" />
+            </label>
+            <label class="field" id="tokenField" hidden>
+              <span>Lichess API token<i>only if the export is refused</i></span>
+              <input id="optToken" type="password" placeholder="lip_…" autocomplete="off" />
+            </label>
+
+            <fieldset class="chips-field" id="speedChips">
+              <legend>Time controls</legend>
+              <label class="chip-check"><input type="checkbox" value="bullet" /><span>Bullet</span></label>
+              <label class="chip-check"><input type="checkbox" value="blitz" checked /><span>Blitz</span></label>
+              <label class="chip-check"><input type="checkbox" value="rapid" checked /><span>Rapid</span></label>
+              <label class="chip-check"><input type="checkbox" value="classical" checked /><span>Classical</span></label>
+              <label class="chip-check"><input type="checkbox" value="daily" /><span>Daily</span></label>
+            </fieldset>
+
+            <label class="check"><input type="checkbox" id="optRated" checked /><span>Rated games only</span></label>
+            <label class="check"><input type="checkbox" id="optRefresh" /><span>Refetch months already cached</span></label>
+            <label class="check"><input type="checkbox" id="optNoEngine" /><span>Faster, no engine — statistics only</span></label>
+          </div>
+        </details>
+      </form>
+    </template>
+
+    <script src="./vocab.js"></script>
+    <script src="./store.js"></script>
+    <script src="./auth.js"></script>
+    <script src="./board.js"></script>
+    <script src="./study.js"></script>
+    <script src="./repertoire.js"></script>
+    <script src="./explorer.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

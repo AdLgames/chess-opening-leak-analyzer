@@ -101,6 +101,7 @@ class EngineAnalyzer:
             except (OSError, json.JSONDecodeError):
                 self._cache = {}
         self._engine: chess.engine.SimpleEngine | None = None
+        self._engine_id: str | None = None
 
     # ---------------- lifecycle ----------------
     def __enter__(self) -> "EngineAnalyzer":
@@ -127,6 +128,35 @@ class EngineAnalyzer:
         os.replace(tmp, self.cache_path)
 
     # ---------------- analysis ----------------
+    def _position_key(self, fen: str) -> str:
+        """The cache key for a position.
+
+        Keyed on the EPD — the FEN without the halfmove and fullmove counters —
+        so the same position reached by a different move order, or at a different
+        move number, is one entry rather than several. Inside the opening phase
+        the counters cannot change an evaluation, and openings repeat constantly:
+        this is most of the cache's value.
+
+        The engine's own id is part of the key, so a different Stockfish build
+        never reads evaluations it did not produce.
+        """
+        epd = " ".join(str(fen).split()[:4])
+        return f"{self.engine_id}|{epd}"
+
+    @property
+    def engine_id(self) -> str:
+        """The engine build behind the cached numbers, e.g. 'Stockfish 17.1'.
+
+        Only remembered once a running engine has reported it; before that the
+        binary's name stands in, so a cache written before startup is never
+        attributed to the wrong build.
+        """
+        if self._engine_id is None and self._engine is not None:
+            name = getattr(self._engine, "id", {}).get("name", "")
+            if name:
+                self._engine_id = str(name)
+        return self._engine_id or os.path.basename(self.engine_path)
+
     def _limit(self) -> chess.engine.Limit:
         if self.movetime_ms:
             return chess.engine.Limit(time=self.movetime_ms / 1000.0)
@@ -138,7 +168,7 @@ class EngineAnalyzer:
         Used by the board panes, where there is no "played move" to judge — just a
         position the user is looking at.
         """
-        key = f"pos|{fen}|d{self.depth}|t{self.movetime_ms}|pv{self.multipv}|l{pv_len}"
+        key = f"pos|{self._position_key(fen)}|d{self.depth}|t{self.movetime_ms}|pv{self.multipv}|l{pv_len}"
         if key in self._cache:
             return dict(self._cache[key])
         if self._engine is None:
@@ -182,7 +212,7 @@ class EngineAnalyzer:
 
     def evaluate_move(self, fen: str, played_uci: str) -> PositionEval:
         """Compare the move actually played against the engine's top choices."""
-        key = f"{fen}|{played_uci}|d{self.depth}|t{self.movetime_ms}|pv{self.multipv}"
+        key = f"mv|{self._position_key(fen)}|{played_uci}|d{self.depth}|t{self.movetime_ms}|pv{self.multipv}"
         if key in self._cache:
             data = dict(self._cache[key])
             data["alternatives"] = [Alternative(**a) for a in data["alternatives"]]

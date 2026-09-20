@@ -1,7 +1,12 @@
-"""Sample-size handling: confidence intervals, shrinkage, and what may be flagged.
+"""Sample-size handling in the opening book: intervals, shrinkage, baselines.
 
 Values here are hand-computed rather than captured from a run, so an intentional change to
 the statistical model shows up as an intentional change to a test.
+
+These cover `explorer`'s helpers only. The flag rule and the reader-facing wording they
+used to test belonged to a second analyser design that did not survive the merge with
+main; main flags on `cost` (frequency x severity, shrunk by games / (games + 4)) and words
+its findings through `vocab.js`. Those are covered by `test_summary` and `test_definition`.
 """
 from __future__ import annotations
 
@@ -13,12 +18,6 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from chessopening.analyze import (  # noqa: E402
-    Node,
-    confidence_label,
-    explain,
-    flags_winrate_decline,
-)
 from chessopening.explorer import (  # noqa: E402
     MoveStats,
     PositionStats,
@@ -123,135 +122,3 @@ def test_a_well_played_move_sets_the_baseline_but_is_still_shrunk():
 def test_a_move_absent_from_the_book_falls_back_to_the_position():
     _, source, _ = _position().baseline_for("a2a3", "white", min_move_games=30)
     assert source == "position"
-
-
-# ---------------- The flag rule ----------------
-def test_three_games_below_the_book_are_not_flagged():
-    """The motivating case: 1 win, 2 losses is 33%, which looks 12 points below a 45%
-    book — but three games cannot support that claim."""
-    _, _, hi = _interval(1, 0, 2)
-    assert not flags_winrate_decline(hi, 0.45, 0.333 - 0.45, 0.06)
-
-
-def test_the_same_score_over_twenty_games_is_flagged():
-    _, _, hi = _interval(6, 1, 13)  # 32.5% over 20 games
-    assert flags_winrate_decline(hi, 0.45, 0.325 - 0.45, 0.06)
-
-
-def test_a_gap_too_small_to_matter_is_not_flagged_however_many_games():
-    _, _, hi = _interval(40, 10, 50)  # 45% over 100 games, level with the book
-    assert not flags_winrate_decline(hi, 0.46, 0.45 - 0.46, 0.06)
-
-
-def test_no_baseline_means_no_claim():
-    assert not flags_winrate_decline(0.1, None, None, 0.06)
-
-
-# ---------------- Reader-facing output ----------------
-def test_confidence_needs_both_sides_to_be_well_sampled():
-    assert confidence_label(20, 800, "move") == "high"
-    assert confidence_label(4, 800, "move") == "low", "few games of the player's own"
-    assert confidence_label(20, 40, "move") == "low", "the book barely knows the position"
-    assert confidence_label(9, 1000, "move") == "medium"
-
-
-def _node(**kw) -> Node:
-    base = dict(
-        epd="", fen="", played_uci="f3e5", played_san="Nxe5", player_color="white",
-        ply=7, move_number=4, line_san="", line_uci="", wins=1, draws=0, losses=8,
-    )
-    base.update(kw)
-    return Node(**base)
-
-
-def test_explanation_reads_as_a_sentence_without_jargon():
-    text = explain(_node(), 0.231, "move", 1000, None, "O-O", "medium")
-    assert text.startswith("You played 4.Nxe5 9 times and scored 11%")
-    assert "players at this level score 23% with it" in text
-    assert "points of results given away" in text
-    for jargon in ("centipawn", "cp", "EPD", "FEN", "MultiPV"):
-        assert jargon not in text
-
-
-def test_explanation_says_so_when_the_evidence_is_thin():
-    text = explain(_node(wins=0, draws=0, losses=3), 0.45, "position", 200, None, "", "low")
-    assert "treat it as a hint" in text
-
-
-def test_explanation_names_black_moves_with_the_right_notation():
-    text = explain(_node(player_color="black"), None, "", 0, None, "", "medium")
-    assert text.startswith("You played 4...Nxe5")
-
-
-def test_percentages_round_the_same_way_the_browser_does():
-    """Python rounds halves to even, JavaScript rounds them up. Left alone, the same
-    figure appears as 62% in the sentence and 63% in the table beside it."""
-    text = explain(_node(wins=1, draws=1, losses=8), 0.625, "position", 200, None, "", "medium")
-    assert "63%" in text and "62%" not in text
-
-
-# ---------------- Kinds of problem ----------------
-from chessopening.analyze import CATEGORIES, classify, describe_consequence  # noqa: E402
-
-
-def test_an_engine_drop_is_objective_however_few_games_it_took():
-    """Whether a move throws away a piece is a fact about the position, not about how
-    often it has been played — so a thin sample must not soften it."""
-    assert classify(["EVAL_DROP"], "low", 3.1, 0.8) == "objective"
-    assert classify(["EVAL_DROP", "WINRATE_DECLINE"], "high", 1.2, 0.8) == "objective"
-
-
-def test_a_results_claim_on_thin_evidence_is_only_worth_watching():
-    """The opposite case: a win-rate claim is about the player's results, so few games
-    means it cannot be asserted yet."""
-    assert classify(["WINRATE_DECLINE"], "low", 0.0, 0.8) == "unproven"
-
-
-def test_a_well_evidenced_results_claim_is_a_practical_weakness():
-    assert classify(["WINRATE_DECLINE"], "high", 0.0, 0.8) == "practical"
-    assert classify(["WINRATE_DECLINE"], "medium", 0.2, 0.8) == "practical"
-
-
-def test_every_category_has_a_label_and_an_explanation():
-    for name in ("objective", "practical", "knowledge", "unproven"):
-        label, blurb = CATEGORIES[name]
-        assert label and blurb.endswith(".")
-
-
-# ---------------- Why the move is bad ----------------
-ITALIAN_NXE5 = "r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"
-
-
-def test_the_consequence_names_the_reply_and_what_it_wins():
-    """4.Nxe5?? Nxe5 simply wins a piece — that is what the player needs told, not which
-    move an engine would rather have played."""
-    text = describe_consequence(ITALIAN_NXE5, "f3e5", "c6e5")
-    assert text == "Black replies Nxe5, winning a piece."
-
-
-def test_a_move_that_loses_nothing_material_is_described_without_a_false_claim():
-    text = describe_consequence(ITALIAN_NXE5, "d2d3", "g8f6")
-    assert "winning" not in text
-    assert "Nf6" in text
-
-
-def test_no_refutation_means_no_sentence_rather_than_a_guess():
-    assert describe_consequence(ITALIAN_NXE5, "f3e5", "") == ""
-
-
-def test_an_illegal_refutation_is_survived():
-    assert describe_consequence(ITALIAN_NXE5, "f3e5", "a1a8") == ""
-
-
-def test_the_explanation_leads_with_the_consequence_not_the_engine():
-    from chessopening.engine import PositionEval  # noqa: PLC0415
-
-    ev = PositionEval(
-        fen=ITALIAN_NXE5, played_uci="f3e5", played_san="Nxe5", mover="white",
-        best_cp=30, played_cp=-280, eval_drop_cp=310, played_rank=3,
-        alternatives=[], depth=40, refutation_uci="c6e5", refutation_san="Nxe5",
-    )
-    node = _node(fen=ITALIAN_NXE5, wins=1, draws=0, losses=8)
-    text = explain(node, 0.231, "move", 1000, ev, "O-O", "medium")
-    assert "Black replies Nxe5, winning a piece." in text
-    assert "O-O keeps the position in hand" in text

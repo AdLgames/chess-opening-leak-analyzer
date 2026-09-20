@@ -11,6 +11,7 @@ Schema
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 
 import chess
@@ -98,6 +99,17 @@ class LocalOpeningDatabase:
 
     def total_games(self) -> int:
         return int(self._meta.get("games", 0) or 0)
+
+    @property
+    def max_ply(self) -> int | None:
+        """How deep this book was built, in plies, or None if it does not say.
+
+        The builder records `max_moves=N` in the filters string. It matters to
+        the analyser: a book built to move 15 cannot answer anything about move
+        16, so following it past that point is following nothing.
+        """
+        match = re.search(r"max_moves=(\d+)", self._meta.get("filters", "") or "")
+        return int(match.group(1)) * 2 if match else None
 
     # -------- lookup --------
     def lookup(self, play_uci_csv: str, band: str = ALL, min_band_games: int = 200) -> PositionStats:

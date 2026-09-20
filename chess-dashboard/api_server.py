@@ -31,7 +31,8 @@ from fastapi import (BackgroundTasks, FastAPI, File, Form, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from chessopening.analyze import analyze
+from chessopening.analyze import COST_EXPLAINER, analyze
+from chessopening.demo import load_or_build_demo
 from chessopening.board import BoardError, cp_text, engine_lines, position_payload
 from chessopening.engine import find_engine
 from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch_games,
@@ -98,6 +99,7 @@ async def throttle(request: Request, call_next):
 
 JOBS: dict[str, dict[str, Any]] = {}
 LOCK = threading.Lock()
+DEMO_LOCK = threading.Lock()  # one demo build at a time, however many tabs ask
 MAX_UPLOAD_BYTES = 40 * 1024 * 1024
 ENGINE_CACHE = os.path.join(os.path.expanduser("~"), ".cache", "leaklab", "board_evals.json")
 
@@ -188,6 +190,8 @@ def meta() -> dict[str, Any]:
                    "max_games": 400, "speeds": ["bullet", "blitz", "rapid", "classical", "daily"]},
         "defaults": {"depth": 16, "max_moves": 15, "min_games": 3, "eval_drop": 0.8,
                      "score_gap": 6.0, "min_db_games": 20, "multipv": 3},
+        # the metric the whole report is ranked by, described where it is computed
+        "metrics": {"cost": COST_EXPLAINER},
     }
 
 
@@ -228,6 +232,18 @@ def _run_job(job_id: str, pgn_dir: str, player: str | None, opts: dict[str, Any]
             player = player or fetched.username
             with LOCK:
                 job["fetched"] = fetched.to_dict()
+                # The report banner reads these off `account`, so the local
+                # build has to fill them in too or it stays silent about a
+                # run that came back short.
+                job["account"] = {
+                    **(job.get("account") or {}),
+                    "games": fetched.games,
+                    "requested": int((job.get("fetch") or {}).get("max_games") or 0),
+                    "shortfall": fetched.shortfall,
+                    "excluded": {"seen": fetched.excluded.seen,
+                                 "reasons": fetched.excluded.reasons()},
+                }
+                job["log"].extend(fetched.notes)
         if not player:
             player = detect_main_player(find_pgn_files(pgn_dir))
             if not player:
@@ -414,6 +430,31 @@ def report_csv(job_id: str) -> Response:
     if not path or not os.path.exists(path):
         raise HTTPException(404, "No CSV for this job")
     return FileResponse(path, media_type="text/csv", filename=f"opening_leaks_{job_id}.csv")
+
+
+@app.get("/api/demo-report")
+def demo_report() -> JSONResponse:
+    """A finished run over the bundled sample archive, computed once and kept.
+
+    The first visitor to ask for it pays for the engine pass; everyone after that
+    gets the cached payload, which is the point — the demo has to feel instant.
+    """
+    if not os.path.isdir(SAMPLE_DIR):
+        raise HTTPException(404, "Sample archive is not installed")
+    try:
+        with DEMO_LOCK:
+            return JSONResponse(load_or_build_demo(
+                SAMPLE_DIR,
+                os.path.join(JOBS_ROOT, "_demo"),
+                baked_paths=(os.path.join(ROOT, "demo_report.json"),),
+                cache_path=os.path.join(JOBS_ROOT, "_demo", "demo_report.json"),
+                cache_dir=os.path.join(JOBS_ROOT, "_cache"),
+            ))
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        traceback.print_exc()
+        raise HTTPException(500, f"{type(exc).__name__}: {exc}") from exc
 
 
 @app.get("/api/sample-archive")

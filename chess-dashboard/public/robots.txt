@@ -1,0 +1,8 @@
+# Opening Leak Lab
+User-agent: *
+Allow: /
+
+# The API is work, not content: every hit costs an engine pass.
+Disallow: /api/
+
+Sitemap: https://chessleaklab.co.uk/sitemap.xml

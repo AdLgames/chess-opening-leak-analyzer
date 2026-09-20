@@ -16,63 +16,6 @@ def _f(v: Any) -> float:
         return 0.0
 
 
-def group_by_line(rows: list[dict[str, str]]) -> list[dict[str, Any]]:
-    """Collapse flagged decisions into one entry per line, keyed on the earliest mistake.
-
-    A bad move at move 6 drags the rest of the line down with it, so the same hole comes
-    back as separate rows at moves 8, 10 and 12, each competing for the top of the report.
-    A row whose line begins with another row's line is downstream of it — the player had
-    already played the earlier move to get there — so it is nested underneath instead of
-    standing on its own.
-
-    Fixing the headline move makes the whole branch moot, which is why the group carries the
-    branch's combined cost rather than only the first row's.
-    """
-    ordered = sorted(rows, key=lambda r: (int(_f(r.get("ply")) or 0), -_f(r.get("priority"))))
-    groups: list[dict[str, Any]] = []
-
-    for row in ordered:
-        line = (row.get("variation_line") or "").split()
-        parent = None
-        for group in groups:
-            head = group["_line"]
-            # Same colour only: White's move 6 does not cause Black's move 8.
-            if (
-                len(head) < len(line)
-                and line[: len(head)] == head
-                and group["headline"]["player_color"] == row["player_color"]
-            ):
-                # Only roots are in `groups` — a group whose line extended another would
-                # itself have been nested — so the first match is the only one.
-                parent = group
-                break
-        if parent is not None:
-            parent["downstream"].append(row)
-        else:
-            groups.append({"_line": line, "headline": row, "downstream": []})
-
-    for group in groups:
-        branch = [group["headline"], *group["downstream"]]
-        head = group["headline"]
-        group.pop("_line")
-        group["lost_points"] = round(sum(_f(r.get("lost_points")) for r in branch), 2)
-        group["lost_points_conservative"] = round(
-            sum(_f(r.get("lost_points_conservative")) for r in branch), 2
-        )
-        group["priority"] = round(sum(_f(r.get("priority")) for r in branch), 2)
-        group["followers"] = len(group["downstream"])
-        # Both halves of why this group ranks where it does: how often it happens, and
-        # what it costs each time. One number alone cannot tell the reader which it is.
-        group["games"] = sum(int(_f(r.get("your_games")) or 0) for r in branch)
-        group["cost_per_game"] = round(group["lost_points"] / group["games"], 2) if group["games"] else 0.0
-        group["opening"] = head.get("opening") or head.get("eco") or "Unclassified"
-        group["explanation"] = head.get("explanation", "")
-        group["player_color"] = head.get("player_color", "")
-
-    groups.sort(key=lambda g: -g["priority"])
-    return groups
-
-
 def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, Any]:
     """Aggregate flagged rows by opening and count the flags.
 
@@ -102,29 +45,33 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         for k, v in by_opening.items()
     ]
     openings.sort(key=lambda d: -d["lost_points"])
+    profiles = stats.get("opening_profiles") or {}
 
     return {
         "games": stats["games"],
         "decisions": stats["nodes"],
         "judged": stats["repeated"],
+        # every game-appearance behind a judged decision: the denominator of coverage
+        "judged_games": stats.get("repeated_games", 0),
+        # how many repeated decisions were examined at all, so "24 leaks" can be
+        # read as a share of what you play rather than as a bare count
+        "tree_rows": stats.get("tree_rows", 0),
+        "clean": max(0, int(stats.get("tree_rows", 0)) - len(rows)),
         "leaks": len(rows),
         "lost_points": round(sum(_f(r["lost_points"]) for r in rows), 2),
+        "cost": round(sum(_f(r.get("cost")) for r in rows), 2),
         "blunders": sum(1 for r in rows if _f(r["eval_drop_pawns"]) >= 0.8),
         "flags": dict(flags),
         "by_opening": openings[:12],
-        "groups": group_by_line(rows),
-        # Lines the player will meet but has barely played: absent from `rows` by
-        # construction, since the report can only see moves that were actually made.
-        "coverage": stats.get("coverage", [])[:12],
-        "tree": stats.get("tree", {}),
-        "tree_totals": stats.get("tree_totals", {}),
-        "coverage_total": len(stats.get("coverage", [])),
+        # everything the openings explorer needs: one profile per opening, the
+        # run-wide spread of break points, and the traps this player walks into
+        "explorer": {
+            "openings": profiles.get("openings", []),
+            "break_moves": profiles.get("break_moves", []),
+            "worst_against": profiles.get("worst_against", []),
+            "traps": stats.get("traps", {}),
+        },
         "white_leaks": sum(1 for r in rows if r["player_color"] == "white"),
         "black_leaks": sum(1 for r in rows if r["player_color"] == "black"),
         "top": rows[0] if rows else None,
-        # Who they were measured against. Carried through so the dashboard never has to
-        # leave "the book scores 54%" meaning whatever the reader assumes it means.
-        "player_rating": stats.get("player_rating"),
-        "player_band_label": stats.get("player_band_label", "all ratings"),
-        "book_has_bands": bool(stats.get("book_has_bands")),
     }

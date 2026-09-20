@@ -38,6 +38,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--color", choices=["white", "black", "both"], default="both")
     p.add_argument("--max-moves", type=int, default=15, help="Opening depth in full moves (default 15)")
     p.add_argument("--min-games", type=int, default=3, help="Only judge decisions repeated this often")
+    p.add_argument("--thin-games", type=int, default=6,
+                   help="Mark a finding 'thin' below this many repetitions: real, but not yet worth acting on")
     p.add_argument("--min-ply", type=int, default=2,
                    help="Ignore decisions before this ply (default 2: skips the first move choice)")
     p.add_argument("--eval-drop", type=float, default=0.8, help="Eval drop in pawns that counts as a mistake")
@@ -127,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         max_moves=args.max_moves,
         color=args.color,
         min_games=args.min_games,
+        thin_games=args.thin_games,
         min_ply=args.min_ply,
         eval_drop_threshold=args.eval_drop,
         score_gap_threshold=args.score_gap,

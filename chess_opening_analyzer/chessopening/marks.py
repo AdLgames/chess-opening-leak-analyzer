@@ -78,6 +78,13 @@ class Mark:
     note: str = ""
 
 
+#: The one flag a stated preference cannot overrule: the engine saying the move
+#: loses ground. Spelled out rather than imported because `analyze` imports this
+#: module, and a cycle would cost more than a constant does. `test_marks` asserts
+#: the two stay in step.
+OBJECTIVE_FLAG = "blunder"
+
+
 def filter_flags(flags: list[str], mark: Mark | None, played_uci: str) -> list[str] | None:
     """The flags that survive the player's own decision about this position.
 
@@ -92,7 +99,7 @@ def filter_flags(flags: list[str], mark: Mark | None, played_uci: str) -> list[s
     if mark.decision == "committed":
         # Keep only what is true regardless of preference. The win-rate and popularity
         # flags are arguments about taste, and the player has already had that argument.
-        kept = [f for f in flags if f == "EVAL_DROP"]
+        kept = [f for f in flags if f == OBJECTIVE_FLAG]
         return kept or None
     return flags
 
@@ -159,10 +166,16 @@ class MarkStore:
 
 
 def load_marks(path: str = DEFAULT_STATE) -> dict[tuple[str, str], Mark]:
-    """Every decision on file, or nothing at all if the player has made none."""
+    """Every decision on file, or nothing at all if the player has made none.
+
+    Never raises. The serverless build has a read-only filesystem, so creating the
+    store fails there with OSError rather than anything sqlite-shaped, and having
+    no decisions on file is a perfectly ordinary state to be in — not a reason to
+    fail somebody's analysis.
+    """
     try:
         store = MarkStore(path)
-    except sqlite3.DatabaseError:
+    except (sqlite3.DatabaseError, OSError):
         return {}
     try:
         return store.all()
