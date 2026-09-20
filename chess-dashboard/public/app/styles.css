@@ -1031,3 +1031,49 @@ tr.is-decided { opacity: 0.62; }
   .wdl { display: none; }
   .book-table th:nth-child(5) { display: none; }
 }
+
+/* ------------------------------------------------------------------ accounts
+   The sign-in card stands where the run form would be, so it reads as the first
+   step of the same job rather than as an interruption. Every colour here is an
+   existing brand token, so the contrast work already done still holds. */
+.header-account { display: flex; align-items: center; flex: none; margin-left: 8px; }
+
+.auth-card {
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface-2); padding: 18px; text-align: left;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.auth-card h3 { font-size: 15px; margin: 0; }
+.auth-card p { margin: 0; line-height: 1.6; }
+.auth-card .btn { width: 100%; justify-content: center; text-decoration: none; }
+
+.auth-or {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  /* --text-faint would be 4.41:1 on --surface-2, just under the bar for 11px */
+  color: var(--text-muted);
+}
+.auth-or::before, .auth-or::after {
+  content: ''; flex: 1; height: 1px; background: var(--line);
+}
+
+.auth-email { display: flex; flex-direction: column; gap: 10px; }
+.auth-email input[type='email'] {
+  background: var(--raised); color: var(--text);
+  border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  padding: 8px 10px; font: inherit; font-size: 13px; width: 100%; min-width: 0;
+}
+.auth-email input[type='email']:focus { outline: none; border-color: var(--text-muted); }
+
+.auth-note { margin: 0; line-height: 1.55; }
+.auth-note.ok { color: var(--good-text); }
+.auth-note.bad { color: var(--bad-text); }
+
+.menu-note {
+  margin: 0; padding: 8px 12px 6px; font-size: 11.5px; color: var(--text-faint);
+  border-bottom: 1px solid var(--line);
+}
+.menu-item.is-danger { color: var(--bad-text); }
+
+.dialog-narrow { max-width: 420px; }
+.auth-demo { margin: 0; color: var(--text-muted); line-height: 1.55; }

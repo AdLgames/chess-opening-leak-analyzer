@@ -55,9 +55,11 @@ def prepare_engine() -> str | None:
 
 ENGINE_PATH = prepare_engine()
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile  # noqa: E402
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse, Response  # noqa: E402
+
+from accounts import auth, db, state  # noqa: E402
 
 from chessopening.analyze import COST_EXPLAINER, analyze
 from chessopening.demo import load_or_build_demo  # noqa: E402
@@ -105,7 +107,33 @@ def board_db() -> LocalOpeningDatabase | None:
     return _BOARD_DB
 
 app = FastAPI(title="Opening Leak Lab API (serverless)")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# Sessions are cookie-borne, so the API is same-origin only: a wildcard CORS
+# policy plus credentials is exactly the combination that leaks an account.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=os.environ.get("LEAKLAB_CORS_ORIGINS", r"https?://(localhost|127\.0\.0\.1)(:\d+)?"),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(auth.router)
+app.include_router(state.router)
+
+
+def require_account(request: Request) -> dict[str, Any] | None:
+    """A run belongs to somebody — that is what makes progress trackable.
+
+    Accounts are only enforced where they can work: a deployment with no
+    database configured (a local preview, an unconfigured fork) still runs the
+    analyser rather than refusing every request with nothing to sign in to.
+    """
+    if not db.configured():
+        return None
+    user = auth.current_user(request)
+    if not user:
+        raise HTTPException(
+            401, "Sign in to run an analysis — that is how your progress is kept between runs.")
+    return user
 
 
 # ------------------------------------------------------------------------- meta
@@ -161,6 +189,7 @@ def meta() -> dict[str, Any]:
         # the metric the whole report is ranked by, described where it is computed
         "metrics": {"cost": COST_EXPLAINER},
         "serverless": True,
+        "accounts": {"enabled": db.configured(), "required_to_run": db.configured()},
         "limits": LIMITS,
         "ingest": {"providers": ["chesscom", "lichess"], "default_provider": "chesscom",
                    "max_games": LIMITS["max_fetch_games"],
@@ -177,6 +206,7 @@ def _clamp(name: str, value: float, hi: float) -> tuple[float, str | None]:
 
 @app.post("/api/analyze")
 async def analyse(
+    request: Request,
     files: list[UploadFile] = File(default=[]),
     use_sample: str = Form("false"),
     source: str = Form(""),
@@ -200,6 +230,7 @@ async def analyse(
     min_db_games: int = Form(20),
     no_engine: str = Form("false"),
 ) -> JSONResponse:
+    user = require_account(request)
     started = time.time()
     log: list[str] = []
     notes: list[str] = []
@@ -325,6 +356,7 @@ async def analyse(
                         "no_engine": no_engine.lower() == "true"},
             "csv": _csv_text(rows),
             "account": account,
+            "user": {"id": str(user["id"])} if user else None,
             "source": "username" if by_username else ("sample" if sample else "upload"),
         }
         return JSONResponse(payload)
@@ -456,7 +488,8 @@ def openings(q: str = "", limit: int = 30) -> dict[str, Any]:
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "engine": bool(ENGINE_PATH), "serverless": True}
+    return {"ok": True, "engine": bool(ENGINE_PATH), "serverless": True,
+            "database": db.configured()}
 
 
 # On Vercel the CDN serves `public/`, so this mount never sees traffic there. Locally it

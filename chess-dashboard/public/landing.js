@@ -61,7 +61,8 @@
       const cap = meta && meta.limits && meta.limits.max_fetch_games;
       if (!cap) return;
       const note = $('startNote');
-      note.firstChild.textContent = `Free · runs on your last ${cap} games · no account · `;
+      note.firstChild.textContent =
+        `Free · runs on your last ${cap} games · sign in to keep your progress · `;
     })
     .catch(() => {
       /* the page is worth reading with or without the backend */

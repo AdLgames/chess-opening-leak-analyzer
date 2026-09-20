@@ -1,9 +1,14 @@
 /* Opening Leak Lab — what the app remembers between runs.
 
-   Everything here is the user's own data and stays in their browser: the lines
-   they have committed, the findings they have dismissed, how their drills went,
-   the runs they have done, and the last report so a reload does not start from
-   an empty screen.
+   The lines the user has committed, the findings they have dismissed, how their
+   drills went, the runs they have done, and the last report so a reload does
+   not start from an empty screen.
+
+   localStorage is the working copy and always has been: it is what makes the
+   app fast and what keeps it usable when the network is not. When an account is
+   signed in, `connect()` attaches a sink that mirrors every write to the server
+   so the same progress is there on the next device — the browser stays the
+   thing the UI reads, the server is the thing that outlives it.
 
    localStorage is not always available (a private window, or an embedded
    preview), so every access falls back to an in-memory copy for the page view. */
@@ -49,6 +54,19 @@
     }
   }
 
+  /* Where writes are mirrored once an account is signed in. Null until then, so
+     nothing about this module changes for a deployment without accounts. */
+  let sink = null;
+
+  function push(kind, payload) {
+    if (!sink) return;
+    try {
+      sink(kind, payload);
+    } catch (err) {
+      /* A sync failure must never lose the local write that already happened. */
+    }
+  }
+
   /* A position key that survives move-order transpositions and clock fields. */
   const positionKey = (fen) => String(fen || '').split(' ').slice(0, 4).join(' ');
   const leakKey = (row) => `${positionKey(row.fen)}|${row.your_move || ''}`;
@@ -77,6 +95,7 @@
     },
     remove(key) {
       write('repertoire', this.all().filter((e) => e.key !== key));
+      push('repertoire:remove', { key });
     },
     _put(row, patch) {
       const entry = {
@@ -98,6 +117,7 @@
       const rest = this.all().filter((e) => e.key !== entry.key);
       rest.push(entry);
       write('repertoire', rest);
+      push('repertoire', entry);
       return entry;
     },
     committed() {
@@ -116,6 +136,7 @@
       kept.push(entry);
       kept.sort((a, b) => a.at - b.at);
       write('runs', kept.slice(-40));
+      push('run', entry);
       return entry;
     },
     latest() {
@@ -153,6 +174,7 @@
       cur.due = cur.last + (correct ? step : 0.5) * 86400000;
       all[key] = cur;
       write('drills', all);
+      push('drill', { key, correct: !!correct, label: cur.label });
       return cur;
     },
     due(now = Date.now()) {
@@ -180,8 +202,43 @@
     },
     set(key, value) {
       write(`pref:${key}`, value);
+      push('pref', { key, value });
     },
   };
+
+  /* ------------------------------------------------------------ server sync */
+  /** Everything worth carrying to another device, in the shape /api/state takes. */
+  function snapshot() {
+    const drillMap = drills.all();
+    const prefMap = {};
+    const raw = store();
+    if (raw) {
+      for (let i = 0; i < raw.length; i += 1) {
+        const k = raw.key(i) || '';
+        if (k.startsWith(`${PREFIX}pref:`)) {
+          prefMap[k.slice(PREFIX.length + 5)] = read(k.slice(PREFIX.length), null);
+        }
+      }
+    }
+    return { repertoire: repertoire.all(), runs: runs.all(), drills: drillMap, prefs: prefMap };
+  }
+
+  /** Replace the local working copy with what the server holds for this account. */
+  function adopt(remote) {
+    if (!remote) return;
+    if (Array.isArray(remote.repertoire)) write('repertoire', remote.repertoire);
+    if (Array.isArray(remote.runs)) write('runs', remote.runs);
+    if (remote.drills && typeof remote.drills === 'object') write('drills', remote.drills);
+    if (remote.prefs && typeof remote.prefs === 'object') {
+      Object.keys(remote.prefs).forEach((k) => write(`pref:${k}`, remote.prefs[k]));
+    }
+    if (remote.report && remote.report.rows) write('report', remote.report);
+  }
+
+  /** Drop everything this browser is holding — used on sign-out and on delete. */
+  function forget() {
+    ['repertoire', 'runs', 'drills', 'report'].forEach((k) => write(k, k === 'drills' ? {} : (k === 'report' ? null : [])));
+  }
 
   window.Store = {
     repertoire,
@@ -193,5 +250,10 @@
     leakKey,
     lineBefore,
     persistent: () => store() !== false,
+    connect: (fn) => { sink = fn; },
+    disconnect: () => { sink = null; },
+    snapshot,
+    adopt,
+    forget,
   };
 })();

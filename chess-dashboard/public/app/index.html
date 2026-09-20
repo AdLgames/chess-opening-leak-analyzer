@@ -89,6 +89,9 @@
           </details>
           <button class="btn btn-ghost" id="runAgainBtn">Run again</button>
         </div>
+        <!-- the account menu sits outside headerActions: it is there before a
+             report exists, which is exactly when signing in matters -->
+        <div class="header-account" id="headerAccount" hidden></div>
       </header>
 
       <!-- --------------------------------------------------------------- main -->
@@ -103,6 +106,9 @@
                 opening book and a Stockfish evaluation, and turn what it finds into drills.
               </p>
               <p class="gate-hosted" id="gateHosted" hidden></p>
+              <!-- when accounts are on and nobody is signed in, the sign-in card
+                   takes this slot and the run form waits behind it -->
+              <div id="authGate" hidden></div>
               <div id="gateSlot"></div>
             </div>
           </div>
@@ -491,6 +497,16 @@
       </div>
     </dialog>
 
+    <dialog class="dialog dialog-narrow" id="authDialog">
+      <div class="dialog-head">
+        <h2>Sign in</h2>
+        <button class="icon-btn is-visible" id="authDialogClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body" id="authDialogBody"></div>
+    </dialog>
+
     <dialog class="dialog" id="privacyDialog">
       <div class="dialog-head">
         <h2 id="privacyTitle">Where your games go</h2>
@@ -645,6 +661,7 @@
 
     <script src="./vocab.js"></script>
     <script src="./store.js"></script>
+    <script src="./auth.js"></script>
     <script src="./board.js"></script>
     <script src="./study.js"></script>
     <script src="./repertoire.js"></script>
