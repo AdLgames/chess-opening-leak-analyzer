@@ -24,6 +24,7 @@ from collections import defaultdict
 import chess
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from chessopening.bands import ALL, band_for  # noqa: E402
 from chessopening.localdb import DEFAULT_DB, connect  # noqa: E402
 from chessopening.pgn_loader import find_pgn_files  # noqa: E402
 
@@ -175,17 +176,23 @@ def build(
     named = write_openings(con, offline_eco)
     print(f"  {named} named opening lines")
 
-    counts: dict[tuple[str, str], list] = defaultdict(lambda: [0, 0, 0, ""])
+    # Keyed by (position, move, band). Every game is counted twice: once into its own
+    # rating band and once into "all", so a book can answer both "how does everybody do
+    # here" and "how do players like me do here" without a second pass or a join.
+    counts: dict[tuple[str, str, str], list] = defaultdict(lambda: [0, 0, 0, "", 0])
     kept = skipped = 0
     max_ply = max_moves * 2
     t0 = time.time()
 
     def flush() -> None:
         con.executemany(
-            "INSERT INTO moves (pos, uci, san, white, draws, black) VALUES (?,?,?,?,?,?) "
-            "ON CONFLICT(pos, uci) DO UPDATE SET white = white + excluded.white, "
-            "draws = draws + excluded.draws, black = black + excluded.black",
-            [(pos, uci, v[3], v[0], v[1], v[2]) for (pos, uci), v in counts.items()],
+            "INSERT INTO moves (pos, uci, band, san, white, draws, black, rating_sum) "
+            "VALUES (?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(pos, uci, band) DO UPDATE SET white = white + excluded.white, "
+            "draws = draws + excluded.draws, black = black + excluded.black, "
+            "rating_sum = rating_sum + excluded.rating_sum",
+            [(pos, uci, band, v[3], v[0], v[1], v[2], v[4])
+             for (pos, uci, band), v in counts.items()],
         )
         con.commit()
         counts.clear()
@@ -204,6 +211,10 @@ def build(
             if elo is not None and not (min_elo <= elo <= max_elo):
                 skipped += 1
                 continue
+            # A game with no rating in its headers still belongs in "all" — dropping it
+            # would quietly bias the overall numbers toward rated play.
+            band = band_for(elo)
+            buckets = (ALL,) if band == ALL else (ALL, band)
             # only the opening matters, so never clean or tokenise the whole game
             cleaned = COMMENT_RE.sub(" ", movetext[: 40 + 12 * max_ply])
             board = chess.Board()
@@ -216,10 +227,12 @@ def build(
                     move = board.parse_san(tok)
                 except (ValueError, AssertionError, IndexError):
                     break  # truncated tail or annotation junk: keep what we already counted
-                rec = counts[(board.epd(), move.uci())]
-                rec[idx] += 1
-                if not rec[3]:
-                    rec[3] = tok
+                for bucket in buckets:
+                    rec = counts[(board.epd(), move.uci(), bucket)]
+                    rec[idx] += 1
+                    if not rec[3]:
+                        rec[3] = tok
+                    rec[4] += elo or 0
                 board.push(move)
                 plies += 1
             if plies == 0:
@@ -237,14 +250,21 @@ def build(
     flush()
 
     if min_move_games > 1:
-        con.execute("DELETE FROM moves WHERE (white + draws + black) < ?", (min_move_games,))
-    con.execute("CREATE INDEX IF NOT EXISTS idx_moves_pos ON moves (pos)")
+        # Only ever thin the "all" rows on this rule. A band row is a subset of one, so a
+        # threshold meant for the whole book would delete most of every band.
+        con.execute("DELETE FROM moves WHERE band = ? AND (white + draws + black) < ?",
+                    (ALL, min_move_games))
+        con.execute("DELETE FROM moves WHERE band != ? AND NOT EXISTS ("
+                    "  SELECT 1 FROM moves m2 WHERE m2.pos = moves.pos AND m2.uci = moves.uci"
+                    "    AND m2.band = ?)", (ALL, ALL))
+    con.execute("CREATE INDEX IF NOT EXISTS idx_moves_pos ON moves (pos, band)")
     filters = f"speeds={','.join(sorted(speeds)) if speeds else 'all'} elo={min_elo}-{max_elo} " \
               f"max_moves={max_moves}"
     con.executemany(
         "INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)",
         [("games", str(kept)), ("source", "; ".join(os.path.basename(s) for s in sources)),
-         ("filters", filters), ("built_at", time.strftime("%Y-%m-%d %H:%M:%S"))],
+         ("filters", filters), ("bands", "1"),
+         ("built_at", time.strftime("%Y-%m-%d %H:%M:%S"))],
     )
     con.commit()
     rows = con.execute("SELECT COUNT(*) FROM moves").fetchone()[0]

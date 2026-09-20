@@ -8,7 +8,10 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+from .bands import ALL, band_for, label as band_label
 from .engine import EngineAnalyzer, PositionEval
+from .evalstore import DEFAULT_EVALS, open_store
+from .marks import DEFAULT_STATE, filter_flags, load_marks
 from .explorer import OpeningExplorer, PositionStats
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
 from .profiles import build_profiles
@@ -230,6 +233,15 @@ def analyze(
     ratings: str = "1600,1800,2000",
     offline: bool = False,
     no_engine: bool = False,
+    #: Precomputed evaluations, consulted before the engine is started. Opening
+    #: positions are the most analysed positions there are, so a public dataset
+    #: answers most of this far deeper than anything affordable on demand.
+    no_evals: bool = False,
+    eval_store_path: str = DEFAULT_EVALS,
+    #: Decisions the player has already settled. A tool that keeps flagging a
+    #: move somebody has deliberately chosen is a tool they stop believing.
+    marks_path: str = DEFAULT_STATE,
+    no_marks: bool = False,
     max_games: int | None = None,
     engine_budget_s: float | None = None,
     cache_dir: str | None = None,
@@ -273,12 +285,30 @@ def analyze(
             ratings=ratings,
             offline=offline,
         )
+    # Compare the player against players of their own strength, when the book can.
+    # The median of their own games is the right centre: a mean is dragged around by
+    # the odd game against somebody far stronger, and by a provisional rating early
+    # in an archive.
+    ratings_seen = sorted(g.player_rating for g in games if g.player_rating)
+    player_rating = ratings_seen[len(ratings_seen) // 2] if ratings_seen else None
+    player_band = band_for(player_rating)
+    banded = db == "local" and getattr(explorer, "has_bands", False) and player_band != ALL
+    if banded:
+        log(f"Your rating reads as about {player_rating}, so you are being compared "
+            f"against {band_label(player_band)} rather than everybody")
+    elif db == "local" and player_band != ALL:
+        log("This opening book has no rating bands, so the comparison is against all "
+            "ratings together. Rebuilding it adds them.")
+        notes.append("the opening book has no rating bands, so you are compared against "
+                     "players of every strength at once")
+
     pos_stats: dict[str, PositionStats] = {}
 
     def look_up(node: Node) -> PositionStats:
         parent = ",".join(node.line_uci.split(",")[:-1])  # position BEFORE the player's move
         if node.epd not in pos_stats:
-            pos_stats[node.epd] = explorer.lookup(parent)
+            pos_stats[node.epd] = (explorer.lookup(parent, band=player_band) if banded
+                                   else explorer.lookup(parent))
         return pos_stats[node.epd]
 
     # Every in-window decision gets a book lookup, not just the ones frequent
@@ -329,9 +359,26 @@ def analyze(
         log(f"Explorer: {explorer.stats['api_calls']} API calls, {explorer.stats['cache_hits']} cache hits, "
             f"{explorer.stats['errors']} errors")
 
-    # ---- Engine pass ----
+    # ---- Evaluations ----
+    # Precomputed first. Opening positions are the most analysed positions there are,
+    # so a public dataset answers most of this at depths far beyond anything
+    # affordable on demand, and the engine only has to handle what is left. That
+    # matters most exactly where the budget is tightest.
     evals: dict[tuple[str, str], PositionEval] = {}
-    if not no_engine:
+    store = open_store(eval_store_path) if not no_evals else None
+    if store is not None:
+        for key, node in repeated.items():
+            found = store.evaluate_move(node.fen, node.played_uci)
+            if found is not None:
+                evals[key] = found
+        if evals:
+            deepest = max((e.depth for e in evals.values()), default=0)
+            log(f"Precomputed evaluations: {len(evals)}/{len(repeated)} positions answered "
+                f"from {os.path.basename(store.path)}, deepest {deepest} ply")
+        store.close()
+
+    remaining = {k: n for k, n in repeated.items() if k not in evals}
+    if not no_engine and remaining:
         with EngineAnalyzer(
             engine_path=engine_path,
             depth=depth,
@@ -340,18 +387,19 @@ def analyze(
             threads=threads,
             cache_path=os.path.join(cache_dir, "engine_evals.json"),
         ) as eng:
-            log(f"Engine: {eng.engine_path} (depth {depth}, MultiPV {multipv})")
+            log(f"Engine: {eng.engine_path} (depth {depth}, MultiPV {multipv}) "
+                f"for the remaining {len(remaining)}")
             engine_started = time.monotonic()
-            for i, (key, node) in enumerate(repeated.items(), start=1):
+            for i, (key, node) in enumerate(remaining.items(), start=1):
                 if engine_budget_s is not None and time.monotonic() - engine_started > engine_budget_s:
-                    skipped = len(repeated) - i + 1
+                    skipped = len(remaining) - i + 1
                     notes.append(f"engine budget of {engine_budget_s:g}s reached: "
-                                 f"{skipped} of {len(repeated)} positions judged on statistics only")
+                                 f"{skipped} of {len(remaining)} positions judged on statistics only")
                     log(f"  engine budget reached, skipping {skipped} positions")
                     break
                 evals[key] = eng.evaluate_move(node.fen, node.played_uci)
                 if i % 20 == 0:
-                    log(f"  engine: {i}/{len(repeated)} positions")
+                    log(f"  engine: {i}/{len(remaining)} positions")
                     eng.flush()
 
     # ---- Rows ----
@@ -364,6 +412,10 @@ def analyze(
     # Past the fixed cutoff the book decides, for the tree as much as for the
     # leak table: a decision at move 18 in a position theory has never heard of
     # is a middlegame move, not part of the opening.
+    # What the player has already settled. A tool that keeps flagging a move
+    # somebody has deliberately chosen is a tool they stop believing.
+    marks = {} if no_marks else load_marks(marks_path)
+    suppressed = 0
     tree_nodes = {k: n for k, n in in_window.items()
                   if n.ply <= cutoff_ply or k in repeated}
     # Every decision says which of this run's games it came from, as indices
@@ -394,6 +446,16 @@ def analyze(
             pop = stats.popularity(node.played_uci)
             if pop is not None and pop < 0.02 and (gap is None or gap < 0):
                 flags.append(FLAG_UNFAMILIAR)
+        mark = marks.get((node.epd, node.player_color)) if marks else None
+        if flags:
+            surviving = filter_flags(flags, mark, node.played_uci)
+            if surviving is None:
+                # Settled: not a finding any more. It stays in the tree, because it
+                # is still part of what the player plays.
+                suppressed += 1
+                flags = []
+            else:
+                flags = surviving
         if node.n < thin_games and flags:
             flags.append(FLAG_THIN)
 
@@ -529,6 +591,10 @@ def analyze(
                    "traps": trap_report}, fh, indent=1)
     log(f"Profiled {len(profile_report['openings'])} openings -> {profiles_path}")
 
+    if suppressed:
+        log(f"{suppressed} findings set aside as already decided")
+        notes.append(f"{suppressed} findings are not shown because you have already "
+                     "committed to or ignored those moves")
     log(f"Wrote {len(rows)} flagged rows -> {report_path}")
     log(f"Wrote {len(tree)} decisions you play -> {tree_path}")
     log(f"Wrote variation rollup -> {summary_path}")
@@ -542,6 +608,10 @@ def analyze(
         "rows": len(rows),
         "tree": tree,
         "tree_rows": len(tree),
+        "suppressed": suppressed,
+        "player_band": player_band if banded else ALL,
+        "player_band_label": band_label(player_band if banded else ALL),
+        "book_has_bands": bool(banded),
         # the run's own games, in the order `game_idx` refers to
         "game_ids": [g.game_id for g in games],
         "tree_path": tree_path,

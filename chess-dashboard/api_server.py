@@ -10,6 +10,7 @@ import csv
 import io
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 import threading
@@ -25,7 +26,8 @@ for _cand in (_HERE, os.path.join(os.path.dirname(_HERE), "chess_opening_analyze
     if os.path.isdir(os.path.join(_cand, "chessopening")) and _cand not in sys.path:
         sys.path.append(_cand)
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import (BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Request,
+                     UploadFile)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
@@ -35,7 +37,12 @@ from chessopening.board import BoardError, cp_text, engine_lines, position_paylo
 from chessopening.engine import find_engine
 from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch_games,
                                  lookup_player, provider_label, speeds_from_csv)
+from chessopening.guard import RateLimiter, allowed_origins, client_key
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase
+from chessopening.marks import DEFAULT_STATE, GapStore, MarkStore
+from chessopening.messages import explain_failure
+from chessopening.history import HistoryStore
+from chessopening.review import ReviewStore, describe_due, grade_for_loss
 from chessopening.pgn_loader import detect_main_player, find_pgn_files
 from chessopening.summary import summarise
 
@@ -45,7 +52,50 @@ JOBS_ROOT = os.path.join(tempfile.gettempdir(), "leaklab-jobs")
 os.makedirs(JOBS_ROOT, exist_ok=True)
 
 app = FastAPI(title="Opening Leak Lab API")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# Localhost only, unless the operator names somewhere else. The previous "*" meant any
+# page the user had open in another tab could read their game history off this port.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins(),
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Lichess-Token"],
+)
+
+# Analysis is the expensive one — each job spawns an engine and reads an archive — so it
+# gets a much tighter budget than the read endpoints the dashboard polls constantly.
+ANALYZE_LIMIT = RateLimiter(int(os.environ.get("LEAKLAB_ANALYZE_PER_HOUR", "20")), 3600)
+READ_LIMIT = RateLimiter(int(os.environ.get("LEAKLAB_READS_PER_MINUTE", "600")), 60)
+
+
+# Paths that cost real work: an analysis spawns an engine and reads an archive, and an
+# engine probe is a search. Everything else is a SQLite read the dashboard polls freely.
+COSTLY = ("/api/analyze", "/api/engine")
+
+
+@app.middleware("http")
+async def throttle(request: Request, call_next):
+    """Bound accidents — a runaway script, a page stuck in a retry loop.
+
+    Not a defence against a determined attacker: this is one process with an in-memory
+    counter. It stops a mistake from queueing a hundred engine jobs, which is the failure
+    that actually happens.
+    """
+    if request.method == "OPTIONS" or not request.url.path.startswith("/api/"):
+        return await call_next(request)
+    costly = any(request.url.path.startswith(p) for p in COSTLY)
+    limiter = ANALYZE_LIMIT if costly else READ_LIMIT
+    key = client_key(request.client.host if request.client else None,
+                     request.headers.get("x-forwarded-for"))
+    allowed, retry_after = limiter.check(key)
+    if not allowed:
+        what = "analysis runs" if costly else "requests"
+        return JSONResponse(
+            status_code=429,
+            content={"detail": f"That is a lot of {what} at once. "
+                               f"Try again in {retry_after} seconds."},
+            headers={"Retry-After": str(retry_after)},
+        )
+    return await call_next(request)
 
 JOBS: dict[str, dict[str, Any]] = {}
 LOCK = threading.Lock()
@@ -63,10 +113,16 @@ def board_db() -> LocalOpeningDatabase | None:
     if _BOARD_DB is None and os.path.exists(DEFAULT_DB):
         with _BOARD_DB_LOCK:
             if _BOARD_DB is None:
-                _BOARD_DB = LocalOpeningDatabase(DEFAULT_DB)
+                try:
+                    _BOARD_DB = LocalOpeningDatabase(DEFAULT_DB)
+                except sqlite3.DatabaseError:
+                    # An unpulled Git LFS pointer. The board still draws and the engine
+                    # still runs; only the book panel has nothing to say, which the page
+                    # already handles. A 500 here would take the whole board down.
+                    return None
                 _BOARD_DB.con.close()
-                _BOARD_DB.con = __import__("sqlite3").connect(DEFAULT_DB, check_same_thread=False)
-                _BOARD_DB.con.row_factory = __import__("sqlite3").Row
+                _BOARD_DB.con = sqlite3.connect(DEFAULT_DB, check_same_thread=False)
+                _BOARD_DB.con.row_factory = sqlite3.Row
     return _BOARD_DB
 
 
@@ -75,7 +131,9 @@ def engine_info() -> dict[str, Any]:
     try:
         path = find_engine()
     except FileNotFoundError as exc:
-        return {"available": False, "detail": str(exc)}
+        # The raw text is the right thing on a terminal and the wrong thing in a browser,
+        # so both travel: `detail` for anyone reading a log, `explain` for the page.
+        return {"available": False, "detail": str(exc), "explain": explain_failure(exc)}
     import subprocess
 
     try:
@@ -89,8 +147,15 @@ def engine_info() -> dict[str, Any]:
 
 def db_info() -> dict[str, Any]:
     if not os.path.exists(DEFAULT_DB):
-        return {"available": False}
-    db = LocalOpeningDatabase(DEFAULT_DB)
+        return {"available": False,
+                "explain": explain_failure(f"Local opening database not found at {DEFAULT_DB}")}
+    try:
+        db = LocalOpeningDatabase(DEFAULT_DB)
+    except sqlite3.DatabaseError as exc:
+        # The book ships through Git LFS, so before `git lfs pull` this path holds a small
+        # text pointer that opens fine and then fails as a database. Letting that become a
+        # 500 takes the whole page down over a file that simply has not downloaded yet.
+        return {"available": False, "explain": explain_failure(exc)}
     meta = dict(db._meta)  # noqa: SLF001 - simple read of the meta table
     positions = db.con.execute("SELECT COUNT(DISTINCT pos) FROM moves").fetchone()[0]
     rows = db.con.execute("SELECT COUNT(*) FROM moves").fetchone()[0]
@@ -208,6 +273,17 @@ def _run_job(job_id: str, pgn_dir: str, player: str | None, opts: dict[str, Any]
         with LOCK:
             job["rows"] = rows
             job["summary"] = _summarise(rows, result)
+            # Kept so the next run can answer "did last month's work do anything?".
+            try:
+                store = HistoryStore(DEFAULT_STATE)
+                try:
+                    store.save_run(job["summary"], rows, player=player or "",
+                                   source=job.get("source", ""), options=opts)
+                    job["comparison"] = store.compare_latest()
+                finally:
+                    store.close()
+            except Exception as err:  # noqa: BLE001 - history is a nicety, never a blocker
+                log(f"could not record this run in your history: {err}")
             job["report_path"] = result["report"]
             job["status"] = "done"
             job["finished"] = time.time()
@@ -216,6 +292,7 @@ def _run_job(job_id: str, pgn_dir: str, player: str | None, opts: dict[str, Any]
         with LOCK:
             job["status"] = "error"
             job["error"] = f"{type(exc).__name__}: {exc}"
+            job["explain"] = explain_failure(exc)
             job["log"].append(job["error"])
         traceback.print_exc()
     finally:
@@ -328,6 +405,7 @@ def job_status(job_id: str) -> dict[str, Any]:
         "options": job.get("options"),
         "log": job["log"][-14:],
         "error": job.get("error"),
+        "explain": job.get("explain"),
         "hint": job.get("hint"),
         "download_url": job.get("download_url"),
         "account": job.get("account"),
@@ -437,7 +515,9 @@ def engine_eval(payload: dict[str, Any]) -> dict[str, Any]:
             cache_path=ENGINE_CACHE,
         )
     except FileNotFoundError as exc:
-        raise HTTPException(503, f"No engine available: {exc}") from exc
+        # The friendly version travels with the failure, so every caller renders the same
+        # sentence rather than each one inventing its own wording for the same problem.
+        raise HTTPException(503, explain_failure(exc)) from exc
     except BoardError as exc:
         raise HTTPException(400, str(exc)) from exc
     for line in result.get("lines", []):
@@ -450,8 +530,180 @@ def openings(q: str = "", limit: int = 30) -> dict[str, Any]:
     """Named openings from the local book, for the library search box."""
     db = board_db()
     if db is None:
-        raise HTTPException(503, "No local opening database installed")
+        raise HTTPException(503, explain_failure("Local opening database not found"))
     return {"query": q, "results": db.search_openings(q, max(1, min(int(limit), 100)))}
+
+
+@app.get("/api/repertoire")
+def repertoire_marks() -> dict[str, Any]:
+    """Every decision the player has recorded about their own openings."""
+    store = MarkStore(DEFAULT_STATE)
+    try:
+        return {"marks": store.listing()}
+    finally:
+        store.close()
+
+
+@app.post("/api/repertoire")
+def set_repertoire_mark(payload: dict[str, Any]) -> dict[str, Any]:
+    """Commit to a move, ignore a finding, or undo either.
+
+    `decision: "clear"` removes whatever was there, so the player can change their mind
+    without a second endpoint.
+    """
+    epd = str(payload.get("epd") or "").strip()
+    color = str(payload.get("color") or "").strip()
+    decision = str(payload.get("decision") or "").strip()
+    if not epd or color not in ("white", "black"):
+        raise HTTPException(400, "epd and a colour of white or black are required")
+
+    store = MarkStore(DEFAULT_STATE)
+    try:
+        if decision == "clear":
+            return {"ok": True, "cleared": store.clear(epd, color)}
+        try:
+            mark = store.set(
+                epd, color,
+                str(payload.get("uci") or "").strip(),
+                decision,
+                san=str(payload.get("san") or "").strip(),
+                note=str(payload.get("note") or "").strip(),
+            )
+        except ValueError as err:
+            raise HTTPException(400, str(err)) from err
+        return {"ok": True, "mark": mark.__dict__}
+    finally:
+        store.close()
+
+
+@app.get("/api/gaps")
+def gap_decisions() -> dict[str, Any]:
+    """What the player has decided about the replies they are not ready for."""
+    store = GapStore(DEFAULT_STATE)
+    try:
+        return {"decisions": store.listing()}
+    finally:
+        store.close()
+
+
+@app.post("/api/gaps")
+def decide_gap(payload: dict[str, Any]) -> dict[str, Any]:
+    """Learn it, practise it, or stop being told about it.
+
+    "Practising" also enrols the position in the review cycle, so choosing it in one place
+    does the thing rather than only recording an intention. The move to grade against comes
+    from the report, which looked it up in the book when the gap was found.
+    """
+    epd = str(payload.get("epd") or "").strip()
+    color = str(payload.get("color") or "").strip()
+    decision = str(payload.get("decision") or "").strip()
+    if not epd or color not in ("white", "black"):
+        raise HTTPException(400, "epd and a colour of white or black are required")
+
+    store = GapStore(DEFAULT_STATE)
+    try:
+        if decision == "clear":
+            return {"ok": True, "cleared": store.clear(epd, color)}
+        try:
+            saved = store.set(
+                epd, color, decision,
+                reply=str(payload.get("reply") or ""),
+                line=str(payload.get("line") or ""),
+                opening=str(payload.get("opening") or ""),
+            )
+        except ValueError as err:
+            raise HTTPException(400, str(err)) from err
+    finally:
+        store.close()
+
+    progress = None
+    if decision == "practising" and payload.get("answer_uci"):
+        reviews = ReviewStore(DEFAULT_STATE)
+        try:
+            reviews.enrol(epd, color, uci=str(payload.get("answer_uci") or ""),
+                          san=str(payload.get("answer_san") or ""),
+                          opening=str(payload.get("opening") or ""),
+                          line=str(payload.get("line") or ""))
+            progress = reviews.progress()
+        finally:
+            reviews.close()
+    return {"ok": True, "decision": saved, "progress": progress}
+
+
+@app.get("/api/drills")
+def drills_due(limit: int = 30) -> dict[str, Any]:
+    """Positions ready to be seen again, plus how the player is doing overall."""
+    store = ReviewStore(DEFAULT_STATE)
+    try:
+        return {"due": store.due(limit=limit), "progress": store.progress()}
+    finally:
+        store.close()
+
+
+@app.post("/api/drills/enrol")
+def enrol_drills(payload: dict[str, Any]) -> dict[str, Any]:
+    """Take the positions from a finished report into the review cycle.
+
+    Enrolling is idempotent: a position already being reviewed keeps its schedule, so
+    re-running the analysis never wipes out progress.
+    """
+    positions = payload.get("positions") or []
+    store = ReviewStore(DEFAULT_STATE)
+    try:
+        for pos in positions[:100]:
+            epd = str(pos.get("epd") or "").strip()
+            color = str(pos.get("color") or "").strip()
+            if not epd or color not in ("white", "black"):
+                continue
+            store.enrol(epd, color, uci=str(pos.get("uci") or ""),
+                        san=str(pos.get("san") or ""),
+                        opening=str(pos.get("opening") or ""),
+                        line=str(pos.get("line") or ""))
+        return {"ok": True, "progress": store.progress()}
+    finally:
+        store.close()
+
+
+@app.post("/api/drills/attempt")
+def record_attempt(payload: dict[str, Any]) -> dict[str, Any]:
+    """Grade one attempt and say when the position comes back."""
+    epd = str(payload.get("epd") or "").strip()
+    color = str(payload.get("color") or "").strip()
+    if not epd or color not in ("white", "black"):
+        raise HTTPException(400, "epd and a colour of white or black are required")
+
+    cp_loss = payload.get("cp_loss")
+    revealed = bool(payload.get("revealed"))
+    grade = payload.get("grade")
+    if grade is None:
+        grade = grade_for_loss(float(cp_loss or 0), revealed=revealed)
+
+    store = ReviewStore(DEFAULT_STATE)
+    try:
+        schedule = store.record(
+            epd, color, str(payload.get("played_uci") or ""), int(grade),
+            cp_loss=int(cp_loss) if cp_loss is not None else None,
+        )
+        return {
+            "ok": True,
+            "grade": int(grade),
+            "due": describe_due(schedule),
+            "repetitions": schedule.repetitions,
+            "lapses": schedule.lapses,
+            "progress": store.progress(),
+        }
+    finally:
+        store.close()
+
+
+@app.get("/api/history")
+def history(limit: int = 20) -> dict[str, Any]:
+    """Past runs and how the newest compares with the one before it."""
+    store = HistoryStore(DEFAULT_STATE)
+    try:
+        return {"runs": store.runs(limit=limit), "comparison": store.compare_latest()}
+    finally:
+        store.close()
 
 
 @app.get("/api/health")
