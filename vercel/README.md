@@ -73,6 +73,77 @@ Email is separate: adding this site does not touch `MX` records, so mail on the
 domain keeps working. If the registrar's default zone had no `MX` at all and you
 want mail later, add it then.
 
+## Accounts
+
+The analyser itself is stateless, but a stateless analyser can only ever tell
+you what is leaking today — never whether you fixed it. Accounts are what make a
+second run mean something: the same leak key (the position EPD plus the move
+played) is tracked across runs, with a lifecycle of `open → drilling → fixed →
+regressed`.
+
+Accounts switch themselves on when a database is configured, and off when there
+is not one — a fork or a local preview still runs the analyser, it just does not
+keep anything. On a deployment that *does* have a database, signing in is
+required to run: a run has to belong to somebody for its progress to be kept.
+
+### What you need
+
+1. **A Postgres database.** In the Vercel dashboard: *Storage → Create → Postgres
+   (Neon)*, then connect it to this project. That injects `POSTGRES_URL` and
+   friends; nothing else needs setting up, and the schema is created on the
+   first request that needs it.
+
+2. **An encryption key**, for the Lichess access token. Generate one and add it
+   as the environment variable `LEAKLAB_ENCRYPTION_KEY`:
+
+   ```bash
+   python3 -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
+   ```
+
+   Without it, sign-in still works — the deployment simply declines to store the
+   token at all rather than storing it in the clear.
+
+3. **Lichess OAuth**, if you want one-tap sign-in for Lichess players. Lichess
+   issues public clients no secret, so `LICHESS_CLIENT_ID` is the whole
+   configuration; pick any stable string that identifies your deployment, e.g.
+   `chessleaklab.co.uk`. The redirect URI is
+   `https://your-domain/api/auth/lichess/callback` and is derived from the
+   request, or from `LEAKLAB_SITE_URL` if you set it.
+
+4. **Email**, for everyone else — Chess.com has no public OAuth, so its players
+   sign in with a single-use link. Set `RESEND_API_KEY` and `MAIL_FROM` (an
+   address on a domain verified with [Resend](https://resend.com)).
+
+| Variable | Needed for | Notes |
+| --- | --- | --- |
+| `POSTGRES_URL` | accounts at all | injected by Vercel Postgres |
+| `LEAKLAB_ENCRYPTION_KEY` | storing the Lichess token | 32 bytes, base64url |
+| `LICHESS_CLIENT_ID` | Lichess sign-in | no secret: the flow is PKCE |
+| `RESEND_API_KEY`, `MAIL_FROM` | email sign-in | |
+| `LEAKLAB_SITE_URL` | optional | pins the origin used in redirect URIs |
+| `LEAKLAB_CORS_ORIGINS` | optional | a regex; the default allows localhost only |
+| `LEAKLAB_DEV_MAGIC_LINKS` | preview only | `1` returns the link instead of mailing it; refused when `VERCEL_ENV=production` |
+
+### What is stored, and what is not
+
+The games are not kept. A fetched archive lives in the function's temporary
+storage and goes when the instance is recycled, exactly as before.
+
+What is kept is progress: one row per run, one row per leak with its status,
+the repertoire decisions, the drill schedule and its attempt log, preferences,
+and the most recent report so a new device opens on something real. Alongside
+that sits an email address or a Lichess account id. No passwords are stored,
+and the Lichess access token is encrypted (AES-256-GCM) before it is written.
+
+Two endpoints exist from the first migration rather than being promised for
+later, and the account menu links to both:
+
+* `GET /api/auth/export` — everything held for the signed-in user, as one JSON
+  file.
+* `POST /api/auth/delete` with `{"confirm": "DELETE"}` — erases the account.
+  Every other table is `ON DELETE CASCADE` from `users`, which is asserted by
+  `tests/test_accounts.py` so it cannot quietly stop being true.
+
 ## Run the hosted build locally
 
 `prepare.py` leaves a complete bundle behind, and the function also serves

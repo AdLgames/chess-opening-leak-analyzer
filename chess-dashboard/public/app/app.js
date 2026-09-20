@@ -246,11 +246,20 @@ function renderPrivacy() {
   $('privacyBody').innerHTML = hosted
     ? `<p>This is a hosted instance of a local-first tool. When you enter a username, this
          server fetches your public game archive from Chess.com or Lichess, analyses it
-         inside the deployed function, and returns the report. Nothing is written to a
-         database and there are no accounts; fetched archives sit in the function's
-         temporary storage and go when the instance is recycled.</p>
-       <p>Your repertoire decisions, your drill history and your last report are kept in
-         this browser only — they are never sent anywhere.</p>
+         inside the deployed function, and returns the report. The games themselves are
+         not kept: fetched archives sit in the function's temporary storage and go when
+         the instance is recycled.</p>
+       <p>What <em>is</em> kept, once you are signed in, is your progress — the leaks that
+         have been found for you, which of them you committed a reply to, how your drills
+         went, one line per run, and your most recent report. That is the point of an
+         account: without it, a second run cannot tell you which leaks you fixed. It is
+         stored in this deployment's database, alongside your email address or your
+         Lichess account id. No passwords are stored, and if you sign in with Lichess the
+         access token is encrypted before it is written.</p>
+       <p><b>Download my data</b> in the account menu gives you all of it as one JSON file,
+         and <b>Delete my account</b> erases it — the account row and everything that hangs
+         off it, with nothing kept back. Your browser also keeps a working copy so the app
+         is fast and still readable offline; signing out clears it.</p>
        <p>To keep the games on your own machine instead, clone
          <a href="https://github.com/AdLgames/chess-opening-leak-analyzer" target="_blank" rel="noopener">the repository</a>
          and run <code>make setup</code>: the local build does the same work with a local
@@ -260,7 +269,7 @@ function renderPrivacy() {
          Stockfish and a local SQLite opening book. The only outbound request is the
          archive fetch you ask for, straight to Chess.com or Lichess.</p>
        <p>Your repertoire decisions, your drill history and your last report are kept in
-         this browser only.</p>`;
+         this browser only. The local build has no accounts and no database.</p>`;
   const cost = state.costMetric || V.METRICS.cost;
   $('costExplainer').textContent = `${cost.definition} ${cost.why || V.METRICS.cost.why}`;
   $('costFormula').textContent = cost.formula;
@@ -1148,6 +1157,40 @@ function restoreAdvanced() {
   box.addEventListener('toggle', () => S.prefs.set('advancedOpen', box.open));
 }
 
+/* Accounts, where they touch the run form.
+
+   A run needs somewhere to hang its results, so when this deployment has
+   accounts and nobody is signed in, the sign-in card takes the gate and the run
+   form waits behind it. A deployment without a database is unchanged: there is
+   nothing to sign in to, and refusing to run would help nobody. */
+function renderAuthGate() {
+  const A = window.Auth;
+  const host = $('authGate');
+  const form = $('gateSlot');
+  if (!A || !host) return;
+  A.renderHeader($('headerAccount'));
+  const blocked = A.required();
+  host.hidden = !blocked;
+  if (blocked) A.renderGate(host, '/app/');
+  else host.innerHTML = '';
+  if (form) form.hidden = blocked;
+  // The demo is a canned sample archive, not anybody's games, so it stays open:
+  // there is nothing to keep and nothing to sign in for.
+  ['runBtn', 'runUploadBtn'].forEach((id) => {
+    const btn = $(id);
+    if (btn) btn.disabled = blocked;
+  });
+}
+
+/* Lichess and the magic-link verifier both bounce back here; say so if it failed. */
+function reportAuthError(code) {
+  if (!code) return;
+  const said = code === 'expired'
+    ? 'That sign-in link had already been used or had expired. Ask for another one.'
+    : `Sign-in did not complete: ${code}`;
+  showFetchProblem('Sign-in did not complete', said, '');
+}
+
 function bootAccount() {
   const saved = S.prefs.get('account', null) || lastAccount;
   setProvider(saved && PROVIDERS[saved.provider] ? saved.provider : 'chesscom');
@@ -1166,9 +1209,11 @@ function bootFromQuery() {
   if (!q.toString()) return;
   const user = (q.get('user') || '').trim();
   const provider = q.get('provider') === 'chesscom' ? 'chesscom' : 'lichess';
-  const wanted = { demo: q.get('demo'), run: q.get('run'), privacy: q.get('privacy') };
+  const wanted = { demo: q.get('demo'), run: q.get('run'), privacy: q.get('privacy'),
+    authError: q.get('auth_error') };
   history.replaceState(null, '', location.pathname + location.hash);
 
+  reportAuthError(wanted.authError);
   if (wanted.privacy) openDialog('privacyDialog');
   if (wanted.demo) return runDemo();
   if (!user) return;
@@ -1365,6 +1410,7 @@ function wire() {
   $('dataDialogClose').addEventListener('click', () => closeDialog('dataDialog'));
   $('privacyBtn').addEventListener('click', () => openDialog('privacyDialog'));
   $('privacyDialogClose').addEventListener('click', () => closeDialog('privacyDialog'));
+  $('authDialogClose').addEventListener('click', () => closeDialog('authDialog'));
 
   const setDrawer = (open) => {
     $('sidebar').classList.toggle('is-open', open);
@@ -1421,5 +1467,15 @@ bootAccount();
 setAppState('empty');
 bootReport();           // a cached run boots straight into `report`
 go(location.hash.slice(1) || 'dashboard');
+// The session decides whether the run form is usable and what the local copy
+// holds, so the gate is drawn as soon as /api/auth/me answers — and again on
+// any later change, such as signing out from the account menu.
+if (window.Auth) {
+  window.Auth.onChange(renderAuthGate);
+  window.Auth.boot().then(() => {
+    renderAuthGate();
+    if (window.Auth.signedIn() && !state.rows.length) bootReport();
+  });
+}
 // `serverless` decides how a run is driven, so the handoff waits for /api/meta
 loadMeta().then(bootFromQuery);
