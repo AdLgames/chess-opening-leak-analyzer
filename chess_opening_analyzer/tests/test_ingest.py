@@ -119,6 +119,75 @@ def test_second_run_reuses_the_cached_month(responder, tmp_path):
     assert len(responder.calls) == calls_after_first + 1
 
 
+def test_widening_the_time_controls_is_not_served_the_narrower_cache(responder, tmp_path):
+    """The bug that made a run come back short.
+
+    The month cache held games already filtered by the previous run's settings
+    but was keyed on the username alone, so ticking another time control and
+    running again re-served the old, narrower answer.
+    """
+    responder.routes["games/archives"] = json.dumps({
+        "archives": ["https://api.chess.com/pub/player/alice/games/2026/06"]}).encode()
+    payload = json.loads(month_payload(count=4).decode())
+    payload["games"] += json.loads(month_payload(count=20, time_class="bullet").decode())["games"]
+    responder.routes["2026/06"] = json.dumps(payload).encode()
+
+    narrow = fetch_games(opts(tmp_path, speeds=("blitz",), max_games=120))
+    wide = fetch_games(opts(tmp_path, speeds=("blitz", "bullet"), max_games=120))
+
+    assert narrow.games == 4
+    assert wide.games == 24, "the widened run must not be served the narrow cache"
+    # ... and it still costs no extra download: the raw month is what is cached
+    assert wide.cached_months == 1
+
+
+def test_a_short_haul_says_how_short_and_why(responder, tmp_path):
+    """Asking for 120 and getting 12 is normal. Not saying why is not."""
+    responder.routes["games/archives"] = json.dumps({
+        "archives": ["https://api.chess.com/pub/player/alice/games/2026/06"]}).encode()
+    payload = json.loads(month_payload(count=12).decode())
+    payload["games"] += json.loads(month_payload(count=75, time_class="bullet").decode())["games"]
+    payload["games"] += json.loads(month_payload(count=18, rated=False).decode())["games"]
+    responder.routes["2026/06"] = json.dumps(payload).encode()
+
+    res = fetch_games(opts(tmp_path, speeds=("blitz",), rated_only=True, max_games=120))
+
+    assert res.games == 12
+    assert "12 games, not the 120" in res.shortfall
+    # the reasons are ranked, so the one that cost the most games leads
+    assert res.shortfall.index("time controls") < res.shortfall.index("unrated")
+    assert "75 were not in the time controls you picked" in res.shortfall
+    assert "18 were unrated" in res.shortfall
+    assert res.shortfall in res.notes
+    assert res.to_dict()["shortfall"] == res.shortfall
+
+
+def test_a_full_haul_says_nothing(responder, tmp_path):
+    responder.routes["games/archives"] = json.dumps({
+        "archives": ["https://api.chess.com/pub/player/alice/games/2026/06"]}).encode()
+    responder.routes["2026/06"] = month_payload(count=10)
+
+    res = fetch_games(opts(tmp_path, max_games=5))
+    assert res.games == 5 and res.shortfall == "" and res.notes == []
+
+
+def test_nothing_matching_names_the_filter_that_ate_it(responder, tmp_path):
+    responder.routes["games/archives"] = json.dumps({
+        "archives": ["https://api.chess.com/pub/player/alice/games/2026/06"]}).encode()
+    responder.routes["2026/06"] = month_payload(count=30, time_class="bullet")
+
+    with pytest.raises(IngestError) as caught:
+        fetch_games(opts(tmp_path, speeds=("blitz",)))
+    assert "30 were not in the time controls you picked" in str(caught.value)
+
+
+def test_lichess_cache_is_keyed_on_the_filters_too(responder, tmp_path):
+    responder.routes["api/games/user"] = GAME.encode()
+    narrow = fetch_games(opts(tmp_path, provider="lichess", speeds=("blitz",)))
+    wide = fetch_games(opts(tmp_path, provider="lichess", speeds=("blitz", "bullet")))
+    assert narrow.files[0] != wide.files[0], "different filters, different export"
+
+
 def test_missing_chesscom_player_gets_an_actionable_error(responder, tmp_path):
     responder.routes["games/archives"] = urllib.error.HTTPError(
         "u", 404, "Not Found", {}, None)  # type: ignore[arg-type]

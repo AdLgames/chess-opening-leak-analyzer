@@ -296,7 +296,30 @@ function setProvider(provider) {
   $('optUser').placeholder = conf.placeholder;
   $('userHint').textContent = conf.hint;
   $('tokenField').hidden = provider !== 'lichess';
+  renderSpeedChips(provider);
   clearProfile();
+}
+
+/* The two sites do not have the same time controls, and offering one that
+   cannot match is how a run quietly comes back short. Chess.com has no
+   "classical" at all — its long games are "daily". */
+const PROVIDER_SPEEDS = {
+  chesscom: ['bullet', 'blitz', 'rapid', 'daily'],
+  lichess: ['bullet', 'blitz', 'rapid', 'classical', 'daily'],
+};
+
+function renderSpeedChips(provider) {
+  const field = $('speedChips');
+  if (!field) return;
+  const allowed = PROVIDER_SPEEDS[provider] || PROVIDER_SPEEDS.lichess;
+  field.querySelectorAll('.chip-check').forEach((label) => {
+    const box = label.querySelector('input');
+    const ok = allowed.includes(box.value);
+    label.hidden = !ok;
+    // An unticked box for a control this site does not have would still be
+    // sent, so clear it rather than just hiding it.
+    if (!ok) box.checked = false;
+  });
 }
 
 function clearProfile() {
@@ -613,6 +636,7 @@ function applyReport(data, job, { cached = false } = {}) {
   state.selected = null;
 
   $('demoBanner').hidden = !state.demo;
+  renderShortfall();
   setAppState('report');
   renderSummaryBand();
   renderChart();
@@ -641,6 +665,22 @@ function applyReport(data, job, { cached = false } = {}) {
   }
   renderNav();
   renderViewHead();
+}
+
+/* When a run came back with fewer games than were asked for, say so where it
+   will be read. The reason was already in the log, but the log is collapsed by
+   default, so the visible result was a number that looked like the request had
+   been ignored. */
+function renderShortfall() {
+  const banner = $('shortBanner');
+  if (!banner) return;
+  const account = state.account || {};
+  const note = account.shortfall || '';
+  banner.hidden = !note || state.demo;
+  if (banner.hidden) return;
+  $('shortText').innerHTML =
+    `<b>${esc(account.games || 0)} of the ${esc(account.requested || 0)} games you asked for.</b> `
+    + esc(note.replace(/^Found [^—]*—\s*/, ''));
 }
 
 /* One line per run, so Progress has something to plot. */
@@ -1269,6 +1309,13 @@ function wire() {
   $('runBtn').addEventListener('click', () => startRun('username'));
   $('runUploadBtn').addEventListener('click', () => startRun('upload'));
   $('sampleBtn').addEventListener('click', () => runDemo());
+  // Straight to the controls that decide how many games a run reads.
+  $('shortFix').addEventListener('click', () => {
+    mountRunForm('dialogSlot');
+    const advanced = $('advanced');
+    if (advanced) advanced.open = true;   // the time controls live in there
+    openDialog('runDialog');
+  });
   $('uploadToggle').addEventListener('click', () => {
     const open = $('panelUpload').hidden;
     $('panelUpload').hidden = !open;
