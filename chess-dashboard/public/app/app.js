@@ -667,7 +667,7 @@ function renderSummaryBand() {
 }
 
 /* One chart panel, one chart, a toggle between the two readings of it. */
-const CHART_FONT = { family: "'Inter', sans-serif", size: 11 };
+const CHART_FONT = { family: "'IBM Plex Sans', sans-serif", size: 11 };
 function renderChart() {
   // the chart library is a CDN script: without it the panel has nothing to say,
   // so it does not render at all rather than leaving an empty frame
