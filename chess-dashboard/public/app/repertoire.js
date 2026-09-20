@@ -18,6 +18,7 @@
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
   let colour = 'white';
+  let playedFilter = 'all';
 
   /* ---------------------------------------------------------------- coverage */
   /** The share of the user's opening decisions, weighted by how often they play
@@ -93,6 +94,57 @@
     </li>`;
   }
 
+  /* -------------------------------------------------------- everything played
+     The leak table is a strict filter, so a line handled well left no trace in
+     the report at all. This is the unfiltered reading: every decision the run
+     saw you repeat, with the ones that leak marked rather than the ones that
+     do not being dropped. */
+  function renderPlayed(ctx) {
+    const body = $('playedBody');
+    if (!body) return;
+    const all = (ctx.tree || []).filter((r) => r.player_color === colour);
+    document.querySelectorAll('#playedFilter .seg').forEach((b) =>
+      b.classList.toggle('is-active', b.dataset.played === playedFilter),
+    );
+
+    if (!all.length) {
+      body.innerHTML = `<p class="invite">Nothing recorded as ${colour} yet. Run the
+        analyser and every line you repeat shows up here, whether or not it leaks.</p>`;
+      return;
+    }
+    const shown = all.filter((r) => (playedFilter === 'leaking' ? r.flag
+      : playedFilter === 'clean' ? !r.flag && r.eligible === 'yes' : true));
+    const leaking = all.filter((r) => r.flag).length;
+    const clean = all.filter((r) => !r.flag && r.eligible === 'yes').length;
+    const watching = all.filter((r) => r.eligible === 'no').length;
+
+    const rows = shown.slice(0, 120).map((r) => {
+      const gap = num(r.score_gap_vs_db_pct);
+      const state = r.flag ? 'leak' : r.eligible === 'no' ? 'watch' : 'clean';
+      const label = r.flag
+        ? esc(r.flag.split('+').map((f) => (V.FLAGS[f] ? V.FLAGS[f].label : f)).join(' · '))
+        : r.eligible === 'no' ? `seen ${plural(num(r.your_games) || 0, 'time')}` : 'holding up';
+      return `<li class="played-row is-${state}">
+        <span class="played-main">
+          <b>${esc([r.eco, r.opening].filter(Boolean).join(' ') || 'Unclassified')}</b>
+          <span class="mono muted">${esc(r.variation_line)} <b>${esc(r.your_move)}</b></span>
+        </span>
+        <span class="played-figs mono">
+          <span title="games you played this decision in">${esc(r.your_games)}g</span>
+          <span title="your score against the book's">${r.your_score_pct === '' ? '—' : `${esc(r.your_score_pct)}%`}${
+            gap === null ? '' : ` <i class="${gap < 0 ? 'is-down' : 'is-up'}">${gap > 0 ? '+' : ''}${esc(r.score_gap_vs_db_pct)}</i>`}</span>
+        </span>
+        <span class="played-state">${label}</span>
+      </li>`;
+    }).join('');
+
+    body.innerHTML = `
+      <p class="played-legend small muted">${plural(all.length, 'decision')} as ${colour}:
+        ${leaking} leaking, ${clean} holding up${watching ? `, ${watching} seen too few times to judge` : ''}.</p>
+      <ol class="played-list">${rows || '<li class="invite">Nothing in this filter.</li>'}</ol>
+      ${shown.length > 120 ? `<p class="small muted">Showing the first 120 of ${shown.length}.</p>` : ''}`;
+  }
+
   /* ------------------------------------------------------------------ views */
   function renderRepertoire(ctx) {
     const cov = coverage(ctx);
@@ -104,6 +156,8 @@
       <p class="coverage-note" title="${esc(V.METRICS.coverage.definition)}">
         ${esc(V.METRICS.coverage.definition)}
       </p>`;
+
+    renderPlayed(ctx);
 
     const entries = S.repertoire.all().filter((e) => e.color === colour);
     const committed = entries.filter((e) => e.status === 'committed');
@@ -343,6 +397,12 @@
       b.addEventListener('click', () => {
         colour = b.dataset.color;
         renderRepertoire(window.App ? window.App.reportContext() : {});
+      }),
+    );
+    document.querySelectorAll('#playedFilter .seg').forEach((b) =>
+      b.addEventListener('click', () => {
+        playedFilter = b.dataset.played;
+        renderPlayed(window.App ? window.App.reportContext() : {});
       }),
     );
   }

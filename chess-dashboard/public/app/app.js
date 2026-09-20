@@ -131,7 +131,8 @@ function go(view) {
 }
 
 function reportContext() {
-  return { rows: state.rows, summary: state.summary, player: state.player };
+  // `tree` is everything you play; `rows` is the subset that leaks.
+  return { rows: state.rows, tree: state.tree, summary: state.summary, player: state.player };
 }
 
 function renderViewHead() {
@@ -626,6 +627,7 @@ function setBusy(busy) {
 /* ------------------------------------------------------------------ report */
 function applyReport(data, job, { cached = false } = {}) {
   state.rows = data.rows || [];
+  state.tree = data.tree || [];
   state.summary = data.summary;
   state.player = data.player;
   state.options = (job && job.options) || data.options || null;
@@ -652,6 +654,7 @@ function applyReport(data, job, { cached = false } = {}) {
   if (!cached) {
     S.lastReport.save({
       rows: state.rows,
+      tree: state.tree,
       summary: state.summary,
       player: state.player,
       options: state.options,

@@ -1077,3 +1077,33 @@ tr.is-decided { opacity: 0.62; }
 
 .dialog-narrow { max-width: 420px; }
 .auth-demo { margin: 0; color: var(--text-muted); line-height: 1.55; }
+
+/* ------------------------------------------------- everything you play
+   The leak table shows what is wrong; this shows the whole repertoire, with
+   the leaks marked rather than everything else dropped. Colour carries only
+   the state, which the text says too. */
+.played-legend { margin: 0 0 10px; }
+.played-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.played-row {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--raised);
+}
+.played-main { min-width: 0; display: grid; gap: 2px; }
+.played-main b { font-size: 13px; }
+.played-main .mono { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.played-figs { display: flex; gap: 12px; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.played-figs i { font-style: normal; }
+.played-figs .is-down { color: var(--bad-text); }
+.played-figs .is-up { color: var(--good-text); }
+.played-state { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+.played-row.is-leak { border-left: 3px solid var(--sev-high); }
+.played-row.is-leak .played-state { color: var(--bad-text); }
+.played-row.is-clean { border-left: 3px solid var(--good); }
+.played-row.is-clean .played-state { color: var(--good-text); }
+.played-row.is-watch { border-left: 3px solid var(--line-strong); }
+
+@media (max-width: 560px) {
+  .played-row { grid-template-columns: 1fr; gap: 4px; }
+  .played-figs { gap: 14px; }
+}

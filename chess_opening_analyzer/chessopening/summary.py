@@ -53,6 +53,10 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         "judged": stats["repeated"],
         # every game-appearance behind a judged decision: the denominator of coverage
         "judged_games": stats.get("repeated_games", 0),
+        # how many repeated decisions were examined at all, so "24 leaks" can be
+        # read as a share of what you play rather than as a bare count
+        "tree_rows": stats.get("tree_rows", 0),
+        "clean": max(0, int(stats.get("tree_rows", 0)) - len(rows)),
         "leaks": len(rows),
         "lost_points": round(sum(_f(r["lost_points"]) for r in rows), 2),
         "cost": round(sum(_f(r.get("cost")) for r in rows), 2),
