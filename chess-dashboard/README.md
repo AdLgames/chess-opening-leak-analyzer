@@ -40,6 +40,11 @@ starts that run on arrival rather than asking for the username a second time.
 Each of those is read once and then cleared from the URL, so a reload does not
 repeat it.
 
+Both pages run the same type system — Instrument Serif for the display line,
+IBM Plex Sans for the interface, IBM Plex Mono wherever characters have to line
+up (notation, FENs, evals) — from one Google Fonts request that is byte-identical
+on both, so moving between them costs no extra download.
+
 Both pages run the brand palette. The front page uses its dark half — Deep Navy
 bands, Off-White type, Aged Brass for branding and the call to action — and the
 tool uses its light half; the board, the move that loses ground (Muted Crimson)
