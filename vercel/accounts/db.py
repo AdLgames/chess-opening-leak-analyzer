@@ -47,14 +47,21 @@ def database_url() -> str | None:
 def driver_available() -> bool:
     """Whether this deployment can actually talk to Postgres.
 
-    A URL is not enough: the driver has to be installed too. Checking both is
-    what lets the rest of the app treat "no accounts" as a state rather than as
-    a crash — a deployment missing either one serves the analyser exactly as it
-    did before accounts existed, instead of 500ing on every request.
+    A URL is not enough, and neither is an importable package: psycopg is a thin
+    layer over libpq, and without the binary that carries it the module imports
+    happily and then fails on the first connect. `pq.version()` is the cheapest
+    thing that forces that binding to resolve.
+
+    Checking all three is what lets the rest of the app treat "no accounts" as a
+    state rather than as a crash — a deployment missing any of them serves the
+    analyser exactly as it did before accounts existed, instead of 500ing on
+    every request.
     """
     try:
-        import psycopg  # noqa: F401, PLC0415
-    except ImportError:
+        import psycopg  # noqa: PLC0415
+
+        psycopg.pq.version()
+    except Exception:  # noqa: BLE001 - any failure here means "no database"
         return False
     return True
 
