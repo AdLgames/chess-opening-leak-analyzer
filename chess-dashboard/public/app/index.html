@@ -62,11 +62,9 @@
         </a>
 
         <nav class="nav" id="nav" aria-label="Sections">
-          <a href="#report" class="nav-item is-active" data-view="report">Report</a>
+          <a href="#dashboard" class="nav-item is-active" data-view="dashboard">Dashboard</a>
+          <a href="#clinic" class="nav-item" data-view="clinic">Clinic</a>
           <a href="#repertoire" class="nav-item" data-view="repertoire">Repertoire</a>
-          <a href="#practice" class="nav-item" data-view="practice">Practice</a>
-          <a href="#progress" class="nav-item" data-view="progress">Progress</a>
-          <a href="#explorer" class="nav-item" data-view="explorer">Explorer</a>
         </nav>
       </aside>
 
@@ -89,15 +87,14 @@
               <a class="menu-item" id="exportStudy" href="#" target="_blank" rel="noopener">Open the repertoire as a Lichess study</a>
             </div>
           </details>
-          <button class="btn btn-primary" id="runAgainBtn">Run again</button>
+          <button class="btn btn-ghost" id="runAgainBtn">Run again</button>
         </div>
       </header>
 
       <!-- --------------------------------------------------------------- main -->
       <main class="main" id="main">
-        <!-- =================================================== report -->
-        <section class="view" id="viewReport">
-          <!-- empty state: the only thing on the page before a run -->
+        <!-- ================================================ dashboard -->
+        <section class="view" id="viewDashboard">
           <div class="gate" id="gate">
             <div class="gate-inner">
               <h2 class="gate-title">Find the opening moves that cost you points</h2>
@@ -124,14 +121,19 @@
             </details>
           </div>
 
-          <!-- report -->
+          <!-- the macro view: what is wrong, and the way in -->
           <div class="report" id="report" hidden>
             <div class="notice is-info banner" id="demoBanner" hidden>
               <span><b>This is the sample archive</b>, not your games — a finished report to look around in.</span>
-              <button class="btn btn-primary" id="demoExit">Analyse my own games</button>
+              <button class="btn btn-ghost" id="demoExit">Analyse my own games</button>
             </div>
 
             <div class="summary-band" id="summaryBand"></div>
+            <!-- the one action the dashboard is for -->
+            <div class="train-cta" id="trainCta" hidden>
+              <p id="trainCtaText"></p>
+              <button class="btn btn-primary" id="trainBtn" type="button">Start training</button>
+            </div>
 
             <section class="panel" id="chartPanel">
               <div class="panel-head">
@@ -142,18 +144,23 @@
                 </div>
               </div>
               <p class="panel-note" id="chartNote"></p>
-              <div class="chart-wrap"><canvas id="chartCanvas"></canvas></div>
+              <div class="chart-wrap" id="chartWrap"></div>
+              <div class="chart-tip" id="chartTip" role="status" hidden></div>
+              <p class="chart-key" id="chartKey" hidden>
+                <span><i class="ch-swatch ch-you" aria-hidden="true"></i>Your score</span>
+                <span><i class="ch-swatch ch-ref" aria-hidden="true"></i>The book</span>
+              </p>
             </section>
 
             <section class="panel" id="tablePanel">
               <div class="panel-head">
                 <h2>Leaks</h2>
+                <button type="button" class="info-btn" id="costHelp" aria-label="How cost is worked out">?</button>
                 <div class="filters">
                   <div class="segmented" id="flagFilter" role="tablist"></div>
                   <input id="search" class="search" type="search" placeholder="Filter opening or move" aria-label="Filter opening or move" />
                 </div>
               </div>
-              <p class="panel-note" id="rankNote"></p>
               <div class="table-scroll">
                 <table id="leakTable">
                   <caption class="sr-only">Leaks found in your games, most costly first</caption>
@@ -174,7 +181,27 @@
                 <p class="empty-inline" id="tableEmpty" hidden>No leak matches that filter.</p>
               </div>
             </section>
+          </div>
+        </section>
 
+        <!-- =================================================== clinic -->
+        <!-- one leak at a time: the board, what it costs, and the fix -->
+        <section class="view" id="viewClinic" hidden>
+          <!-- which leak is on the table, and how you want to work on it -->
+          <div class="clinic-head" id="clinicHead" hidden>
+            <div class="clinic-which">
+              <button class="btn btn-ghost" id="clinicPrev" type="button" aria-label="Previous leak">←</button>
+              <span class="clinic-count mono" id="clinicCount"></span>
+              <button class="btn btn-ghost" id="clinicNext" type="button" aria-label="Next leak">→</button>
+            </div>
+            <div class="segmented" id="clinicMode" role="tablist">
+              <button class="seg is-active" data-mode="study" role="tab">Study</button>
+              <button class="seg" data-mode="drill" role="tab">Drill</button>
+            </div>
+          </div>
+          <p class="invite" id="clinicEmpty" hidden>
+            Nothing to work on yet. Run a report and the leaks it finds land here, one at a time.
+          </p>
             <section class="panel fix-panel" id="fixPanel">
               <div class="panel-head">
                 <h2 id="fixHeading">Fix the mistake</h2>
@@ -243,39 +270,9 @@
                     <a class="btn btn-ghost" id="lichessLink" target="_blank" rel="noopener">Open on Lichess board</a>
                     <button class="btn btn-ghost" id="copyFen">Copy FEN</button>
                   </div>
-                  <p class="fen mono" id="fenText"></p>
                 </div>
               </div>
             </section>
-          </div>
-        </section>
-
-        <!-- =================================================== repertoire -->
-        <section class="view" id="viewRepertoire" hidden>
-          <div class="coverage" id="coverageCard"></div>
-
-          <section class="panel">
-            <div class="panel-head">
-              <h2>Your lines</h2>
-              <div class="segmented" id="repColor" role="tablist">
-                <button class="seg is-active" data-color="white" role="tab">White</button>
-                <button class="seg" data-color="black" role="tab">Black</button>
-              </div>
-            </div>
-            <div class="tree" id="repTree"></div>
-          </section>
-
-          <section class="panel">
-            <div class="panel-head">
-              <h2>Holes</h2>
-              <span class="hint">Positions you reach with no committed answer, most frequent first</span>
-            </div>
-            <ol class="holes" id="repHoles"></ol>
-          </section>
-        </section>
-
-        <!-- =================================================== practice -->
-        <section class="view" id="viewPractice" hidden>
           <section class="panel practice-panel">
             <p class="invite" id="practiceInvite" hidden>
               Nothing to drill yet. Every leak the report finds becomes a position to solve —
@@ -310,13 +307,36 @@
           </section>
         </section>
 
-        <!-- =================================================== progress -->
-        <section class="view" id="viewProgress" hidden>
-          <div id="progressBody"></div>
-        </section>
+        <!-- =============================================== repertoire -->
+        <!-- the why: what you have committed, how it is moving, and the book -->
+        <section class="view" id="viewRepertoire" hidden>
+          <div class="coverage" id="coverageCard"></div>
 
-        <!-- =================================================== explorer -->
-        <section class="view" id="viewExplorer" hidden>
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Your lines</h2>
+              <div class="segmented" id="repColor" role="tablist">
+                <button class="seg is-active" data-color="white" role="tab">White</button>
+                <button class="seg" data-color="black" role="tab">Black</button>
+              </div>
+            </div>
+            <div class="tree" id="repTree"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Holes</h2>
+              <span class="hint">Positions you reach with no committed answer, most frequent first</span>
+            </div>
+            <ol class="holes" id="repHoles"></ol>
+          </section>
+
+          <section class="panel" id="progressPanel">
+            <div class="panel-head"><h2>Progress</h2>
+              <span class="hint">What has changed between runs</span></div>
+          <div id="progressBody"></div>
+          </section>
+
           <!-- the personal half: only rendered once a run has something to say -->
           <div class="explorer-personal" id="explorerPersonal" hidden>
             <div class="summary-band" id="breakBand"></div>
@@ -367,8 +387,8 @@
                   <button class="btn btn-ghost" id="libReset">Start position</button>
                   <button class="btn btn-ghost" id="libFlip">Flip</button>
                   <a class="btn btn-ghost" id="libLichess" target="_blank" rel="noopener">Open on Lichess</a>
+                  <button class="btn btn-ghost" id="libCopyFen" type="button">Copy FEN</button>
                 </div>
-                <p class="fen mono" id="libFen"></p>
               </div>
               <div class="library-side">
                 <label class="field">
@@ -401,8 +421,23 @@
           <span class="foot-sep" aria-hidden="true"></span>
           <button class="foot-link" id="dataBtn" type="button">Engine &amp; data</button>
           <button class="foot-link" id="privacyBtn" type="button">Where your games go</button>
+          <button class="foot-link" id="themeBtn" type="button" aria-pressed="false">Dark</button>
         </footer>
       </main>
+      <nav class="tabbar" id="tabbar" aria-label="Sections">
+        <a href="#dashboard" class="tab-item is-active" data-view="dashboard">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z" fill="currentColor"/></svg>
+          <span>Dashboard</span>
+        </a>
+        <a href="#clinic" class="tab-item" data-view="clinic">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3v6M9 21h6M8 9h8l1 7a5 5 0 0 1-10 0z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Clinic</span>
+        </a>
+        <a href="#repertoire" class="tab-item" data-view="repertoire">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M17 7h2v13H8" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/></svg>
+          <span>Repertoire</span>
+        </a>
+      </nav>
     </div>
 
     <!-- the input form lives here and is moved into the empty screen or this dialog,
@@ -608,7 +643,6 @@
       </form>
     </template>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="./vocab.js"></script>
     <script src="./store.js"></script>
     <script src="./board.js"></script>

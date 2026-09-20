@@ -67,8 +67,24 @@ FLAG_THIN = "thin"                      # too few games to be sure
 #: outrank one seen thirty.
 COST_PRIOR = 4.0
 
+#: Bumped whenever the formula above changes. Stored on every row, so a ranking
+#: can always be traced to the maths that produced it and old reports are never
+#: silently reshuffled by a new release.
+COST_VERSION = 1
+
+#: The one description of the metric. Served by /api/meta and shown in the
+#: interface, so the explanation cannot drift away from the calculation.
+COST_EXPLAINER = {
+    "version": COST_VERSION,
+    "label": "Cost",
+    "definition": "Frequency x severity, with a cautious estimate on thin samples.",
+    "formula": "cost = (score points shed per game + eval drop / 4) x games x games / (games + 4)",
+    "why": "The shrinkage is what stops a habit seen three times outranking one seen thirty.",
+}
+
 REPORT_FIELDS = [
     "cost",
+    "cost_version",
     "flag",
     "eco",
     "opening",
@@ -291,6 +307,7 @@ def analyze(
 
         rows.append({
             "cost": cost,
+            "cost_version": COST_VERSION,
             "flag": "+".join(flags),
             "eco": (stats.eco if stats and stats.eco else node.eco),
             "opening": (stats.name if stats and stats.name else node.opening),

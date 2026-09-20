@@ -57,27 +57,37 @@ decision: a username, "Analyse my games", and a sample archive one click away.
 While a run is in flight that collapses to one line and a progress bar. After it,
 the report appears — and a cached report boots straight back into it.
 
-Five destinations, each named the same in the nav and in its heading:
+Three destinations, each named the same in the nav and in its heading. Macro and
+micro no longer share a page:
 
-1. **Report** — a summary band (coverage, leaks, points shed, games read, worst
-   opening), one chart panel with a toggle between points shed and you-vs-book, and
-   the leak table: cost with an inline bar, opening over its line, your move with
-   its flags, you vs book, games. Rows are capped with "Show all" and become cards
-   on a narrow screen. Selecting one fills the fix panel below: the board, your
-   record against the book, the eval swing, Stockfish's alternatives with their
-   book scores, the book moves from the position, and a live engine pane. From
-   there a finding can be committed, dismissed or sent to practice.
-2. **Repertoire** — the lines you have committed as a move tree per colour, the
-   holes left in it ranked by how often they come up, and the coverage figure.
-3. **Practice** — the drill set built from the report, scored as you go.
-4. **Progress** — coverage per run, the leaks that have gone and what they were
-   costing you, and per-position drill retention with a review date.
-5. **Explorer** — the openings explorer, read through your own games: the move number
-   your openings tend to break on, a row per opening you play (your record against what
-   the book scores from the same positions, the move your line holds to, what it costs),
-   the selected opening in full with what to play instead at each break, and the known
-   trap lines you have actually faced — whether you walked in or held, and the move that
-   avoids each one. The book explorer, which is the same for everyone, sits underneath.
+1. **Dashboard** — what is wrong. The summary band (coverage, leaks, points shed,
+   games read, worst opening), one call to action naming how many leaks are still
+   open, the chart, and the leak list itself: cost with an inline bar, opening
+   over its line, your move with its flags, you vs book, games. Tapping a row is
+   how you enter the Clinic.
+
+   The chart has two readings behind one toggle, both drawn as SVG in the page —
+   no chart library, so the panel cannot vanish with a CDN. *Points shed* is a
+   ranked bar per opening: one series, so one colour, with the value at every tip
+   and no gridlines to carry. *You vs book* is a dumbbell — your score and the
+   book's from the same positions, the connector between them being the gap —
+   with the book in a recessive slate so the subject reads and the reference
+   recedes. Both mark colours are steps of the brand hues chosen with
+   `scripts/validate_palette.js`: they clear colour-vision separation and 3:1
+   against each surface, and the muted brass is relieved by the value labels and
+   the table underneath. Hovering any row gives the numbers the chart does not
+   print.
+2. **Clinic** — how to fix it, one leak at a time. The board is the hero, with
+   your record against the book, the eval swing, the engine's alternatives and
+   the book moves beside it, and Commit / Not interested / Drill this as the
+   actions. A Study/Drill switch turns the same position into a flashcard, and
+   the arrows walk the queue in cost order.
+3. **Repertoire** — why, and what you have built. The committed tree per colour,
+   the holes left in it, coverage, progress between runs, a profile of every
+   opening you play with the traps that have caught you, and the book explorer.
+
+On a phone those three are a fixed bar at the bottom rather than a drawer; the
+rail returns above 860px.
 
 Run options beyond colour and how many games to read live behind "Advanced
 settings", which stays shut until you open it and then remembers that. Engine and
@@ -116,6 +126,13 @@ One set of tokens at the top of `public/styles.css`, from the brand palette:
 | `--highlight` | `#A8A354` | Muted Gold: the last move, and the engine's pick |
 | `--slate` | `#3E5265` | Slate Blue: legal moves, selection, hover, secondary borders |
 | `--danger` | `#C95246` | Muted Crimson: a king in check, a move that loses ground |
+
+A dark theme is the same tokens from the other side — Deep Navy grounds the page,
+Off-White becomes the ink — and follows the operating system unless the footer
+switch says otherwise, which is remembered. Severity has three weights rather
+than three new hues (`--sev-high` crimson, `--sev-mid` brass, `--sev-low` a
+neutral), and the flag chip beside a number always says the same thing in words,
+so colour is never the only cue.
 
 The palette is specified for a dark deployment; run light, Deep Navy and Off-White
 swap roles — navy becomes the ink and keeps the nav rail, off-white becomes the page.

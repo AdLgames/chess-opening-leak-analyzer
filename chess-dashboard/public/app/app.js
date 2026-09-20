@@ -28,16 +28,17 @@ const S = window.Store;
    not open with 400 rows. */
 const ROW_CAP = 25;
 
+/* Three destinations: what is wrong, how to fix it, and what you have built.
+   Macro and micro no longer share a page. */
 const VIEWS = {
-  report: { title: 'Report', needsRun: false },
-  repertoire: { title: 'Repertoire', needsRun: true },
-  practice: { title: 'Practice', needsRun: true },
-  progress: { title: 'Progress', needsRun: true },
-  explorer: { title: 'Explorer', needsRun: false },
+  dashboard: { title: 'Dashboard', needsRun: false },
+  clinic: { title: 'Clinic', needsRun: true },
+  repertoire: { title: 'Repertoire', needsRun: false },
 };
 
 const state = {
-  view: 'report',
+  view: 'dashboard',
+  clinicMode: 'study',
   app: 'empty',
   files: [],
   mode: 'username',
@@ -58,8 +59,11 @@ const state = {
   filter: { flag: 'all', q: '' },
   showAll: false,
   selected: null,
-  chart: null,
   chartKind: 'lost',
+  costMetric: null,
+  theme: 'system',
+  selectedFen: '',
+  libFen: '',
   meta: null,
 };
 
@@ -98,16 +102,18 @@ function hasReport() {
 
 function renderNav() {
   const unlocked = hasReport() || S.repertoire.all().length > 0;
-  document.querySelectorAll('.nav-item').forEach((a) => {
+  document.querySelectorAll('.nav-item, .tab-item').forEach((a) => {
     const view = a.dataset.view;
     a.hidden = VIEWS[view].needsRun && !unlocked;
     a.classList.toggle('is-active', view === state.view);
+    if (view === state.view) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
   });
 }
 
 function go(view) {
-  if (!VIEWS[view]) view = 'report';
-  if (VIEWS[view].needsRun && !hasReport() && !S.repertoire.all().length) view = 'report';
+  if (!VIEWS[view]) view = 'dashboard';
+  if (VIEWS[view].needsRun && !hasReport() && !S.repertoire.all().length) view = 'dashboard';
   state.view = view;
   Object.keys(VIEWS).forEach((name) => {
     $(`view${name[0].toUpperCase()}${name.slice(1)}`).hidden = name !== view;
@@ -115,9 +121,12 @@ function go(view) {
   if (location.hash !== `#${view}`) history.replaceState(null, '', `#${view}`);
   renderNav();
   renderViewHead();
-  if (view === 'repertoire') window.Repertoire.renderRepertoire(reportContext());
-  if (view === 'progress') window.Repertoire.renderProgress(reportContext());
-  if (view === 'explorer') window.Explorer.render(reportContext());
+  if (view === 'clinic') renderClinic();
+  if (view === 'repertoire') {
+    window.Repertoire.renderRepertoire(reportContext());
+    window.Repertoire.renderProgress(reportContext());
+    window.Explorer.render(reportContext());
+  }
   $('main').scrollTop = 0;
 }
 
@@ -131,18 +140,13 @@ function renderViewHead() {
 }
 
 function subtitle() {
-  if (state.view === 'repertoire') return 'The lines you have committed to, and the gaps left in them';
-  if (state.view === 'practice') {
-    const queued = window.Study ? window.Study.queue().length : 0;
-    return queued
-      ? `${plural(queued, 'position')} from your own games`
-      : 'The positions your report turned into drills';
+  if (state.view === 'repertoire') {
+    return 'What you have committed, how it is moving, and every opening you play';
   }
-  if (state.view === 'progress') return 'What has changed between runs';
-  if (state.view === 'explorer') {
-    return hasReport()
-      ? 'Every opening you play, where it goes wrong, and what to play instead'
-      : 'Walk any line and see what the book did with it';
+  if (state.view === 'clinic') {
+    const r = state.selected;
+    if (!r) return 'One leak at a time: the board, the cost, and the fix';
+    return `${r.opening || r.eco || 'Unclassified'} · move ${r.move_number} as ${r.player_color}`;
   }
   if (state.app !== 'report' || !state.summary) return '';
   const s = state.summary;
@@ -204,6 +208,8 @@ async function loadMeta() {
          <dt>File size</dt><dd>${d.size_mb} MB</dd>`
       : '<dt>Status</dt><dd>not built</dd>';
 
+    // the calculation describes itself: prefer the served text over our copy
+    if (meta.metrics && meta.metrics.cost) state.costMetric = meta.metrics.cost;
     if (meta.sample && !meta.sample.available) $('sampleBtn').disabled = true;
     $('engineNotice').hidden = e.available !== false;
     if (e.available === false) {
@@ -255,8 +261,9 @@ function renderPrivacy() {
          archive fetch you ask for, straight to Chess.com or Lichess.</p>
        <p>Your repertoire decisions, your drill history and your last report are kept in
          this browser only.</p>`;
-  $('costExplainer').textContent = `${V.METRICS.cost.definition} ${V.METRICS.cost.why}`;
-  $('costFormula').textContent = V.METRICS.cost.formula;
+  const cost = state.costMetric || V.METRICS.cost;
+  $('costExplainer').textContent = `${cost.definition} ${cost.why || V.METRICS.cost.why}`;
+  $('costFormula').textContent = cost.formula;
   $('flagLegend').innerHTML = V.FLAG_ORDER.map(
     (k) => `<li><span class="chip chip-${V.FLAGS[k].tone}">${esc(V.FLAGS[k].label)}</span> ${esc(V.FLAGS[k].definition)}</li>`,
   ).join('');
@@ -606,7 +613,8 @@ function applyReport(data, job, { cached = false } = {}) {
   if (window.Study) window.Study.setRows(state.rows);
 
   const first = visibleRows().rows[0];
-  if (first) selectRow(first);
+  if (first) selectRow(first, { open: false });
+  renderTrainCta();
 
   if (!cached) {
     S.lastReport.save({
@@ -666,60 +674,139 @@ function renderSummaryBand() {
     .join('');
 }
 
-/* One chart panel, one chart, a toggle between the two readings of it. */
-const CHART_FONT = { family: "'IBM Plex Sans', sans-serif", size: 11 };
-function renderChart() {
-  // the chart library is a CDN script: without it the panel has nothing to say,
-  // so it does not render at all rather than leaving an empty frame
-  $('chartPanel').hidden = !window.Chart;
-  if (!window.Chart || !state.summary) return;
-  Chart.defaults.color = getComputedStyle(document.body).getPropertyValue('--text-muted').trim() || '#51637A';
-  Chart.defaults.font = CHART_FONT;
-  Chart.defaults.borderColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#DCE2EA';
-  const items = state.summary.by_opening.slice(0, 8);
-  const labels = items.map((o) => (o.opening.length > 30 ? o.opening.slice(0, 29) + '…' : o.opening));
-  const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#B8935A';
-  const quiet = getComputedStyle(document.body).getPropertyValue('--neutral-bar').trim() || '#3E5265';
-  if (state.chart) state.chart.destroy();
+/* One chart panel, one chart, a toggle between the two readings of it.
 
-  if (state.chartKind === 'lost') {
-    $('chartNote').textContent = 'Half-points shed against the book expectation, by opening.';
-    state.chart = new Chart($('chartCanvas'), {
-      type: 'bar',
-      data: { labels, datasets: [{ label: 'Points shed', data: items.map((o) => o.lost_points), backgroundColor: accent, borderRadius: 2, barThickness: 16 }] },
-      options: {
-        indexAxis: 'y',
-        maintainAspectRatio: false,
-        animation: prefersReducedMotion() ? false : undefined,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { afterLabel: (c) => `${plural(items[c.dataIndex].leaks, 'leak')} · ${plural(items[c.dataIndex].games, 'game')}` } },
-        },
-        scales: { x: { ticks: { precision: 1 } }, y: { grid: { display: false } } },
-      },
-    });
-  } else {
-    $('chartNote').textContent = `${V.METRICS.score.definition} Your score against the book's, by opening.`;
-    state.chart = new Chart($('chartCanvas'), {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          { label: 'You', data: items.map((o) => o.your_score), backgroundColor: accent, borderRadius: 2 },
-          { label: 'Book', data: items.map((o) => o.db_score), backgroundColor: quiet, borderRadius: 2 },
-        ],
-      },
-      options: {
-        maintainAspectRatio: false,
-        animation: prefersReducedMotion() ? false : undefined,
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } } },
-        scales: {
-          x: { grid: { display: false }, ticks: { maxRotation: 40, minRotation: 40, autoSkip: false, font: { ...CHART_FONT, size: 9.5 } } },
-          y: { beginAtZero: true, max: 100, ticks: { callback: (v) => v + '%' } },
-        },
-      },
-    });
-  }
+   Drawn as SVG rather than through a chart library: these are two small, fixed
+   forms, and hand-drawing them buys the mark specs (thin bars, a rounded data
+   end, hairline axes, labels that never collide) and removes a CDN the panel
+   used to disappear without.
+
+   Colour does one job in each. "Points shed" is a single series, so every bar is
+   the same brass — length already carries the magnitude, and colouring bars by
+   their own value would burn the only free channel on information the chart
+   already shows. "You vs book" is two marks per row, so the book takes a
+   recessive slate and your score the brass: the subject reads, the reference
+   recedes. Both pairs are steps of the brand hues, checked for colour-vision
+   separation and contrast against each surface. */
+const CHART_ROW = 30;           // band per category
+const CHART_BAR = 14;           // <= 24px, leaving the rest of the band as air
+const CHART_PAD = { top: 10, right: 58, bottom: 26, left: 148 };
+const chartPad = (width) => (width < 560
+  ? { top: 10, right: 44, bottom: 26, left: 96 }
+  : CHART_PAD);
+
+const truncate = (s, n) => (String(s).length > n ? `${String(s).slice(0, n - 1)}…` : String(s));
+
+function chartItems() {
+  return (state.summary ? state.summary.by_opening : []).slice(0, 8);
+}
+
+/* Drawn at the width the panel actually has, so the geometry is exact and the
+   text is never scaled: a viewBox that matches the pixels, redrawn on resize. */
+function renderChart() {
+  const items = chartItems();
+  const wrap = $('chartWrap');
+  $('chartPanel').hidden = !items.length;
+  if (!items.length) return;
+  const width = Math.max(320, Math.round(wrap.clientWidth || 640));
+  wrap.innerHTML = state.chartKind === 'lost'
+    ? pointsShedChart(items, width)
+    : youVsBookChart(items, width);
+  $('chartNote').textContent = state.chartKind === 'lost'
+    ? 'Half-points shed against the book expectation, by opening. The table below has every row.'
+    : `${V.METRICS.score.definition} Your score against the book's from the same positions.`;
+  $('chartKey').hidden = state.chartKind !== 'vs';
+  wireChartHover(items);
+}
+
+const plotWidth = (width) => width - chartPad(width).left - chartPad(width).right;
+
+function chartOpen(width, height, label) {
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" width="100%" height="${height}"
+    role="img" aria-label="${esc(label)}">`;
+}
+
+/* --- magnitude: one series, so one colour and a value at every tip ---------- */
+function pointsShedChart(items, width) {
+  const max = Math.max(...items.map((o) => o.lost_points), 0.1);
+  const pad = chartPad(width);
+  const plot = plotWidth(width);
+  const height = pad.top + items.length * CHART_ROW + 6;
+  const rows = items
+    .map((o, i) => {
+      const y = pad.top + i * CHART_ROW;
+      const w = Math.max(2, (o.lost_points / max) * plot);
+      return `<g class="ch-row" data-i="${i}">
+        <rect class="ch-hit" x="0" y="${y}" width="${width}" height="${CHART_ROW}" />
+        <text class="ch-cat" x="${pad.left - 12}" y="${y + CHART_ROW / 2}">${esc(truncate(o.opening, width < 560 ? 12 : 22))}</text>
+        <rect class="ch-bar" x="${pad.left}" y="${y + (CHART_ROW - CHART_BAR) / 2}"
+              width="${w.toFixed(1)}" height="${CHART_BAR}" rx="4" />
+        <text class="ch-val" x="${(pad.left + w + 9).toFixed(1)}" y="${y + CHART_ROW / 2}">${o.lost_points.toFixed(1)}</text>
+      </g>`;
+    })
+    .join('');
+  const label = `Points shed by opening: ${items.map((o) => `${o.opening}, ${o.lost_points.toFixed(1)}`).join('; ')}`;
+  return `${chartOpen(width, height, label)}<g class="ch-plot">${rows}</g></svg>`;
+}
+
+/* --- two values per row: the gap is the story, so a dumbbell --------------- */
+function youVsBookChart(items, width) {
+  const pad = chartPad(width);
+  const plot = plotWidth(width);
+  const height = pad.top + items.length * CHART_ROW + pad.bottom;
+  const at = (pct) => pad.left + (Math.max(0, Math.min(100, pct)) / 100) * plot;
+  const axisBottom = pad.top + items.length * CHART_ROW;
+  const ticks = [0, 50, 100]
+    .map((t) => `<g class="ch-tick"><line x1="${at(t).toFixed(1)}" x2="${at(t).toFixed(1)}"
+        y1="${pad.top - 6}" y2="${axisBottom}" /><text x="${at(t).toFixed(1)}"
+        y="${height - 8}">${t}%</text></g>`)
+    .join('');
+  const rows = items
+    .map((o, i) => {
+      const y = pad.top + i * CHART_ROW + CHART_ROW / 2;
+      const you = at(o.your_score);
+      const book = at(o.db_score);
+      // only the first row is labelled, and only where the label fits without
+      // being clipped: the axis, the tooltip and the table carry the rest
+      const label = i === 0 && width >= 560
+        ? `<text class="ch-val" x="${(Math.max(you, book) + 12).toFixed(1)}" y="${y}">${o.your_score.toFixed(0)}% vs ${o.db_score.toFixed(0)}%</text>`
+        : '';
+      return `<g class="ch-row" data-i="${i}">
+        <rect class="ch-hit" x="0" y="${y - CHART_ROW / 2}" width="${width}" height="${CHART_ROW}" />
+        <text class="ch-cat" x="${pad.left - 12}" y="${y}">${esc(truncate(o.opening, width < 560 ? 12 : 22))}</text>
+        <line class="ch-link" x1="${Math.min(you, book).toFixed(1)}" x2="${Math.max(you, book).toFixed(1)}" y1="${y}" y2="${y}" />
+        <circle class="ch-dot ch-ref" cx="${book.toFixed(1)}" cy="${y}" r="5" />
+        <circle class="ch-dot ch-you" cx="${you.toFixed(1)}" cy="${y}" r="5" />
+        ${label}
+      </g>`;
+    })
+    .join('');
+  const label = `Your score against the book by opening: ${items
+    .map((o) => `${o.opening}, you ${o.your_score.toFixed(0)} percent, book ${o.db_score.toFixed(0)} percent`)
+    .join('; ')}`;
+  return `${chartOpen(width, height, label)}<g class="ch-axis">${ticks}</g><g class="ch-plot">${rows}</g></svg>`;
+}
+
+/* A tooltip per mark: what makes the rows this chart does not label readable
+   without leaving the page. */
+function wireChartHover(items) {
+  const wrap = $('chartWrap');
+  const tip = $('chartTip');
+  wrap.querySelectorAll('.ch-row').forEach((row) => {
+    const o = items[+row.dataset.i];
+    const show = (event) => {
+      tip.innerHTML = `<b>${esc(o.opening)}</b>`
+        + `<span>${o.lost_points.toFixed(1)} points shed · ${plural(o.leaks, 'leak')} · ${plural(o.games, 'game')}</span>`
+        + `<span>you ${o.your_score.toFixed(0)}% · book ${o.db_score.toFixed(0)}%</span>`;
+      const box = wrap.getBoundingClientRect();
+      tip.style.left = `${Math.max(60, Math.min(box.width - 60, event.clientX - box.left))}px`;
+      tip.style.top = `${Math.max(38, event.clientY - box.top - 10)}px`;
+      tip.hidden = false;
+    };
+    row.addEventListener('pointerenter', show);
+    row.addEventListener('pointermove', show);
+    row.addEventListener('pointerleave', () => (tip.hidden = true));
+  });
 }
 
 const prefersReducedMotion = () =>
@@ -746,11 +833,8 @@ function renderFilters() {
       renderTable();
     }),
   );
-  $('rankNote').innerHTML =
-    `Ranked by <b>cost</b>: how often you play the move, times how much it costs you, held back `
-    + `while the sample is thin — so a habit seen three times cannot outrank one seen thirty. `
-    + '<button type="button" class="link-btn" id="rankMore">How cost is worked out</button>';
-  $('rankMore').addEventListener('click', () => openDialog('dataDialog'));
+  const cost = state.costMetric || V.METRICS.cost;
+  $('costHelp').title = `${cost.definition} ${cost.formula}`;
 }
 
 function visibleRows() {
@@ -764,6 +848,15 @@ function visibleRows() {
     .slice()
     .sort((a, b) => ((num(a.cost) || 0) - (num(b.cost) || 0)) * state.sort.dir);
   return { rows, shown: state.showAll ? rows : rows.slice(0, ROW_CAP) };
+}
+
+/* High, medium or low, by share of the worst leak in this report. Colour never
+   carries it alone: the flag chip next to it says the same thing in words. */
+function severity(cost, worst) {
+  const share = worst ? cost / worst : 0;
+  if (share >= 0.6) return 'high';
+  if (share >= 0.25) return 'mid';
+  return 'low';
 }
 
 function renderTable() {
@@ -781,7 +874,7 @@ function renderTable() {
       const selected = state.selected && state.selected.fen === r.fen && state.selected.your_move === r.your_move;
       return `<tr data-i="${i}" tabindex="0" class="${selected ? 'is-selected' : ''} ${decided ? 'is-decided' : ''}">
         <td class="col-cost" data-label="Cost">
-          <span class="cost"><b class="mono">${cost.toFixed(1)}</b>
+          <span class="cost is-${severity(cost, worst)}"><b class="mono">${cost.toFixed(1)}</b>
           <span class="cost-bar"><i style="width:${Math.max(3, (cost / worst) * 100).toFixed(1)}%"></i></span></span>
         </td>
         <td class="col-opening" data-label="Opening">
@@ -816,6 +909,63 @@ function renderTable() {
   $('showAll').textContent = `Show all ${rows.length}`;
 }
 
+/* ------------------------------------------------------------------ clinic */
+/* The queue the clinic walks: the leaks as the table has them ordered, so
+   "next" means the next most expensive thing to fix. */
+function clinicQueue() {
+  return visibleRows().rows;
+}
+
+function renderClinic() {
+  const queue = clinicQueue();
+  const has = queue.length > 0;
+  $('clinicHead').hidden = !has;
+  $('clinicEmpty').hidden = has;
+  $('fixPanel').hidden = !has || state.clinicMode !== 'study';
+  $('practiceBody').hidden = !has || state.clinicMode !== 'drill';
+  if (!has) return;
+  if (!state.selected || !queue.some((r) => S.leakKey(r) === S.leakKey(state.selected))) {
+    selectRow(queue[0], { open: false });
+  }
+  const at = queue.findIndex((r) => S.leakKey(r) === S.leakKey(state.selected));
+  $('clinicCount').textContent = `${at + 1} of ${queue.length}`;
+  $('clinicPrev').disabled = at <= 0;
+  $('clinicNext').disabled = at >= queue.length - 1;
+  document.querySelectorAll('#clinicMode .seg').forEach((b) =>
+    b.classList.toggle('is-active', b.dataset.mode === state.clinicMode));
+  if (state.clinicMode === 'drill' && window.Study) window.Study.drillRow(state.selected);
+  renderViewHead();
+}
+
+function stepClinic(delta) {
+  const queue = clinicQueue();
+  const at = queue.findIndex((r) => S.leakKey(r) === S.leakKey(state.selected));
+  const next = queue[Math.max(0, Math.min(queue.length - 1, at + delta))];
+  if (next) {
+    selectRow(next, { open: false });
+    renderClinic();
+  }
+}
+
+/* The dashboard's single call to action. */
+function renderTrainCta() {
+  const decided = new Set(S.repertoire.all().map((e) => e.key));
+  const open = state.rows.filter((r) => !decided.has(S.leakKey(r)));
+  $('trainCta').hidden = !state.rows.length;
+  if (!state.rows.length) return;
+  $('trainCtaText').innerHTML = open.length
+    ? `You have <b>${plural(open.length, 'open leak')}</b>. The costliest is `
+      + `${esc(open[0].opening || open[0].eco || 'an unclassified line')}.`
+    : 'Every leak in this report has an answer. Run again after a few dozen more games.';
+  $('trainBtn').textContent = open.length ? 'Start training' : 'Review them again';
+  $('trainBtn').onclick = () => {
+    const target = open[0] || state.rows[0];
+    if (target) selectRow(target, { open: false });
+    state.clinicMode = 'study';
+    go('clinic');
+  };
+}
+
 /* ------------------------------------------------------------------ detail */
 function cpText(cp) {
   const v = num(cp);
@@ -824,14 +974,14 @@ function cpText(cp) {
   return (pawns >= 0 ? '+' : '') + pawns.toFixed(2);
 }
 
-function selectRow(r) {
+function selectRow(r, { open = true } = {}) {
   if (!r) return;
   state.selected = r;
   $('posHint').textContent = `${r.eco || '—'} · move ${r.move_number} as ${r.player_color}`;
   $('detailFlag').innerHTML = V.chips(r.flag);
   $('detailOpening').textContent = r.opening || r.eco || 'Unclassified';
   $('detailLine').textContent = r.variation_line;
-  $('fenText').textContent = r.fen;
+  state.selectedFen = r.fen;
   $('lichessLink').href = `https://lichess.org/analysis/standard/${encodeURIComponent(r.fen.replace(/ /g, '_'))}`;
   if (window.Study) window.Study.review(r);
 
@@ -877,6 +1027,10 @@ function selectRow(r) {
     : '';
   renderCommitBar();
   renderTable();
+  if (open) {
+    state.clinicMode = 'study';
+    go('clinic');
+  }
 }
 
 function renderCommitBar() {
@@ -918,7 +1072,9 @@ function afterDecision() {
   renderCommitBar();
   renderTable();
   renderSummaryBand();
+  renderTrainCta();
   renderNav();
+  if (state.view === 'clinic') renderClinic();
   if (state.view === 'repertoire') window.Repertoire.renderRepertoire(reportContext());
 }
 
@@ -955,6 +1111,36 @@ function closeDialog(id) {
 }
 
 /* -------------------------------------------------------------------- boot */
+/* Light is the default. `system` follows the OS; an explicit choice is stamped on
+   the root element and remembered, so the tokens are the only thing that changes. */
+function applyTheme(choice) {
+  const root = document.documentElement;
+  if (choice === 'system') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', choice);
+  const dark = choice === 'dark'
+    || (choice === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  $('themeBtn').textContent = dark ? 'Light' : 'Dark';
+  $('themeBtn').setAttribute('aria-pressed', dark ? 'true' : 'false');
+  $('themeBtn').setAttribute('aria-label', dark ? 'Switch to the light theme' : 'Switch to the dark theme');
+  document.querySelector('meta[name="theme-color"]').content = dark ? '#1B2430' : '#F8FAFC';
+  state.theme = choice;
+}
+
+function restoreTheme() {
+  applyTheme(S.prefs.get('theme', 'system'));
+  $('themeBtn').addEventListener('click', () => {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark'
+      || (!document.documentElement.hasAttribute('data-theme')
+          && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const next = dark ? 'light' : 'dark';
+    S.prefs.set('theme', next);
+    applyTheme(next);
+  });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (state.theme === 'system') applyTheme('system');
+  });
+}
+
 function restoreAdvanced() {
   const box = $('advanced');
   if (!box) return;
@@ -1107,6 +1293,16 @@ function wire() {
     state.showAll = true;
     renderTable();
   });
+  if (window.ResizeObserver) {
+    let last = 0;
+    new ResizeObserver(() => {
+      const w = $('chartWrap').clientWidth;
+      if (state.summary && Math.abs(w - last) > 12) {
+        last = w;
+        renderChart();
+      }
+    }).observe($('chartWrap'));
+  }
   document.querySelectorAll('#chartToggle .seg').forEach((b) =>
     b.addEventListener('click', () => {
       document.querySelectorAll('#chartToggle .seg').forEach((x) => x.classList.remove('is-active'));
@@ -1115,11 +1311,29 @@ function wire() {
       renderChart();
     }),
   );
+  $('clinicPrev').addEventListener('click', () => stepClinic(-1));
+  $('clinicNext').addEventListener('click', () => stepClinic(1));
+  document.querySelectorAll('#clinicMode .seg').forEach((b) =>
+    b.addEventListener('click', () => {
+      state.clinicMode = b.dataset.mode;
+      renderClinic();
+    }),
+  );
   $('commitBtn').addEventListener('click', commitSelected);
   $('dismissBtn').addEventListener('click', dismissSelected);
+  const copyFen = async (btn, fen) => {
+    try {
+      await navigator.clipboard.writeText(fen || '');
+      btn.textContent = 'Copied';
+    } catch {
+      btn.textContent = 'Could not copy';
+    }
+    setTimeout(() => (btn.textContent = 'Copy FEN'), 1500);
+  };
+  $('libCopyFen').addEventListener('click', () => copyFen($('libCopyFen'), state.libFen));
   $('copyFen').addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText($('fenText').textContent);
+      await navigator.clipboard.writeText(state.selectedFen || '');
       $('copyFen').textContent = 'Copied';
       setTimeout(() => ($('copyFen').textContent = 'Copy FEN'), 1400);
     } catch {
@@ -1163,7 +1377,7 @@ function wire() {
     if (e.key === 'Escape') setDrawer(false);
   });
 
-  document.querySelectorAll('.nav-item').forEach((a) =>
+  document.querySelectorAll('.nav-item, .tab-item').forEach((a) =>
     a.addEventListener('click', (e) => {
       e.preventDefault();
       go(a.dataset.view);
@@ -1180,18 +1394,32 @@ function wire() {
   }
 }
 
-window.App = { go, reportContext: () => reportContext(), select: selectRow };
+window.App = {
+  go,
+  /* study.js asks for the drill tab when "Drill this" is pressed. */
+  drill: () => {
+    state.clinicMode = 'drill';
+    go('clinic');
+  },
+  reportContext: () => reportContext(),
+  select: selectRow,
+  /* The board panes report the position they are showing, so "Copy FEN" copies
+     what is on the board rather than what the row started on. */
+  setFen: (fen) => { state.selectedFen = fen; },
+  setLibFen: (fen) => { state.libFen = fen; },
+};
 
 // the form is a template so it can be parented into either the empty screen or
 // the Run again dialog; materialise it before anything looks its controls up
 $('runFormTemplate').replaceWith($('runFormTemplate').content);
 mountRunForm('gateSlot');
 wire();
+restoreTheme();
 restoreAdvanced();
 if (window.Study) window.Study.init(API);
 bootAccount();
 setAppState('empty');
 bootReport();           // a cached run boots straight into `report`
-go(location.hash.slice(1) || 'report');
+go(location.hash.slice(1) || 'dashboard');
 // `serverless` decides how a run is driven, so the handoff waits for /api/meta
 loadMeta().then(bootFromQuery);

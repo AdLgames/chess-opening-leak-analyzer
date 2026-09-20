@@ -136,8 +136,8 @@
 
     async show(pos, { arrows = [], lastMove = null } = {}) {
       this.current = pos;
+      if (window.App) window.App.setFen(pos.fen);
       this.board.setPosition(pos.fen, { legal: pos.legal, arrows, lastMove });
-      $('fenText').textContent = pos.fen;
       $('lichessLink').href = `https://lichess.org/analysis/standard/${encodeURIComponent(pos.fen.replace(/ /g, '_'))}`;
       $('reviewLine').innerHTML = moveStrip(this.history, this.startNumber, this.base ? this.base.turn : 'white');
       wireStrip($('reviewLine'), this.history, (i) => this.jump(i));
@@ -491,7 +491,7 @@
         : await LB.position(null, this.moves);
       this.pos = pos;
       this.board.setPosition(pos.fen, { legal: pos.legal, lastMove });
-      $('libFen').textContent = pos.fen;
+      if (window.App) window.App.setLibFen(pos.fen);
       $('libLichess').href = `https://lichess.org/analysis/standard/${encodeURIComponent(pos.fen.replace(/ /g, '_'))}`;
       $('libName').textContent =
         pos.opening && pos.opening.name
@@ -626,7 +626,7 @@
     $('drillBtn').addEventListener('click', () => {
       if (!review.row) return;
       drill.add(review.row);
-      if (window.App) window.App.go('practice');
+      if (window.App) window.App.drill();
     });
 
     $('drillNext').addEventListener('click', () => drill.load(drill.index + 1));
@@ -670,6 +670,12 @@
       if (state.rows.length || drill.queue.length) drill.announce();
     },
     queue: () => drill.queue.slice(),
+    /** Put one leak on the drill board — the clinic's Drill tab. */
+    drillRow(row) {
+      const at = drill.queue.findIndex((r) => r.fen === row.fen && r.your_move === row.your_move);
+      if (at >= 0) drill.load(at);
+      else drill.add(row);
+    },
     /** Put a line on the explorer board (used by the openings explorer). */
     explore: (san, fen) => library.openLine(san, fen).catch((err) => {
       $('libStats').textContent = `Could not replay that line: ${err.message}`;
