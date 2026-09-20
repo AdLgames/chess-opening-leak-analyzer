@@ -4,6 +4,13 @@
 The analyser itself is still stateless — this module exists only so a signed-in
 user's progress against their leaks survives the run that found them.
 
+The driver is pg8000: a pure-Python implementation of the Postgres wire
+protocol. That is not a stylistic preference. This function already ships a
+79 MB engine and a 19 MB opening book, and psycopg's binary distribution --
+12 MB of vendored shared libraries -- is what the deployment refused to build;
+pg8000 is 2.8 MB with no compiled object in it, and speaks the same protocol to
+the same server, so nothing about the SQL below changes.
+
 Connection handling is shaped by the serverless runtime. A function instance is
 thrown away without warning, so there is no client-side pool: each request opens
 a connection, runs inside one transaction, and closes it. That sounds wasteful
@@ -20,6 +27,7 @@ from __future__ import annotations
 
 import os
 import threading
+import urllib.parse
 from contextlib import contextmanager
 from typing import Any, Iterator
 
@@ -47,20 +55,13 @@ def database_url() -> str | None:
 def driver_available() -> bool:
     """Whether this deployment can actually talk to Postgres.
 
-    A URL is not enough, and neither is an importable package: psycopg is a thin
-    layer over libpq, and without the binary that carries it the module imports
-    happily and then fails on the first connect. `pq.version()` is the cheapest
-    thing that forces that binding to resolve.
-
-    Checking all three is what lets the rest of the app treat "no accounts" as a
-    state rather than as a crash — a deployment missing any of them serves the
-    analyser exactly as it did before accounts existed, instead of 500ing on
-    every request.
+    A URL is not enough: the driver has to be installed too. Checking both is
+    what lets the rest of the app treat "no accounts" as a state rather than as
+    a crash — a deployment missing either one serves the analyser exactly as it
+    did before accounts existed, instead of 500ing on every request.
     """
     try:
-        import psycopg  # noqa: PLC0415
-
-        psycopg.pq.version()
+        import pg8000.dbapi  # noqa: F401, PLC0415
     except Exception:  # noqa: BLE001 - any failure here means "no database"
         return False
     return True
@@ -70,6 +71,38 @@ def configured() -> bool:
     return database_url() is not None and driver_available()
 
 
+def _dsn(url: str) -> dict[str, Any]:
+    """Split a Postgres URL into the keyword arguments pg8000 wants.
+
+    pg8000 takes no URL, so this does what libpq would have done. `sslmode` is
+    not one of its arguments either: a managed Postgres is TLS-only, so unless
+    the URL explicitly disables it the connection is made over SSL.
+    """
+    parts = urllib.parse.urlparse(url)
+    query = urllib.parse.parse_qs(parts.query)
+    sslmode = (query.get("sslmode") or ["require"])[0]
+    kwargs: dict[str, Any] = {
+        "user": urllib.parse.unquote(parts.username or ""),
+        "host": parts.hostname or "localhost",
+        "port": parts.port or 5432,
+        "database": urllib.parse.unquote((parts.path or "/").lstrip("/")) or None,
+        "timeout": CONNECT_TIMEOUT_S,
+    }
+    if parts.password:
+        kwargs["password"] = urllib.parse.unquote(parts.password)
+    if sslmode not in ("disable", "allow"):
+        import ssl  # noqa: PLC0415
+
+        kwargs["ssl_context"] = ssl.create_default_context()
+        if sslmode in ("require", "prefer"):
+            # What libpq's `require` means: encrypt, but do not also demand that
+            # the server's certificate chain to a CA this runtime happens to
+            # trust. `verify-full` in the URL asks for the stricter thing.
+            kwargs["ssl_context"].check_hostname = False
+            kwargs["ssl_context"].verify_mode = ssl.CERT_NONE
+    return kwargs
+
+
 def _connect() -> Any:
     """One connection. The caller owns closing it."""
     url = database_url()
@@ -77,44 +110,66 @@ def _connect() -> Any:
         raise DatabaseUnavailable(
             "No POSTGRES_URL is set. Accounts need a database — see vercel/README.md.")
     try:
-        import psycopg  # noqa: PLC0415
+        import pg8000.dbapi  # noqa: PLC0415
     except ImportError as exc:  # pragma: no cover - deployment error
-        raise DatabaseUnavailable(f"psycopg is not installed: {exc}") from exc
-    return psycopg.connect(url, connect_timeout=CONNECT_TIMEOUT_S, autocommit=False)
+        raise DatabaseUnavailable(f"pg8000 is not installed: {exc}") from exc
+    con = pg8000.dbapi.connect(**_dsn(url))
+    con.autocommit = False
+    return con
 
 
 @contextmanager
 def connection() -> Iterator[Any]:
-    """A connection with the schema in place, committed on clean exit."""
+    """A connection with the schema in place, committed on clean exit.
+
+    Committing here rather than relying on the driver's context manager keeps
+    the contract explicit: leave normally and the work is kept, raise and it is
+    rolled back.
+    """
     ensure_schema()
-    with _connect() as con:
+    con = _connect()
+    try:
         yield con
+        con.commit()
+    except BaseException:
+        con.rollback()
+        raise
+    finally:
+        con.close()
+
+
+def _rows(cur: Any) -> list[dict[str, Any]]:
+    """Cursor rows as dicts, since every caller is building JSON."""
+    if cur.description is None:
+        return []
+    names = [d[0] for d in cur.description]
+    return [dict(zip(names, row)) for row in cur.fetchall()]
 
 
 @contextmanager
-def cursor(row_factory: str = "dict") -> Iterator[Any]:
-    """A cursor that yields dicts by default, since callers build JSON."""
-    from psycopg.rows import dict_row, tuple_row  # noqa: PLC0415
-
+def cursor() -> Iterator[Any]:
     with connection() as con:
-        with con.cursor(row_factory=dict_row if row_factory == "dict" else tuple_row) as cur:
+        cur = con.cursor()
+        try:
             yield cur
+        finally:
+            cur.close()
 
 
-def query(sql: str, params: tuple | dict | None = None) -> list[dict[str, Any]]:
+def query(sql: str, params: tuple | None = None) -> list[dict[str, Any]]:
     with cursor() as cur:
-        cur.execute(sql, params)
-        return list(cur.fetchall()) if cur.description else []
+        cur.execute(sql, params or ())
+        return _rows(cur)
 
 
-def query_one(sql: str, params: tuple | dict | None = None) -> dict[str, Any] | None:
+def query_one(sql: str, params: tuple | None = None) -> dict[str, Any] | None:
     rows = query(sql, params)
     return rows[0] if rows else None
 
 
-def execute(sql: str, params: tuple | dict | None = None) -> None:
+def execute(sql: str, params: tuple | None = None) -> None:
     with cursor() as cur:
-        cur.execute(sql, params)
+        cur.execute(sql, params or ())
 
 
 # --------------------------------------------------------------------- schema
@@ -299,26 +354,37 @@ def ensure_schema() -> None:
     with _SCHEMA_LOCK:
         if _SCHEMA_READY:
             return
-        with _connect() as con:
-            con.execute(
+        con = _connect()
+        try:
+            cur = con.cursor()
+            cur.execute(
                 "CREATE TABLE IF NOT EXISTS schema_migrations ("
                 " id text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())")
             con.commit()
-            done = {r[0] for r in con.execute("SELECT id FROM schema_migrations").fetchall()}
+            cur.execute("SELECT id FROM schema_migrations")
+            done = {row[0] for row in cur.fetchall()}
             for name, statements in MIGRATIONS:
                 if name in done:
                     continue
+                # One migration per transaction: a half-applied one must not be
+                # recorded, and a concurrent cold start may be doing the same.
                 for sql in statements:
-                    con.execute(sql)
-                con.execute("INSERT INTO schema_migrations (id) VALUES (%s)"
+                    cur.execute(sql)
+                cur.execute("INSERT INTO schema_migrations (id) VALUES (%s)"
                             " ON CONFLICT DO NOTHING", (name,))
                 con.commit()
+            cur.close()
+        except BaseException:
+            con.rollback()
+            raise
+        finally:
+            con.close()
         _SCHEMA_READY = True
 
 
 def sweep_expired() -> None:
     """Drop the short-lived rows. Cheap enough to run on any auth request."""
-    with connection() as con:
-        con.execute("DELETE FROM sessions WHERE expires_at < now()")
-        con.execute("DELETE FROM login_tokens WHERE expires_at < now() - interval '1 day'")
-        con.execute("DELETE FROM oauth_states WHERE expires_at < now()")
+    with cursor() as cur:
+        cur.execute("DELETE FROM sessions WHERE expires_at < now()")
+        cur.execute("DELETE FROM login_tokens WHERE expires_at < now() - interval '1 day'")
+        cur.execute("DELETE FROM oauth_states WHERE expires_at < now()")

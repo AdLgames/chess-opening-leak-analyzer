@@ -93,6 +93,13 @@ required to run: a run has to belong to somebody for its progress to be kept.
    friends; nothing else needs setting up, and the schema is created on the
    first request that needs it.
 
+   The driver is [pg8000](https://pypi.org/project/pg8000/), a pure-Python
+   implementation of the Postgres wire protocol, rather than psycopg: this
+   function already carries a 79 MB engine and a 19 MB opening book, and
+   psycopg's 12 MB of vendored shared libraries is more than the deployment
+   will build. The connection is made over TLS unless the URL says
+   `sslmode=disable`, which only a plaintext local server should.
+
 2. **Lichess OAuth**, if you want one-tap sign-in for Lichess players. Lichess
    issues public clients no secret, so `LICHESS_CLIENT_ID` is the whole
    configuration; pick any stable string that identifies your deployment, e.g.

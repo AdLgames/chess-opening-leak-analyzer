@@ -21,7 +21,10 @@ jobs:
           --health-cmd pg_isready --health-interval 5s
           --health-timeout 5s --health-retries 10
     env:
-      LEAKLAB_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      # sslmode=disable because the service container is a plaintext local
+      # Postgres; the deployment's managed database is TLS-only and the
+      # driver defaults to requiring it.
+      LEAKLAB_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,7 +37,7 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r chess_opening_analyzer/requirements.txt pytest \
-            psycopg psycopg-binary fastapi httpx
+            pg8000 fastapi httpx
 
       - name: Install Stockfish
         run: python chess_opening_analyzer/tools/install_stockfish.py

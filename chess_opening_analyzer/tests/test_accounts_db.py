@@ -12,7 +12,6 @@ account must leave nothing behind.
 """
 from __future__ import annotations
 
-import base64
 import os
 import sys
 import uuid
@@ -29,10 +28,8 @@ def _load():
     if VERCEL not in sys.path:
         sys.path.insert(0, VERCEL)
     os.environ["POSTGRES_URL"] = URL
-    os.environ.setdefault("LEAKLAB_ENCRYPTION_KEY",
-                          base64.urlsafe_b64encode(os.urandom(32)).decode())
     try:
-        import psycopg  # noqa: F401, PLC0415
+        import pg8000.dbapi  # noqa: F401, PLC0415
         from accounts import auth, db, state  # noqa: F401, PLC0415
         from fastapi.testclient import TestClient  # noqa: F401, PLC0415
     except ImportError:
@@ -189,7 +186,7 @@ def test_export_is_complete_and_delete_leaves_nothing():
 if __name__ == "__main__":
     if not LOADED:
         raise SystemExit(
-            "skipped: set LEAKLAB_TEST_DATABASE_URL and install psycopg + fastapi")
+            "skipped: set LEAKLAB_TEST_DATABASE_URL and install pg8000 + fastapi")
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()
