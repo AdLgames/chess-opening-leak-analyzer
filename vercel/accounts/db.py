@@ -4,11 +4,13 @@
 The analyser itself is still stateless — this module exists only so a signed-in
 user's progress against their leaks survives the run that found them.
 
-Connection handling is shaped by the serverless runtime: a function instance may
-serve many requests but is also thrown away without warning, so connections come
-from a small per-instance pool opened lazily and every statement runs inside a
-short transaction. `POSTGRES_URL` is what Vercel Postgres (Neon) injects; the
-pooled URL is the right one here because instances are numerous and short-lived.
+Connection handling is shaped by the serverless runtime. A function instance is
+thrown away without warning, so there is no client-side pool: each request opens
+a connection, runs inside one transaction, and closes it. That sounds wasteful
+and is not — `POSTGRES_URL` from Vercel Postgres (Neon) already points at a
+pooling endpoint, so the pooling happens on the far side, where it survives the
+instance. Holding a second pool in front of it would only add a dependency and a
+set of connections that die with the instance anyway.
 
 The schema is applied by `ensure_schema()` on first use of an instance. Every
 statement is `IF NOT EXISTS`, and `schema_migrations` records what has run, so
@@ -21,12 +23,12 @@ import threading
 from contextlib import contextmanager
 from typing import Any, Iterator
 
-_POOL: Any = None
-# Two locks, not one: `ensure_schema` needs a connection, so a single lock held
-# across both would deadlock the first request on every cold start.
-_POOL_LOCK = threading.Lock()
 _SCHEMA_LOCK = threading.Lock()
 _SCHEMA_READY = False
+
+# How long to wait for the database before giving up on a request. Short: the
+# whole function has 60 seconds and the analysis needs nearly all of them.
+CONNECT_TIMEOUT_S = 8
 
 
 class DatabaseUnavailable(RuntimeError):
@@ -51,7 +53,7 @@ def driver_available() -> bool:
     did before accounts existed, instead of 500ing on every request.
     """
     try:
-        import psycopg_pool  # noqa: F401, PLC0415
+        import psycopg  # noqa: F401, PLC0415
     except ImportError:
         return False
     return True
@@ -61,32 +63,24 @@ def configured() -> bool:
     return database_url() is not None and driver_available()
 
 
-def _pool() -> Any:
-    global _POOL  # noqa: PLW0603 - one pool per function instance, by design
-    if _POOL is not None:
-        return _POOL
+def _connect() -> Any:
+    """One connection. The caller owns closing it."""
     url = database_url()
     if not url:
         raise DatabaseUnavailable(
             "No POSTGRES_URL is set. Accounts need a database — see vercel/README.md.")
-    with _POOL_LOCK:
-        if _POOL is None:
-            try:
-                from psycopg_pool import ConnectionPool  # noqa: PLC0415
-            except ImportError as exc:  # pragma: no cover - deployment error
-                raise DatabaseUnavailable(f"psycopg is not installed: {exc}") from exc
-            # A function instance handles a handful of concurrent requests at most;
-            # a big pool would only starve the database of connections.
-            _POOL = ConnectionPool(url, min_size=0, max_size=4, timeout=10.0,
-                                   kwargs={"autocommit": False}, open=True)
-    return _POOL
+    try:
+        import psycopg  # noqa: PLC0415
+    except ImportError as exc:  # pragma: no cover - deployment error
+        raise DatabaseUnavailable(f"psycopg is not installed: {exc}") from exc
+    return psycopg.connect(url, connect_timeout=CONNECT_TIMEOUT_S, autocommit=False)
 
 
 @contextmanager
 def connection() -> Iterator[Any]:
-    """A pooled connection with the schema in place, committed on clean exit."""
+    """A connection with the schema in place, committed on clean exit."""
     ensure_schema()
-    with _pool().connection() as con:
+    with _connect() as con:
         yield con
 
 
@@ -295,11 +289,10 @@ def ensure_schema() -> None:
     global _SCHEMA_READY  # noqa: PLW0603 - per-instance memo
     if _SCHEMA_READY:
         return
-    pool = _pool()          # outside the schema lock: it takes the pool lock itself
     with _SCHEMA_LOCK:
         if _SCHEMA_READY:
             return
-        with pool.connection() as con:
+        with _connect() as con:
             con.execute(
                 "CREATE TABLE IF NOT EXISTS schema_migrations ("
                 " id text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())")
