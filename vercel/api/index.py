@@ -355,6 +355,9 @@ async def analyse(
             # every repeated decision, not only the ones that leak: without it
             # the app cannot show a line you play well
             "tree": result.get("tree", []),
+            # which games this run read, so a later run can tell new evidence
+            # from the same games seen again
+            "game_ids": result.get("game_ids", []),
             "log": log[-40:],
             "notes": notes + list(result.get("notes", [])),
             "elapsed": round(time.time() - started, 1),

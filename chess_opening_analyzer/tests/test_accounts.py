@@ -88,7 +88,8 @@ def test_the_account_code_needs_no_crypto_library():
 
 # --------------------------------------------------------------------- schema
 USER_TABLES = ("linked_accounts", "sessions", "runs", "leaks", "repertoire_commits",
-               "drill_schedule", "drill_attempts", "user_prefs", "last_reports")
+               "drill_schedule", "drill_attempts", "user_prefs", "last_reports",
+               "decisions", "decision_games", "run_games")
 
 
 def statements() -> list[str]:

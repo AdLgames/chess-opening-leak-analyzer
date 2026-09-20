@@ -252,8 +252,12 @@ function renderPrivacy() {
          the instance is recycled.</p>
        <p>What <em>is</em> kept, once you are signed in, is your progress — the leaks that
          have been found for you, which of them you committed a reply to, how your drills
-         went, one line per run, and your most recent report. That is the point of an
-         account: without it, a second run cannot tell you which leaks you fixed. It is
+         went, one line per run, and your most recent report. It also keeps which games
+         each run read and which of your decisions appeared in which game — identifiers
+         only, so evidence can add up across runs without counting the same game twice.
+         That is the point of an account: without it, a second run cannot tell you which
+         leaks you fixed, and a line you meet twice a month can never be judged at all.
+         It is
          stored in this deployment's database, alongside your email address or your
          Lichess account id. No passwords are stored, and if you sign in with Lichess the
          access token is encrypted before it is written.</p>
@@ -628,6 +632,7 @@ function setBusy(busy) {
 function applyReport(data, job, { cached = false } = {}) {
   state.rows = data.rows || [];
   state.tree = data.tree || [];
+  state.gameIds = data.game_ids || [];
   state.summary = data.summary;
   state.player = data.player;
   state.options = (job && job.options) || data.options || null;
@@ -655,6 +660,7 @@ function applyReport(data, job, { cached = false } = {}) {
     S.lastReport.save({
       rows: state.rows,
       tree: state.tree,
+      gameIds: state.gameIds,
       summary: state.summary,
       player: state.player,
       options: state.options,

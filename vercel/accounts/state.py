@@ -31,9 +31,24 @@ router = APIRouter(prefix="/api/state", tags=["state"])
 
 MAX_RUNS = 200
 MAX_LEAKS_PER_RUN = 400
+MAX_TREE_ROWS = 1500
 MAX_REPORT_BYTES = 4 * 1024 * 1024
 
 ACTIVE = ("open", "drilling", "regressed")
+
+#: How many distinct games a decision must be seen in before it can be judged.
+#: The same threshold the analyser uses inside one run — the difference is that
+#: here the games may come from runs months apart.
+ACCUMULATE_MIN_GAMES = 3
+
+#: How many games before a decision is worth showing as "building evidence".
+#: Lower than the judging threshold on purpose: seen once is noise, seen twice
+#: is a line you are repeating, and watching it arrive is the point.
+ACCUMULATE_SHOW_MIN = 2
+
+#: How far below the book a pooled score has to sit to count as a leak, in
+#: percentage points. Matches the analyser's default score_gap_threshold.
+ACCUMULATE_GAP_PCT = 6.0
 
 
 def _num(value: Any, default: float = 0.0) -> float:
@@ -119,8 +134,21 @@ def progress(request: Request) -> dict[str, Any]:
     recent = db.query(
         "SELECT leak_key, opening, played, move_number, status, cost, first_cost, last_seen_at"
         "  FROM leaks WHERE user_id = %s ORDER BY last_seen_at DESC, cost DESC LIMIT 50", (uid,))
+    accumulated = db.query(
+        "SELECT leak_key, opening, played, move_number, games,"
+        "       score_sum / nullif(games, 0) AS score_pct, book_score_pct, promoted"
+        "  FROM decisions WHERE user_id = %s AND games >= %s"
+        " ORDER BY games DESC LIMIT 50", (uid, ACCUMULATE_SHOW_MIN))
     return {
         "counts": {k: counts.get(k, 0) for k in ("open", "drilling", "fixed", "regressed")},
+        # decisions whose evidence spans runs — the ones a single run could
+        # never have judged, and whether they have crossed into being a leak
+        "accumulated": [{"key": r["leak_key"], "opening": r["opening"], "played": r["played"],
+                         "moveNumber": r["move_number"], "games": r["games"],
+                         "scorePct": round(_num(r["score_pct"]), 1),
+                         "bookScorePct": (round(_num(r["book_score_pct"]), 1)
+                                          if r["book_score_pct"] is not None else None),
+                         "promoted": bool(r["promoted"])} for r in accumulated],
         "cost_found": round(_num((shed or {}).get("total")), 2),
         "cost_closed": round(_num((shed or {}).get("fixed")), 2),
         "runs": len(_runs(uid)),
@@ -227,6 +255,126 @@ async def put_pref(request: Request) -> dict[str, Any]:
     return {"ok": True}
 
 
+def _accumulate(uid: str, run_id: str, tree: list[dict[str, Any]],
+                game_ids: list[str]) -> list[dict[str, Any]]:
+    """Fold one run's decisions into the standing record, and promote any that
+    have now been seen often enough to judge.
+
+    The unit of evidence is a (decision, game) pair, not a count. That is what
+    makes this safe to run against overlapping windows: "your last 120 games"
+    analysed monthly re-reads most of the same games, and re-inserting a pair
+    that is already there does nothing. A count would have doubled.
+    """
+    if not tree or not game_ids:
+        return []
+    tree = tree[:MAX_TREE_ROWS]
+
+    with db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO run_games (user_id, run_id, game_id)"
+            " SELECT %s, %s, g FROM unnest(%s::text[]) AS t(g) ON CONFLICT DO NOTHING",
+            (uid, run_id, list(game_ids)))
+
+        # One round trip for the evidence. What comes back is the pairs that
+        # were genuinely new, which is exactly the count each decision grew by.
+        keys: list[str] = []
+        games: list[str] = []
+        for row in tree:
+            key = str(row.get("key") or "")
+            if not key:
+                continue
+            for i in row.get("game_idx") or []:
+                if isinstance(i, int) and 0 <= i < len(game_ids):
+                    keys.append(key)
+                    games.append(game_ids[i])
+        if not keys:
+            return []
+        cur.execute(
+            "INSERT INTO decision_games (user_id, leak_key, game_id)"
+            " SELECT %s, k, g FROM unnest(%s::text[], %s::text[]) AS t(k, g)"
+            " ON CONFLICT DO NOTHING RETURNING leak_key",
+            (uid, keys, games))
+        fresh: dict[str, int] = {}
+        for (returned,) in cur.fetchall() or []:
+            fresh[returned] = fresh.get(returned, 0) + 1
+
+        for row in tree:
+            key = str(row.get("key") or "")
+            new_games = fresh.get(key, 0)
+            if not key:
+                continue
+            book = _book_score(row)
+            # A decision whose games were all already counted still refreshes
+            # its description, but must not move its totals.
+            cur.execute(
+                """
+                INSERT INTO decisions (user_id, leak_key, position, fen, color, eco, opening,
+                                       line, played, move_number, games, score_sum,
+                                       book_score_pct, in_book)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, leak_key) DO UPDATE SET
+                    games          = decisions.games + EXCLUDED.games,
+                    score_sum      = decisions.score_sum + EXCLUDED.score_sum,
+                    book_score_pct = coalesce(EXCLUDED.book_score_pct,
+                                              decisions.book_score_pct),
+                    in_book        = decisions.in_book OR EXCLUDED.in_book,
+                    opening        = EXCLUDED.opening,
+                    last_seen_at   = now()
+                """,
+                (uid, key, str(row.get("position") or ""), str(row.get("fen") or ""),
+                 str(row.get("player_color") or row.get("color") or ""),
+                 str(row.get("eco") or ""), str(row.get("opening") or ""),
+                 str(row.get("variation_line") or ""), str(row.get("your_move") or ""),
+                 int(_num(row.get("move_number"))), new_games,
+                 _num(row.get("your_score_pct")) * new_games, book,
+                 str(row.get("in_book") or "") == "yes"))
+
+        # Anything that has now crossed the threshold, and is trailing the book
+        # by enough to matter, becomes a leak in its own right.
+        cur.execute(
+            """
+            SELECT leak_key, position, fen, color, eco, opening, played, move_number,
+                   games, score_sum / nullif(games, 0) AS score_pct, book_score_pct
+              FROM decisions
+             WHERE user_id = %s AND NOT promoted AND games >= %s
+               AND book_score_pct IS NOT NULL
+               AND (score_sum / nullif(games, 0)) - book_score_pct <= %s
+            """,
+            (uid, ACCUMULATE_MIN_GAMES, -ACCUMULATE_GAP_PCT))
+        names = [d[0] for d in cur.description]
+        promoted = [dict(zip(names, r)) for r in cur.fetchall()]
+
+        for row in promoted:
+            gap = float(row["score_pct"]) - float(row["book_score_pct"])
+            # No engine ran on these, so the only claim being made is the
+            # empirical one: across every game we have seen, this trails.
+            cost = round(abs(gap) / 100.0 * row["games"]
+                         * (row["games"] / (row["games"] + 4.0)), 2)
+            cur.execute(
+                "INSERT INTO leaks (user_id, leak_key, position, fen, color, eco, opening,"
+                "                   played, move_number, status, cost, first_cost, games,"
+                "                   flag, source, runs_seen)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'open', %s, %s, %s,"
+                "         'underperforming', 'accumulated', 1)"
+                " ON CONFLICT (user_id, leak_key) DO UPDATE SET"
+                "   cost = EXCLUDED.cost, games = EXCLUDED.games, last_seen_at = now()",
+                (uid, row["leak_key"], row["position"], row["fen"], row["color"],
+                 row["eco"], row["opening"], row["played"], row["move_number"],
+                 cost, cost, row["games"]))
+            cur.execute("UPDATE decisions SET promoted = true"
+                        " WHERE user_id = %s AND leak_key = %s", (uid, row["leak_key"]))
+    return promoted
+
+
+def _book_score(row: dict[str, Any]) -> float | None:
+    """The book's score for this decision: the move's if known, else the position's."""
+    for field_name in ("db_move_score_pct", "db_position_score_pct"):
+        raw = row.get(field_name)
+        if raw not in (None, ""):
+            return _num(raw)
+    return None
+
+
 def _record_run(uid: str, run: dict[str, Any], leaks: list[dict[str, Any]]) -> None:
     run_id = str(run.get("id") or "")
     if not run_id:
@@ -285,6 +433,9 @@ async def put_run(request: Request) -> dict[str, Any]:
     body = await request.json()
     run = body.get("run") or {}
     _record_run(uid, run, list(body.get("leaks") or []))
+    promoted = _accumulate(uid, str(run.get("id") or ""),
+                           list(body.get("tree") or []),
+                           [str(g) for g in (body.get("game_ids") or [])])
     report = body.get("report")
     if report is not None:
         blob = json.dumps(report)
@@ -292,7 +443,12 @@ async def put_run(request: Request) -> dict[str, Any]:
             db.execute("INSERT INTO last_reports (user_id, payload) VALUES (%s, %s)"
                        " ON CONFLICT (user_id) DO UPDATE SET payload = EXCLUDED.payload,"
                        " at = now()", (uid, blob))
-    return {"ok": True, "progress": progress(request)}
+    return {"ok": True, "progress": progress(request),
+            # what this run promoted purely by adding up: lines no single run
+            # ever saw often enough to judge
+            "promoted": [{"key": p["leak_key"], "opening": p["opening"],
+                          "played": p["played"], "moveNumber": p["move_number"],
+                          "games": p["games"]} for p in promoted]}
 
 
 @router.post("/import")
