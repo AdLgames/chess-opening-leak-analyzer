@@ -35,6 +35,44 @@ python prepare.py            # engine + book + front-end (standard library only)
 vercel deploy                # first deploy creates the project
 ```
 
+## The domain
+
+The site is `chessleaklab.co.uk`. Vercel terminates TLS and issues the
+certificate; the registrar only has to point the name at it.
+
+1. **Vercel → Project → Settings → Domains → Add**: add `chessleaklab.co.uk`,
+   then add `www.chessleaklab.co.uk` and set it to redirect to the apex (Vercel
+   offers the redirect when you add the second one). Vercel then shows the exact
+   DNS records to create — use those values, not the ones below, if they differ.
+2. **At the registrar**, on the `chessleaklab.co.uk` zone:
+
+   | Type | Name | Value |
+   | --- | --- | --- |
+   | `A` | `@` (the apex) | the address Vercel shows, currently `216.198.79.1` |
+   | `CNAME` | `www` | `cname.vercel-dns.com` |
+
+   A `.co.uk` apex cannot be a `CNAME`. If the registrar offers `ALIAS` or
+   `ANAME` records, one of those pointed at `cname.vercel-dns.com` is better than
+   the `A` record — it follows Vercel if the address ever changes.
+3. Delete any parking `A`/`AAAA`/`CNAME` records the registrar left on `@` and
+   `www`, or they will keep answering.
+4. Wait for propagation (minutes, occasionally an hour or two) and check:
+
+   ```bash
+   dig +short chessleaklab.co.uk
+   dig +short www.chessleaklab.co.uk
+   curl -sSI https://chessleaklab.co.uk | head -1
+   ```
+
+   Vercel's Domains panel shows *Valid Configuration* and issues the certificate
+   on its own once the records resolve.
+5. Set **Settings → Domains → the apex → "Set as production domain"** so
+   deployment URLs and the `og:` metadata agree on one home.
+
+Email is separate: adding this site does not touch `MX` records, so mail on the
+domain keeps working. If the registrar's default zone had no `MX` at all and you
+want mail later, add it then.
+
 ## Run the hosted build locally
 
 `prepare.py` leaves a complete bundle behind, and the function also serves
@@ -67,6 +105,9 @@ have none of these caps.
 
 ## Notes
 
+- `public/og.png`, `public/robots.txt` and `public/sitemap.xml` name the domain,
+  as do the `canonical` and `og:` tags in `index.html`. If the domain ever
+  changes, those four places are the whole list.
 - Vercel's git clone does not fetch Git LFS objects, so `prepare.py` detects an
   LFS pointer in place of `openings.sqlite` and pulls the real file from
   `media.githubusercontent.com`, which serves LFS content directly. Override with
