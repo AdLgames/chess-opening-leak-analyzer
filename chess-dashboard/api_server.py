@@ -167,6 +167,18 @@ def _run_job(job_id: str, pgn_dir: str, player: str | None, opts: dict[str, Any]
             player = player or fetched.username
             with LOCK:
                 job["fetched"] = fetched.to_dict()
+                # The report banner reads these off `account`, so the local
+                # build has to fill them in too or it stays silent about a
+                # run that came back short.
+                job["account"] = {
+                    **(job.get("account") or {}),
+                    "games": fetched.games,
+                    "requested": int((job.get("fetch") or {}).get("max_games") or 0),
+                    "shortfall": fetched.shortfall,
+                    "excluded": {"seen": fetched.excluded.seen,
+                                 "reasons": fetched.excluded.reasons()},
+                }
+                job["log"].extend(fetched.notes)
         if not player:
             player = detect_main_player(find_pgn_files(pgn_dir))
             if not player:

@@ -26,7 +26,10 @@ def _load():
     if not URL:
         return None
     if VERCEL not in sys.path:
-        sys.path.insert(0, VERCEL)
+        # Appended, never inserted: `vercel/` can hold a prepare.py-built bundle
+        # with its own copy of `chessopening`, and putting it first would have
+        # the rest of the suite silently testing that stale copy instead.
+        sys.path.append(VERCEL)
     os.environ["POSTGRES_URL"] = URL
     try:
         import pg8000.dbapi  # noqa: F401, PLC0415
@@ -38,6 +41,18 @@ def _load():
 
 
 LOADED = _load()
+SKIP_REASON = ("needs LEAKLAB_TEST_DATABASE_URL and pg8000 + fastapi installed"
+               if LOADED is None else "")
+
+try:                                   # pragma: no cover - only for a direct run
+    import pytest
+
+    # Marked rather than returned early: a test that quietly does nothing and
+    # reports "passed" is worse than no test, because it claims cover it has not
+    # got. Under pytest these show up as skipped, by name, with the reason.
+    pytestmark = pytest.mark.skipif(LOADED is None, reason=SKIP_REASON)
+except ImportError:
+    pytest = None
 
 
 def _app(auth, state):
@@ -84,8 +99,6 @@ def _run(client, run_id: str, at: int, leaks: list[dict]):
 
 
 def test_schema_applies_and_replays_without_deadlocking():
-    if not LOADED:
-        return
     _auth, db, _state, _tc = LOADED
     # The first call has to create the pool *and* use it. A single lock across
     # both would hang here forever rather than failing, which is why this is a
@@ -97,8 +110,6 @@ def test_schema_applies_and_replays_without_deadlocking():
 
 
 def test_a_leak_opens_drills_closes_and_can_come_back():
-    if not LOADED:
-        return
     auth, db, state, TestClient = LOADED  # noqa: N806
     client, _uid = _client(auth, db, state, TestClient)
 
@@ -122,8 +133,6 @@ def test_a_leak_opens_drills_closes_and_can_come_back():
 
 
 def test_drills_accumulate_and_schedule_forward():
-    if not LOADED:
-        return
     auth, db, state, TestClient = LOADED  # noqa: N806
     client, _uid = _client(auth, db, state, TestClient)
     _run(client, "r1", 1700000000000, [_leak("x", 4.0)])
@@ -137,8 +146,6 @@ def test_drills_accumulate_and_schedule_forward():
 
 
 def test_signing_in_adopts_what_the_browser_already_had():
-    if not LOADED:
-        return
     auth, db, state, TestClient = LOADED  # noqa: N806
     client, _uid = _client(auth, db, state, TestClient)
     _run(client, "r1", 1700000000000, [_leak("y", 4.0)])
@@ -160,8 +167,6 @@ def test_signing_in_adopts_what_the_browser_already_had():
 
 
 def test_export_is_complete_and_delete_leaves_nothing():
-    if not LOADED:
-        return
     auth, db, state, TestClient = LOADED  # noqa: N806
     client, uid = _client(auth, db, state, TestClient)
     _run(client, "r1", 1700000000000, [_leak("q", 4.0)])
@@ -185,8 +190,7 @@ def test_export_is_complete_and_delete_leaves_nothing():
 
 if __name__ == "__main__":
     if not LOADED:
-        raise SystemExit(
-            "skipped: set LEAKLAB_TEST_DATABASE_URL and install pg8000 + fastapi")
+        raise SystemExit(f"skipped: {SKIP_REASON}")
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()

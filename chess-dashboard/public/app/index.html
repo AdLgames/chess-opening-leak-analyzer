@@ -134,6 +134,13 @@
               <button class="btn btn-ghost" id="demoExit">Analyse my own games</button>
             </div>
 
+            <!-- asking for 120 games and getting 12 is normal; being told the
+                 number without the reason is what makes it look broken -->
+            <div class="notice is-warn banner" id="shortBanner" hidden>
+              <span id="shortText"></span>
+              <button class="btn btn-ghost" id="shortFix">Change the filters</button>
+            </div>
+
             <div class="summary-band" id="summaryBand"></div>
             <!-- the one action the dashboard is for -->
             <div class="train-cta" id="trainCta" hidden>

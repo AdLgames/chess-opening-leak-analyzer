@@ -272,7 +272,12 @@ async def analyse(
             pgn_dir = fetched.pgn_dir
             player = player or fetched.username
             account = {"provider": fetched.provider, "username": fetched.username,
-                       "label": provider_label(fetched.provider), "games": fetched.games}
+                       "label": provider_label(fetched.provider), "games": fetched.games,
+                       "requested": wanted,
+                       # why fewer games came back than were asked for, if fewer did
+                       "shortfall": fetched.shortfall,
+                       "excluded": {"seen": fetched.excluded.seen,
+                                    "reasons": fetched.excluded.reasons()}}
             notes.extend(fetched.notes)
         elif sample:
             pgn_dir = SAMPLE_DIR
