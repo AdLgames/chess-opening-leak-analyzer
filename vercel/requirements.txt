@@ -3,4 +3,3 @@ python-chess==1.999
 python-multipart==0.0.20
 psycopg[binary]==3.2.3
 psycopg-pool==3.2.4
-cryptography==44.0.0

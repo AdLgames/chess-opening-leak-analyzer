@@ -93,31 +93,20 @@ required to run: a run has to belong to somebody for its progress to be kept.
    friends; nothing else needs setting up, and the schema is created on the
    first request that needs it.
 
-2. **An encryption key**, for the Lichess access token. Generate one and add it
-   as the environment variable `LEAKLAB_ENCRYPTION_KEY`:
-
-   ```bash
-   python3 -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
-   ```
-
-   Without it, sign-in still works — the deployment simply declines to store the
-   token at all rather than storing it in the clear.
-
-3. **Lichess OAuth**, if you want one-tap sign-in for Lichess players. Lichess
+2. **Lichess OAuth**, if you want one-tap sign-in for Lichess players. Lichess
    issues public clients no secret, so `LICHESS_CLIENT_ID` is the whole
    configuration; pick any stable string that identifies your deployment, e.g.
    `chessleaklab.co.uk`. The redirect URI is
    `https://your-domain/api/auth/lichess/callback` and is derived from the
    request, or from `LEAKLAB_SITE_URL` if you set it.
 
-4. **Email**, for everyone else — Chess.com has no public OAuth, so its players
+3. **Email**, for everyone else — Chess.com has no public OAuth, so its players
    sign in with a single-use link. Set `RESEND_API_KEY` and `MAIL_FROM` (an
    address on a domain verified with [Resend](https://resend.com)).
 
 | Variable | Needed for | Notes |
 | --- | --- | --- |
 | `POSTGRES_URL` | accounts at all | injected by Vercel Postgres |
-| `LEAKLAB_ENCRYPTION_KEY` | storing the Lichess token | 32 bytes, base64url |
 | `LICHESS_CLIENT_ID` | Lichess sign-in | no secret: the flow is PKCE |
 | `RESEND_API_KEY`, `MAIL_FROM` | email sign-in | |
 | `LEAKLAB_SITE_URL` | optional | pins the origin used in redirect URIs |
@@ -133,7 +122,10 @@ What is kept is progress: one row per run, one row per leak with its status,
 the repertoire decisions, the drill schedule and its attempt log, preferences,
 and the most recent report so a new device opens on something real. Alongside
 that sits an email address or a Lichess account id. No passwords are stored,
-and the Lichess access token is encrypted (AES-256-GCM) before it is written.
+and neither is the Lichess access token: it is used once, in the callback, to
+ask Lichess who just signed in, and then dropped. The scope requested is
+`preference:read`, which grants nothing the public API does not, so keeping the
+token would be a credential held for a capability the app never uses.
 
 Two endpoints exist from the first migration rather than being promised for
 later, and the account menu links to both:

@@ -266,9 +266,9 @@ def lichess_callback(request: Request, code: str = "", state: str = "",
     if not provider_id:
         raise HTTPException(502, "Lichess did not identify the account")
 
-    # Only keep the token if we can encrypt it. An unencrypted third-party
-    # credential in the database is worse than not having one at all.
-    token_enc = crypto.encrypt(access_token) if crypto.encryption_available() else None
+    # The token has now done its only job: it told us who signed in. It is not
+    # stored — the scope asked for grants nothing the public API does not, so
+    # keeping it would be a credential held for no capability.
 
     linked = db.query_one(
         "SELECT user_id FROM linked_accounts WHERE provider = 'lichess' AND provider_user_id = %s",
@@ -276,9 +276,9 @@ def lichess_callback(request: Request, code: str = "", state: str = "",
     if linked:
         user_id = str(linked["user_id"])
         db.execute(
-            "UPDATE linked_accounts SET username = %s, access_token_enc = %s, scopes = %s,"
-            " linked_at = now() WHERE provider = 'lichess' AND provider_user_id = %s",
-            (username, token_enc, LICHESS_SCOPES, provider_id))
+            "UPDATE linked_accounts SET username = %s, scopes = %s, linked_at = now()"
+            " WHERE provider = 'lichess' AND provider_user_id = %s",
+            (username, LICHESS_SCOPES, provider_id))
     else:
         signed_in = current_user(request)
         if signed_in:
@@ -288,10 +288,9 @@ def lichess_callback(request: Request, code: str = "", state: str = "",
             db.execute("INSERT INTO users (id, display_name) VALUES (%s, %s)",
                        (user_id, username))
         db.execute(
-            "INSERT INTO linked_accounts"
-            " (provider, provider_user_id, user_id, username, access_token_enc, scopes)"
-            " VALUES ('lichess', %s, %s, %s, %s, %s)",
-            (provider_id, user_id, username, token_enc, LICHESS_SCOPES))
+            "INSERT INTO linked_accounts (provider, provider_user_id, user_id, username, scopes)"
+            " VALUES ('lichess', %s, %s, %s, %s)",
+            (provider_id, user_id, username, LICHESS_SCOPES))
 
     token = start_session(user_id, request)
     response = RedirectResponse(safe_redirect(pending["redirect_to"]), 302)
@@ -401,8 +400,6 @@ def export_account(request: Request) -> Response:
         "drill_schedule": rows("SELECT * FROM drill_schedule WHERE user_id = %s"),
         "drill_attempts": rows("SELECT * FROM drill_attempts WHERE user_id = %s ORDER BY at"),
         "prefs": rows("SELECT key, value FROM user_prefs WHERE user_id = %s"),
-        # Deliberately not included: the encrypted Lichess token. It is our copy
-        # of a credential, not data about the user, and Lichess can show it.
     }
     return Response(
         json.dumps(payload, indent=2),

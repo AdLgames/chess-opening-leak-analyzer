@@ -117,16 +117,15 @@ MIGRATIONS: list[tuple[str, tuple[str, ...]]] = [
                 last_seen_at  timestamptz NOT NULL DEFAULT now()
             )
             """,
-            # One row per identity the user can sign in with. The Lichess access
-            # token is encrypted before it gets here (see crypto.py); the column
-            # never holds a usable secret on its own.
+            # One row per identity the user can sign in with. There is no token
+            # column: the Lichess access token is used once in the callback to
+            # learn who signed in, and then dropped.
             """
             CREATE TABLE IF NOT EXISTS linked_accounts (
                 provider          text NOT NULL,
                 provider_user_id  text NOT NULL,
                 user_id           uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 username          text NOT NULL DEFAULT '',
-                access_token_enc  text,
                 scopes            text NOT NULL DEFAULT '',
                 linked_at         timestamptz NOT NULL DEFAULT now(),
                 PRIMARY KEY (provider, provider_user_id)

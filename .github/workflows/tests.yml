@@ -34,7 +34,7 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r chess_opening_analyzer/requirements.txt pytest \
-            cryptography 'psycopg[binary]' psycopg-pool fastapi httpx
+            'psycopg[binary]' psycopg-pool fastapi httpx
 
       - name: Install Stockfish
         run: python chess_opening_analyzer/tools/install_stockfish.py

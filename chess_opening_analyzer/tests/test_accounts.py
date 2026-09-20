@@ -8,7 +8,7 @@ two are pure and import nothing from the web layer.
 What is checked here is what would be expensive to get wrong:
 
 * PKCE is actually PKCE. A wrong challenge means Lichess rejects every callback.
-* A Lichess token is not recoverable from the database alone.
+* A Lichess token is never written down in the first place.
 * `DELETE FROM users` really does erase everything, because that is the promise
   the account-deletion button makes.
 """
@@ -59,43 +59,31 @@ def test_tokens_are_stored_only_as_hashes():
     assert not crypto.same_token(stored, crypto.hash_token(crypto.new_token()))
 
 
-def test_oauth_tokens_round_trip_and_are_opaque_without_the_key():
-    key = base64.urlsafe_b64encode(os.urandom(32)).decode()
-    os.environ[crypto.KEY_ENV] = key
-    try:
-        if not crypto.encryption_available():
-            # No working AES backend on this machine. `encryption_available()`
-            # saying so is itself the behaviour that matters: auth.py then
-            # declines to store a token rather than storing it in the clear.
-            return
+def test_the_lichess_token_is_never_written_anywhere():
+    """The safest way to hold a credential is not to hold it.
 
-        blob = crypto.encrypt("lip_secret_value")
-        assert "lip_secret_value" not in blob
-        assert crypto.decrypt(blob) == "lip_secret_value"
-        assert crypto.encrypt("lip_secret_value") != blob   # a fresh nonce each time
-
-        # A leaked database without the key yields nothing, and a rotated key
-        # must fail closed rather than raising into a sign-in request.
-        os.environ[crypto.KEY_ENV] = base64.urlsafe_b64encode(os.urandom(32)).decode()
-        assert crypto.decrypt(blob) == ""
-    finally:
-        os.environ.pop(crypto.KEY_ENV, None)
+    The token is used once in the callback to ask Lichess who just signed in.
+    If it ever reached a column, this would stop being true and someone would
+    have to justify it again -- so the schema is asserted to have nowhere to
+    put it, and the callback to hand it to no write.
+    """
+    auth_src = open(os.path.join(ACCOUNTS, "auth.py"), encoding="utf-8").read()
+    assert "access_token" not in "\n".join(statements())
+    for line in auth_src.splitlines():
+        if "access_token" in line and ("INSERT" in line or "UPDATE" in line):
+            raise AssertionError(f"the token reaches a write: {line.strip()}")
 
 
-def test_a_missing_or_malformed_key_is_reported_not_guessed():
-    os.environ.pop(crypto.KEY_ENV, None)
-    assert not crypto.encryption_available()
-    for bad in ("not-base64!!", base64.urlsafe_b64encode(b"too short").decode()):
-        os.environ[crypto.KEY_ENV] = bad
-        assert not crypto.encryption_available()
-    os.environ.pop(crypto.KEY_ENV, None)
+def test_the_account_code_needs_no_crypto_library():
+    # The function already ships a 79 MB engine and a 19 MB book, so a
+    # dependency has to earn its place. With no token to encrypt, this one
+    # stopped earning it.
+    source = open(os.path.join(ACCOUNTS, "crypto.py"), encoding="utf-8").read()
+    requirements = open(os.path.join(ROOT, "vercel", "requirements.txt"),
+                        encoding="utf-8").read()
+    assert "cryptography" not in source
+    assert "cryptography" not in requirements
 
-
-def test_a_token_is_never_stored_unencrypted():
-    # The callback writes `crypto.encrypt(...) if encryption_available() else None`.
-    source = open(os.path.join(ACCOUNTS, "auth.py"), encoding="utf-8").read()
-    assert "crypto.encrypt(access_token) if crypto.encryption_available() else None" in source
-    assert "access_token_enc" in source and "access_token_enc=access_token" not in source
 
 
 # --------------------------------------------------------------------- schema
