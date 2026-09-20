@@ -9,6 +9,19 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    # The accounts tests need a real database: the leak lifecycle is SQL, and
+    # asserting it against a mock would assert the mock.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      LEAKLAB_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,7 +33,8 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r chess_opening_analyzer/requirements.txt pytest cryptography
+        run: pip install -r chess_opening_analyzer/requirements.txt pytest \
+            cryptography 'psycopg[binary]' psycopg-pool fastapi httpx
 
       - name: Install Stockfish
         run: python chess_opening_analyzer/tools/install_stockfish.py

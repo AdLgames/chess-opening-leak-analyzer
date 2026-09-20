@@ -22,7 +22,10 @@ from contextlib import contextmanager
 from typing import Any, Iterator
 
 _POOL: Any = None
+# Two locks, not one: `ensure_schema` needs a connection, so a single lock held
+# across both would deadlock the first request on every cold start.
 _POOL_LOCK = threading.Lock()
+_SCHEMA_LOCK = threading.Lock()
 _SCHEMA_READY = False
 
 
@@ -278,10 +281,11 @@ def ensure_schema() -> None:
     global _SCHEMA_READY  # noqa: PLW0603 - per-instance memo
     if _SCHEMA_READY:
         return
-    with _POOL_LOCK:
+    pool = _pool()          # outside the schema lock: it takes the pool lock itself
+    with _SCHEMA_LOCK:
         if _SCHEMA_READY:
             return
-        with _pool().connection() as con:
+        with pool.connection() as con:
             con.execute(
                 "CREATE TABLE IF NOT EXISTS schema_migrations ("
                 " id text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())")
