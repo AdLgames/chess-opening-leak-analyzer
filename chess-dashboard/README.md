@@ -79,6 +79,26 @@ FENs, the leak table as CSV, and the repertoire as a Lichess import.
 Uploads are capped at 40 MB per run and rejected unless they end in `.pgn`. Jobs
 and their eval cache live under `/tmp/leaklab-jobs/`.
 
+## Theme
+
+One set of tokens at the top of `public/styles.css`, from the brand palette:
+
+| Token | Hex | Where it goes |
+| --- | --- | --- |
+| `--navy` | `#1B2430` | Ink for all type, the nav rail, primary buttons |
+| `--on-navy` | `#F8FAFC` | Type on navy — and, as `--page`, the page itself |
+| `--accent` | `#B8935A` | Aged Brass: cost bars, cost numbers, coverage, flag chips. Nothing else |
+| `--accent-text` | `#825F2F` | The readable weight of brass, for anything brass has to say in type |
+| `--board-light` / `--board-dark` | `#EAE3D2` / `#634E3F` | Ivory Bone and Dark Walnut squares |
+| `--highlight` | `#A8A354` | Muted Gold: the last move, and the engine's pick |
+| `--slate` | `#3E5265` | Slate Blue: legal moves, selection, hover, secondary borders |
+| `--danger` | `#C95246` | Muted Crimson: a king in check, a move that loses ground |
+
+The palette is specified for a dark deployment; run light, Deep Navy and Off-White
+swap roles — navy becomes the ink and keeps the nav rail, off-white becomes the page.
+Every colour that carries type has a `-text` sibling dark enough to clear 4.5:1 on the
+page, and the board's coordinates take the colour of the opposite square.
+
 ## Notes
 
 - The score used everywhere is win% + half of draw%, matching Lichess convention.
