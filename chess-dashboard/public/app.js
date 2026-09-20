@@ -673,13 +673,13 @@ function renderChart() {
   // so it does not render at all rather than leaving an empty frame
   $('chartPanel').hidden = !window.Chart;
   if (!window.Chart || !state.summary) return;
-  Chart.defaults.color = getComputedStyle(document.body).getPropertyValue('--text-muted').trim() || '#949c9f';
+  Chart.defaults.color = getComputedStyle(document.body).getPropertyValue('--text-muted').trim() || '#51637A';
   Chart.defaults.font = CHART_FONT;
-  Chart.defaults.borderColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#252d33';
+  Chart.defaults.borderColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#DCE2EA';
   const items = state.summary.by_opening.slice(0, 8);
   const labels = items.map((o) => (o.opening.length > 30 ? o.opening.slice(0, 29) + '…' : o.opening));
-  const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#e3a44b';
-  const quiet = getComputedStyle(document.body).getPropertyValue('--neutral-bar').trim() || '#6f7a52';
+  const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#B8935A';
+  const quiet = getComputedStyle(document.body).getPropertyValue('--neutral-bar').trim() || '#3E5265';
   if (state.chart) state.chart.destroy();
 
   if (state.chartKind === 'lost') {
