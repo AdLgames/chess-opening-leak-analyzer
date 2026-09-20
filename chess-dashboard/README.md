@@ -40,9 +40,10 @@ starts that run on arrival rather than asking for the username a second time.
 Each of those is read once and then cleared from the URL, so a reload does not
 repeat it.
 
-The front page carries its own palette — an ink ground with a coral accent, from
-the design handoff — while the tool runs the brand palette light. They are
-deliberately different rooms.
+Both pages run the brand palette. The front page uses its dark half — Deep Navy
+bands, Off-White type, Aged Brass for branding and the call to action — and the
+tool uses its light half; the board, the move that loses ground (Muted Crimson)
+and the one to play instead (Muted Gold) are the same colours on both.
 
 ## What the tool does
 
