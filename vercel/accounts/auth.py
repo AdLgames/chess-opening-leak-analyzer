@@ -400,6 +400,12 @@ def export_account(request: Request) -> Response:
         "drill_schedule": rows("SELECT * FROM drill_schedule WHERE user_id = %s"),
         "drill_attempts": rows("SELECT * FROM drill_attempts WHERE user_id = %s ORDER BY at"),
         "prefs": rows("SELECT key, value FROM user_prefs WHERE user_id = %s"),
+        # the standing record behind accumulated leaks, and the evidence for it
+        "decisions": rows("SELECT * FROM decisions WHERE user_id = %s ORDER BY games DESC"),
+        "decision_games": rows("SELECT leak_key, game_id FROM decision_games"
+                               " WHERE user_id = %s ORDER BY leak_key"),
+        "run_games": rows("SELECT run_id, game_id FROM run_games WHERE user_id = %s"
+                          " ORDER BY run_id"),
     }
     return Response(
         json.dumps(payload, indent=2),

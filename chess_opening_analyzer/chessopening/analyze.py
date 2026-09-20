@@ -35,6 +35,10 @@ class Node:
     draws: int = 0
     losses: int = 0
     games: list[str] = field(default_factory=list)
+    #: Every game this decision appeared in, not just the handful shown as
+    #: samples. It is what lets a later run tell "I have seen this twice more"
+    #: from "I am looking at the same two games again".
+    game_ids: list[str] = field(default_factory=list)
 
     @property
     def n(self) -> int:
@@ -53,6 +57,7 @@ class Node:
             self.losses += 1
         if len(self.games) < 8:
             self.games.append(rec.game_id)
+        self.game_ids.append(rec.game_id)
 
 
 # Canonical leak flags. These keys are the contract between the analyzer, the CSV,
@@ -361,6 +366,11 @@ def analyze(
     # is a middlegame move, not part of the opening.
     tree_nodes = {k: n for k, n in in_window.items()
                   if n.ply <= cutoff_ply or k in repeated}
+    # Every decision says which of this run's games it came from, as indices
+    # into one list rather than repeated identifiers. That is what lets a later
+    # run add up evidence without counting the same game twice — a rolling
+    # window of "your last 120 games" overlaps the previous one heavily.
+    game_index = {g.game_id: i for i, g in enumerate(games)}
     for key, node in tree_nodes.items():
         stats = pos_stats.get(node.epd)
         if stats is not None and stats.games == 0:
@@ -416,6 +426,8 @@ def analyze(
             "eligible": "yes" if eligible else "no",
             "flag": "+".join(flags),
             "cost": cost if flags else 0.0,
+            "game_idx": sorted({game_index[g] for g in node.game_ids
+                                if g in game_index}),
         })
         if not flags:
             continue
@@ -473,7 +485,7 @@ def analyze(
     tree.sort(key=lambda r: (-int(r["your_games"] or 0), -float(r["cost"] or 0)))
     tree_path = os.path.join(out_dir, "repertoire_tree.csv")
     with open(tree_path, "w", newline="", encoding="utf-8") as fh:
-        w = csv.DictWriter(fh, fieldnames=TREE_FIELDS)
+        w = csv.DictWriter(fh, fieldnames=TREE_FIELDS, extrasaction="ignore")
         w.writeheader()
         w.writerows(tree)
 
@@ -530,6 +542,8 @@ def analyze(
         "rows": len(rows),
         "tree": tree,
         "tree_rows": len(tree),
+        # the run's own games, in the order `game_idx` refers to
+        "game_ids": [g.game_id for g in games],
         "tree_path": tree_path,
         "report": report_path,
         "summary": summary_path,

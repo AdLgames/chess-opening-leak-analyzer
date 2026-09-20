@@ -219,6 +219,41 @@
       </svg>`;
   }
 
+  /* ------------------------------------------------ evidence across runs
+     A line met twice a month never reaches the judging threshold inside one
+     run, so it used to be invisible however long it kept costing. The server
+     adds the evidence up per game — not per run, which would double-count a
+     rolling window — and this is where that arriving becomes visible. */
+  function accumulatedPanel() {
+    const progress = window.Auth && window.Auth.progress();
+    const rows = (progress && progress.accumulated) || [];
+    if (!rows.length) return '';
+    const line = (r) => {
+      const gap = r.bookScorePct === null ? null : r.scorePct - r.bookScorePct;
+      return `<li class="played-row is-${r.promoted ? 'leak' : 'watch'}">
+        <span class="played-main">
+          <b>${esc(r.opening || 'Unclassified')} <span class="mono">${esc(r.played)}</span></b>
+          <span class="muted small">seen in ${plural(r.games, 'game')} across your runs</span>
+        </span>
+        <span class="played-figs mono">
+          <span>${esc(r.scorePct)}%${gap === null ? ''
+            : ` <i class="${gap < 0 ? 'is-down' : 'is-up'}">${gap > 0 ? '+' : ''}${gap.toFixed(1)}</i>`}</span>
+        </span>
+        <span class="played-state">${r.promoted ? 'now a leak' : 'building evidence'}</span>
+      </li>`;
+    };
+    return `<section class="panel">
+      <div class="panel-head">
+        <h2>Adding up across runs</h2>
+        <span class="hint">Lines no single run saw often enough to judge</span>
+      </div>
+      <ol class="played-list">${rows.map(line).join('')}</ol>
+      <p class="small muted">Counted once per game, so re-running over the same
+        games never inflates these. A line crosses into being a leak at three
+        games, on its record against the book — no engine verdict is claimed.</p>
+    </section>`;
+  }
+
   function renderProgress(ctx) {
     const runs = S.runs.all();
     const drills = Object.values(S.drills.all());
@@ -234,6 +269,7 @@
             costing you, and how your drills are holding up.
           </p>
         </section>
+        ${accumulatedPanel()}
         ${drills.length ? retentionPanel(drills) : ''}`;
       return;
     }
@@ -274,6 +310,7 @@
           : '<p class="invite">Nothing from the previous run has gone yet. Committing an answer is the first half; playing it is the second.</p>'}
       </section>
 
+      ${accumulatedPanel()}
       ${retentionPanel(drills)}`;
   }
 

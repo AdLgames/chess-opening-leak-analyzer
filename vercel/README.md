@@ -120,6 +120,28 @@ required to run: a run has to belong to somebody for its progress to be kept.
 | `LEAKLAB_CORS_ORIGINS` | optional | a regex; the default allows localhost only |
 | `LEAKLAB_DEV_MAGIC_LINKS` | preview only | `1` returns the link instead of mailing it; refused when `VERCEL_ENV=production` |
 
+### Evidence that adds up across runs
+
+A line you meet twice a month never reaches the three-game threshold inside a
+single run, so it could never become a leak however long it kept costing you.
+With an account it can: the server keeps the evidence per **(decision, game)**
+pair rather than as a count.
+
+That distinction is the whole trick. "Your last 120 games" analysed monthly
+re-reads most of the same games, and a count would have doubled every time;
+re-inserting a pair that is already there does nothing. A decision crosses into
+being a leak at three distinct games, on its pooled record against the book.
+
+Two things this deliberately does not claim. There is no engine verdict behind
+an accumulated leak — the engine only ever runs on decisions a single run saw
+often enough to judge — so it is flagged `underperforming` and nothing else.
+And the pooled score is weighted by games, not by runs, so four games at 0% and
+one at 100% reads as 20%, not 50%.
+
+The Repertoire view shows these under "Adding up across runs", including the
+ones still short of the threshold, so the evidence arriving is visible rather
+than appearing from nowhere.
+
 ### What is stored, and what is not
 
 The games are not kept. A fetched archive lives in the function's temporary
@@ -127,7 +149,10 @@ storage and goes when the instance is recycled, exactly as before.
 
 What is kept is progress: one row per run, one row per leak with its status,
 the repertoire decisions, the drill schedule and its attempt log, preferences,
-and the most recent report so a new device opens on something real. Alongside
+the most recent report so a new device opens on something real, and — for the
+accumulation above — which games each run read and which decisions appeared in
+which game. That last part is identifiers only: no moves, no results, nothing
+that is not already in the public archive the run was built from. Alongside
 that sits an email address or a Lichess account id. No passwords are stored,
 and neither is the Lichess access token: it is used once, in the callback, to
 ask Lichess who just signed in, and then dropped. The scope requested is

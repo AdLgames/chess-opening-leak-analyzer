@@ -343,6 +343,65 @@ MIGRATIONS: list[tuple[str, tuple[str, ...]]] = [
             """,
         ),
     ),
+    (
+        "0003_accumulation",
+        (
+            # One row per decision the user has ever been seen to make, whether
+            # or not any single run saw it often enough to judge. This is what
+            # lets a line met twice a month become a leak after three months
+            # instead of never.
+            """
+            CREATE TABLE IF NOT EXISTS decisions (
+                user_id        uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                leak_key       text NOT NULL,
+                position       text NOT NULL DEFAULT '',
+                fen            text NOT NULL DEFAULT '',
+                color          text NOT NULL DEFAULT '',
+                eco            text NOT NULL DEFAULT '',
+                opening        text NOT NULL DEFAULT '',
+                line           text NOT NULL DEFAULT '',
+                played         text NOT NULL DEFAULT '',
+                move_number    integer NOT NULL DEFAULT 0,
+                games          integer NOT NULL DEFAULT 0,
+                score_sum      double precision NOT NULL DEFAULT 0,
+                book_score_pct double precision,
+                in_book        boolean NOT NULL DEFAULT false,
+                promoted       boolean NOT NULL DEFAULT false,
+                first_seen_at  timestamptz NOT NULL DEFAULT now(),
+                last_seen_at   timestamptz NOT NULL DEFAULT now(),
+                PRIMARY KEY (user_id, leak_key)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS decisions_user_games ON decisions (user_id, games)",
+            # The evidence itself: one row per (decision, game). The primary key
+            # is the whole point — re-analysing an overlapping window inserts
+            # nothing, so "your last 120 games" run monthly cannot inflate a
+            # count by re-reading the same games.
+            """
+            CREATE TABLE IF NOT EXISTS decision_games (
+                user_id   uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                leak_key  text NOT NULL,
+                game_id   text NOT NULL,
+                PRIMARY KEY (user_id, leak_key, game_id)
+            )
+            """,
+            # Which games a run read at all, so a run can be recorded once and
+            # recognised later.
+            """
+            CREATE TABLE IF NOT EXISTS run_games (
+                user_id  uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                run_id   text NOT NULL,
+                game_id  text NOT NULL,
+                PRIMARY KEY (user_id, run_id, game_id)
+            )
+            """,
+            # Where a leak came from: one run finding it, or evidence adding up
+            # across several. A promoted leak has no engine verdict behind it,
+            # and the interface should be able to say so.
+            "ALTER TABLE leaks ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'run'",
+            "ALTER TABLE leaks ADD COLUMN IF NOT EXISTS runs_seen integer NOT NULL DEFAULT 1",
+        ),
+    ),
 ]
 
 

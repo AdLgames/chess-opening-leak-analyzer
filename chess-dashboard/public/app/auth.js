@@ -80,6 +80,26 @@
     }));
   }
 
+  /** The tree in the shape /api/state takes: keyed, with its game indices. */
+  function treeRows(report) {
+    return ((report && report.tree) || []).map((r) => ({
+      key: `${S.positionKey(r.fen)}|${r.your_move || ''}`,
+      position: S.positionKey(r.fen),
+      fen: r.fen,
+      player_color: r.player_color,
+      eco: r.eco || '',
+      opening: r.opening || '',
+      variation_line: r.variation_line || '',
+      your_move: r.your_move || '',
+      move_number: Number(r.move_number) || 0,
+      your_score_pct: r.your_score_pct,
+      db_move_score_pct: r.db_move_score_pct,
+      db_position_score_pct: r.db_position_score_pct,
+      in_book: r.in_book,
+      game_idx: r.game_idx || [],
+    }));
+  }
+
   const SINKS = {
     repertoire: (entry) => api('/api/state/repertoire', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -100,10 +120,26 @@
     // A run is the moment every leak's status moves, so it carries the findings
     // and the report with it. `applyReport` has already saved the report locally
     // by the time the run is recorded, so the rows are there to read.
-    run: (entry) => api('/api/state/run', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ run: entry, leaks: leakRows(), report: S.lastReport.load() }),
-    }),
+    run: (entry) => {
+      const report = S.lastReport.load() || {};
+      return api('/api/state/run', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          run: entry,
+          leaks: leakRows(),
+          // the whole tree and the games behind it, so the server can add up
+          // evidence for lines this run saw too few times to judge
+          tree: treeRows(report),
+          game_ids: report.gameIds || [],
+          report,
+        }),
+      }).then((out) => {
+        if (out && out.progress) state.progress = out.progress;
+        if (out && out.promoted) state.promoted = out.promoted;
+        if (out) emit();
+        return out;
+      });
+    },
   };
 
   function connect() {
@@ -312,6 +348,8 @@
   window.Auth = {
     boot,
     state,
+    /** What the server has accumulated across runs, or null when signed out. */
+    progress: () => state.progress || null,
     signedIn: () => Boolean(state.user),
     required: () => state.enabled && !state.user,
     renderGate,
