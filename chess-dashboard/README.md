@@ -65,6 +65,18 @@ micro no longer share a page:
    open, the chart, and the leak list itself: cost with an inline bar, opening
    over its line, your move with its flags, you vs book, games. Tapping a row is
    how you enter the Clinic.
+
+   The chart has two readings behind one toggle, both drawn as SVG in the page —
+   no chart library, so the panel cannot vanish with a CDN. *Points shed* is a
+   ranked bar per opening: one series, so one colour, with the value at every tip
+   and no gridlines to carry. *You vs book* is a dumbbell — your score and the
+   book's from the same positions, the connector between them being the gap —
+   with the book in a recessive slate so the subject reads and the reference
+   recedes. Both mark colours are steps of the brand hues chosen with
+   `scripts/validate_palette.js`: they clear colour-vision separation and 3:1
+   against each surface, and the muted brass is relieved by the value labels and
+   the table underneath. Hovering any row gives the numbers the chart does not
+   print.
 2. **Clinic** — how to fix it, one leak at a time. The board is the hero, with
    your record against the book, the eval swing, the engine's alternatives and
    the book moves beside it, and Commit / Not interested / Drill this as the

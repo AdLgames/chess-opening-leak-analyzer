@@ -144,7 +144,12 @@
                 </div>
               </div>
               <p class="panel-note" id="chartNote"></p>
-              <div class="chart-wrap"><canvas id="chartCanvas"></canvas></div>
+              <div class="chart-wrap" id="chartWrap"></div>
+              <div class="chart-tip" id="chartTip" role="status" hidden></div>
+              <p class="chart-key" id="chartKey" hidden>
+                <span><i class="ch-swatch ch-you" aria-hidden="true"></i>Your score</span>
+                <span><i class="ch-swatch ch-ref" aria-hidden="true"></i>The book</span>
+              </p>
             </section>
 
             <section class="panel" id="tablePanel">
@@ -638,7 +643,6 @@
       </form>
     </template>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="./vocab.js"></script>
     <script src="./store.js"></script>
     <script src="./board.js"></script>

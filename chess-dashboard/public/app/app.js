@@ -59,7 +59,6 @@ const state = {
   filter: { flag: 'all', q: '' },
   showAll: false,
   selected: null,
-  chart: null,
   chartKind: 'lost',
   costMetric: null,
   theme: 'system',
@@ -675,60 +674,139 @@ function renderSummaryBand() {
     .join('');
 }
 
-/* One chart panel, one chart, a toggle between the two readings of it. */
-const CHART_FONT = { family: "'IBM Plex Sans', sans-serif", size: 11 };
-function renderChart() {
-  // the chart library is a CDN script: without it the panel has nothing to say,
-  // so it does not render at all rather than leaving an empty frame
-  $('chartPanel').hidden = !window.Chart;
-  if (!window.Chart || !state.summary) return;
-  Chart.defaults.color = getComputedStyle(document.body).getPropertyValue('--text-muted').trim() || '#51637A';
-  Chart.defaults.font = CHART_FONT;
-  Chart.defaults.borderColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#DCE2EA';
-  const items = state.summary.by_opening.slice(0, 8);
-  const labels = items.map((o) => (o.opening.length > 30 ? o.opening.slice(0, 29) + '…' : o.opening));
-  const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#B8935A';
-  const quiet = getComputedStyle(document.body).getPropertyValue('--neutral-bar').trim() || '#3E5265';
-  if (state.chart) state.chart.destroy();
+/* One chart panel, one chart, a toggle between the two readings of it.
 
-  if (state.chartKind === 'lost') {
-    $('chartNote').textContent = 'Half-points shed against the book expectation, by opening.';
-    state.chart = new Chart($('chartCanvas'), {
-      type: 'bar',
-      data: { labels, datasets: [{ label: 'Points shed', data: items.map((o) => o.lost_points), backgroundColor: accent, borderRadius: 2, barThickness: 16 }] },
-      options: {
-        indexAxis: 'y',
-        maintainAspectRatio: false,
-        animation: prefersReducedMotion() ? false : undefined,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { afterLabel: (c) => `${plural(items[c.dataIndex].leaks, 'leak')} · ${plural(items[c.dataIndex].games, 'game')}` } },
-        },
-        scales: { x: { ticks: { precision: 1 } }, y: { grid: { display: false } } },
-      },
-    });
-  } else {
-    $('chartNote').textContent = `${V.METRICS.score.definition} Your score against the book's, by opening.`;
-    state.chart = new Chart($('chartCanvas'), {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          { label: 'You', data: items.map((o) => o.your_score), backgroundColor: accent, borderRadius: 2 },
-          { label: 'Book', data: items.map((o) => o.db_score), backgroundColor: quiet, borderRadius: 2 },
-        ],
-      },
-      options: {
-        maintainAspectRatio: false,
-        animation: prefersReducedMotion() ? false : undefined,
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } } },
-        scales: {
-          x: { grid: { display: false }, ticks: { maxRotation: 40, minRotation: 40, autoSkip: false, font: { ...CHART_FONT, size: 9.5 } } },
-          y: { beginAtZero: true, max: 100, ticks: { callback: (v) => v + '%' } },
-        },
-      },
-    });
-  }
+   Drawn as SVG rather than through a chart library: these are two small, fixed
+   forms, and hand-drawing them buys the mark specs (thin bars, a rounded data
+   end, hairline axes, labels that never collide) and removes a CDN the panel
+   used to disappear without.
+
+   Colour does one job in each. "Points shed" is a single series, so every bar is
+   the same brass — length already carries the magnitude, and colouring bars by
+   their own value would burn the only free channel on information the chart
+   already shows. "You vs book" is two marks per row, so the book takes a
+   recessive slate and your score the brass: the subject reads, the reference
+   recedes. Both pairs are steps of the brand hues, checked for colour-vision
+   separation and contrast against each surface. */
+const CHART_ROW = 30;           // band per category
+const CHART_BAR = 14;           // <= 24px, leaving the rest of the band as air
+const CHART_PAD = { top: 10, right: 58, bottom: 26, left: 148 };
+const chartPad = (width) => (width < 560
+  ? { top: 10, right: 44, bottom: 26, left: 96 }
+  : CHART_PAD);
+
+const truncate = (s, n) => (String(s).length > n ? `${String(s).slice(0, n - 1)}…` : String(s));
+
+function chartItems() {
+  return (state.summary ? state.summary.by_opening : []).slice(0, 8);
+}
+
+/* Drawn at the width the panel actually has, so the geometry is exact and the
+   text is never scaled: a viewBox that matches the pixels, redrawn on resize. */
+function renderChart() {
+  const items = chartItems();
+  const wrap = $('chartWrap');
+  $('chartPanel').hidden = !items.length;
+  if (!items.length) return;
+  const width = Math.max(320, Math.round(wrap.clientWidth || 640));
+  wrap.innerHTML = state.chartKind === 'lost'
+    ? pointsShedChart(items, width)
+    : youVsBookChart(items, width);
+  $('chartNote').textContent = state.chartKind === 'lost'
+    ? 'Half-points shed against the book expectation, by opening. The table below has every row.'
+    : `${V.METRICS.score.definition} Your score against the book's from the same positions.`;
+  $('chartKey').hidden = state.chartKind !== 'vs';
+  wireChartHover(items);
+}
+
+const plotWidth = (width) => width - chartPad(width).left - chartPad(width).right;
+
+function chartOpen(width, height, label) {
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" width="100%" height="${height}"
+    role="img" aria-label="${esc(label)}">`;
+}
+
+/* --- magnitude: one series, so one colour and a value at every tip ---------- */
+function pointsShedChart(items, width) {
+  const max = Math.max(...items.map((o) => o.lost_points), 0.1);
+  const pad = chartPad(width);
+  const plot = plotWidth(width);
+  const height = pad.top + items.length * CHART_ROW + 6;
+  const rows = items
+    .map((o, i) => {
+      const y = pad.top + i * CHART_ROW;
+      const w = Math.max(2, (o.lost_points / max) * plot);
+      return `<g class="ch-row" data-i="${i}">
+        <rect class="ch-hit" x="0" y="${y}" width="${width}" height="${CHART_ROW}" />
+        <text class="ch-cat" x="${pad.left - 12}" y="${y + CHART_ROW / 2}">${esc(truncate(o.opening, width < 560 ? 12 : 22))}</text>
+        <rect class="ch-bar" x="${pad.left}" y="${y + (CHART_ROW - CHART_BAR) / 2}"
+              width="${w.toFixed(1)}" height="${CHART_BAR}" rx="4" />
+        <text class="ch-val" x="${(pad.left + w + 9).toFixed(1)}" y="${y + CHART_ROW / 2}">${o.lost_points.toFixed(1)}</text>
+      </g>`;
+    })
+    .join('');
+  const label = `Points shed by opening: ${items.map((o) => `${o.opening}, ${o.lost_points.toFixed(1)}`).join('; ')}`;
+  return `${chartOpen(width, height, label)}<g class="ch-plot">${rows}</g></svg>`;
+}
+
+/* --- two values per row: the gap is the story, so a dumbbell --------------- */
+function youVsBookChart(items, width) {
+  const pad = chartPad(width);
+  const plot = plotWidth(width);
+  const height = pad.top + items.length * CHART_ROW + pad.bottom;
+  const at = (pct) => pad.left + (Math.max(0, Math.min(100, pct)) / 100) * plot;
+  const axisBottom = pad.top + items.length * CHART_ROW;
+  const ticks = [0, 50, 100]
+    .map((t) => `<g class="ch-tick"><line x1="${at(t).toFixed(1)}" x2="${at(t).toFixed(1)}"
+        y1="${pad.top - 6}" y2="${axisBottom}" /><text x="${at(t).toFixed(1)}"
+        y="${height - 8}">${t}%</text></g>`)
+    .join('');
+  const rows = items
+    .map((o, i) => {
+      const y = pad.top + i * CHART_ROW + CHART_ROW / 2;
+      const you = at(o.your_score);
+      const book = at(o.db_score);
+      // only the first row is labelled, and only where the label fits without
+      // being clipped: the axis, the tooltip and the table carry the rest
+      const label = i === 0 && width >= 560
+        ? `<text class="ch-val" x="${(Math.max(you, book) + 12).toFixed(1)}" y="${y}">${o.your_score.toFixed(0)}% vs ${o.db_score.toFixed(0)}%</text>`
+        : '';
+      return `<g class="ch-row" data-i="${i}">
+        <rect class="ch-hit" x="0" y="${y - CHART_ROW / 2}" width="${width}" height="${CHART_ROW}" />
+        <text class="ch-cat" x="${pad.left - 12}" y="${y}">${esc(truncate(o.opening, width < 560 ? 12 : 22))}</text>
+        <line class="ch-link" x1="${Math.min(you, book).toFixed(1)}" x2="${Math.max(you, book).toFixed(1)}" y1="${y}" y2="${y}" />
+        <circle class="ch-dot ch-ref" cx="${book.toFixed(1)}" cy="${y}" r="5" />
+        <circle class="ch-dot ch-you" cx="${you.toFixed(1)}" cy="${y}" r="5" />
+        ${label}
+      </g>`;
+    })
+    .join('');
+  const label = `Your score against the book by opening: ${items
+    .map((o) => `${o.opening}, you ${o.your_score.toFixed(0)} percent, book ${o.db_score.toFixed(0)} percent`)
+    .join('; ')}`;
+  return `${chartOpen(width, height, label)}<g class="ch-axis">${ticks}</g><g class="ch-plot">${rows}</g></svg>`;
+}
+
+/* A tooltip per mark: what makes the rows this chart does not label readable
+   without leaving the page. */
+function wireChartHover(items) {
+  const wrap = $('chartWrap');
+  const tip = $('chartTip');
+  wrap.querySelectorAll('.ch-row').forEach((row) => {
+    const o = items[+row.dataset.i];
+    const show = (event) => {
+      tip.innerHTML = `<b>${esc(o.opening)}</b>`
+        + `<span>${o.lost_points.toFixed(1)} points shed · ${plural(o.leaks, 'leak')} · ${plural(o.games, 'game')}</span>`
+        + `<span>you ${o.your_score.toFixed(0)}% · book ${o.db_score.toFixed(0)}%</span>`;
+      const box = wrap.getBoundingClientRect();
+      tip.style.left = `${Math.max(60, Math.min(box.width - 60, event.clientX - box.left))}px`;
+      tip.style.top = `${Math.max(38, event.clientY - box.top - 10)}px`;
+      tip.hidden = false;
+    };
+    row.addEventListener('pointerenter', show);
+    row.addEventListener('pointermove', show);
+    row.addEventListener('pointerleave', () => (tip.hidden = true));
+  });
 }
 
 const prefersReducedMotion = () =>
@@ -1046,7 +1124,6 @@ function applyTheme(choice) {
   $('themeBtn').setAttribute('aria-label', dark ? 'Switch to the light theme' : 'Switch to the dark theme');
   document.querySelector('meta[name="theme-color"]').content = dark ? '#1B2430' : '#F8FAFC';
   state.theme = choice;
-  if (state.chart) renderChart();        // the chart reads its colours from the tokens
 }
 
 function restoreTheme() {
@@ -1216,6 +1293,16 @@ function wire() {
     state.showAll = true;
     renderTable();
   });
+  if (window.ResizeObserver) {
+    let last = 0;
+    new ResizeObserver(() => {
+      const w = $('chartWrap').clientWidth;
+      if (state.summary && Math.abs(w - last) > 12) {
+        last = w;
+        renderChart();
+      }
+    }).observe($('chartWrap'));
+  }
   document.querySelectorAll('#chartToggle .seg').forEach((b) =>
     b.addEventListener('click', () => {
       document.querySelectorAll('#chartToggle .seg').forEach((x) => x.classList.remove('is-active'));
