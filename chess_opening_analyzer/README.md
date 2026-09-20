@@ -63,7 +63,9 @@ folders work. Useful flags:
 | `--no-engine` | Database comparison only, skip Stockfish |
 
 Explorer responses and engine evaluations are cached under `<out-dir>/.cache/`, so repeat
-runs and growing archives cost almost nothing. Explorer calls are throttled to ~1/s with
+runs and growing archives cost almost nothing. Evaluations are keyed on the EPD — the FEN
+without the move counters — plus the engine build and depth, so one entry serves a position
+however it was reached and whichever game it came from. Explorer calls are throttled to ~1/s with
 back-off on HTTP 429, per Lichess API etiquette. The local database needs no cache — lookups are
 indexed by board EPD, so transpositions merge and queries are instant.
 
@@ -117,7 +119,9 @@ this player walked into:
   "consistent" rather than one bad game.
 - **Cost** = `(score points shed per game + eval drop / 4) x games x games / (games + 4)`. The
   last term is the cautious part: it holds a finding back while its sample is small, and
-  approaches 1 once you have played the position often.
+  approaches 1 once you have played the position often. Every row carries the
+  `cost_version` that produced it, so the formula can change without silently reshuffling
+  old reports, and `COST_EXPLAINER` — served by `/api/meta` — is the one description of it.
 
 ## Layout
 

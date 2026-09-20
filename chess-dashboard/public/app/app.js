@@ -60,6 +60,10 @@ const state = {
   selected: null,
   chart: null,
   chartKind: 'lost',
+  costMetric: null,
+  theme: 'system',
+  selectedFen: '',
+  libFen: '',
   meta: null,
 };
 
@@ -204,6 +208,8 @@ async function loadMeta() {
          <dt>File size</dt><dd>${d.size_mb} MB</dd>`
       : '<dt>Status</dt><dd>not built</dd>';
 
+    // the calculation describes itself: prefer the served text over our copy
+    if (meta.metrics && meta.metrics.cost) state.costMetric = meta.metrics.cost;
     if (meta.sample && !meta.sample.available) $('sampleBtn').disabled = true;
     $('engineNotice').hidden = e.available !== false;
     if (e.available === false) {
@@ -255,8 +261,9 @@ function renderPrivacy() {
          archive fetch you ask for, straight to Chess.com or Lichess.</p>
        <p>Your repertoire decisions, your drill history and your last report are kept in
          this browser only.</p>`;
-  $('costExplainer').textContent = `${V.METRICS.cost.definition} ${V.METRICS.cost.why}`;
-  $('costFormula').textContent = V.METRICS.cost.formula;
+  const cost = state.costMetric || V.METRICS.cost;
+  $('costExplainer').textContent = `${cost.definition} ${cost.why || V.METRICS.cost.why}`;
+  $('costFormula').textContent = cost.formula;
   $('flagLegend').innerHTML = V.FLAG_ORDER.map(
     (k) => `<li><span class="chip chip-${V.FLAGS[k].tone}">${esc(V.FLAGS[k].label)}</span> ${esc(V.FLAGS[k].definition)}</li>`,
   ).join('');
@@ -746,11 +753,8 @@ function renderFilters() {
       renderTable();
     }),
   );
-  $('rankNote').innerHTML =
-    `Ranked by <b>cost</b>: how often you play the move, times how much it costs you, held back `
-    + `while the sample is thin — so a habit seen three times cannot outrank one seen thirty. `
-    + '<button type="button" class="link-btn" id="rankMore">How cost is worked out</button>';
-  $('rankMore').addEventListener('click', () => openDialog('dataDialog'));
+  const cost = state.costMetric || V.METRICS.cost;
+  $('costHelp').title = `${cost.definition} ${cost.formula}`;
 }
 
 function visibleRows() {
@@ -764,6 +768,15 @@ function visibleRows() {
     .slice()
     .sort((a, b) => ((num(a.cost) || 0) - (num(b.cost) || 0)) * state.sort.dir);
   return { rows, shown: state.showAll ? rows : rows.slice(0, ROW_CAP) };
+}
+
+/* High, medium or low, by share of the worst leak in this report. Colour never
+   carries it alone: the flag chip next to it says the same thing in words. */
+function severity(cost, worst) {
+  const share = worst ? cost / worst : 0;
+  if (share >= 0.6) return 'high';
+  if (share >= 0.25) return 'mid';
+  return 'low';
 }
 
 function renderTable() {
@@ -781,7 +794,7 @@ function renderTable() {
       const selected = state.selected && state.selected.fen === r.fen && state.selected.your_move === r.your_move;
       return `<tr data-i="${i}" tabindex="0" class="${selected ? 'is-selected' : ''} ${decided ? 'is-decided' : ''}">
         <td class="col-cost" data-label="Cost">
-          <span class="cost"><b class="mono">${cost.toFixed(1)}</b>
+          <span class="cost is-${severity(cost, worst)}"><b class="mono">${cost.toFixed(1)}</b>
           <span class="cost-bar"><i style="width:${Math.max(3, (cost / worst) * 100).toFixed(1)}%"></i></span></span>
         </td>
         <td class="col-opening" data-label="Opening">
@@ -831,7 +844,7 @@ function selectRow(r) {
   $('detailFlag').innerHTML = V.chips(r.flag);
   $('detailOpening').textContent = r.opening || r.eco || 'Unclassified';
   $('detailLine').textContent = r.variation_line;
-  $('fenText').textContent = r.fen;
+  state.selectedFen = r.fen;
   $('lichessLink').href = `https://lichess.org/analysis/standard/${encodeURIComponent(r.fen.replace(/ /g, '_'))}`;
   if (window.Study) window.Study.review(r);
 
@@ -955,6 +968,37 @@ function closeDialog(id) {
 }
 
 /* -------------------------------------------------------------------- boot */
+/* Light is the default. `system` follows the OS; an explicit choice is stamped on
+   the root element and remembered, so the tokens are the only thing that changes. */
+function applyTheme(choice) {
+  const root = document.documentElement;
+  if (choice === 'system') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', choice);
+  const dark = choice === 'dark'
+    || (choice === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  $('themeBtn').textContent = dark ? 'Light' : 'Dark';
+  $('themeBtn').setAttribute('aria-pressed', dark ? 'true' : 'false');
+  $('themeBtn').setAttribute('aria-label', dark ? 'Switch to the light theme' : 'Switch to the dark theme');
+  document.querySelector('meta[name="theme-color"]').content = dark ? '#1B2430' : '#F8FAFC';
+  state.theme = choice;
+  if (state.chart) renderChart();        // the chart reads its colours from the tokens
+}
+
+function restoreTheme() {
+  applyTheme(S.prefs.get('theme', 'system'));
+  $('themeBtn').addEventListener('click', () => {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark'
+      || (!document.documentElement.hasAttribute('data-theme')
+          && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const next = dark ? 'light' : 'dark';
+    S.prefs.set('theme', next);
+    applyTheme(next);
+  });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (state.theme === 'system') applyTheme('system');
+  });
+}
+
 function restoreAdvanced() {
   const box = $('advanced');
   if (!box) return;
@@ -1117,9 +1161,19 @@ function wire() {
   );
   $('commitBtn').addEventListener('click', commitSelected);
   $('dismissBtn').addEventListener('click', dismissSelected);
+  const copyFen = async (btn, fen) => {
+    try {
+      await navigator.clipboard.writeText(fen || '');
+      btn.textContent = 'Copied';
+    } catch {
+      btn.textContent = 'Could not copy';
+    }
+    setTimeout(() => (btn.textContent = 'Copy FEN'), 1500);
+  };
+  $('libCopyFen').addEventListener('click', () => copyFen($('libCopyFen'), state.libFen));
   $('copyFen').addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText($('fenText').textContent);
+      await navigator.clipboard.writeText(state.selectedFen || '');
       $('copyFen').textContent = 'Copied';
       setTimeout(() => ($('copyFen').textContent = 'Copy FEN'), 1400);
     } catch {
@@ -1180,13 +1234,22 @@ function wire() {
   }
 }
 
-window.App = { go, reportContext: () => reportContext(), select: selectRow };
+window.App = {
+  go,
+  reportContext: () => reportContext(),
+  select: selectRow,
+  /* The board panes report the position they are showing, so "Copy FEN" copies
+     what is on the board rather than what the row started on. */
+  setFen: (fen) => { state.selectedFen = fen; },
+  setLibFen: (fen) => { state.libFen = fen; },
+};
 
 // the form is a template so it can be parented into either the empty screen or
 // the Run again dialog; materialise it before anything looks its controls up
 $('runFormTemplate').replaceWith($('runFormTemplate').content);
 mountRunForm('gateSlot');
 wire();
+restoreTheme();
 restoreAdvanced();
 if (window.Study) window.Study.init(API);
 bootAccount();

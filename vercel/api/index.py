@@ -59,7 +59,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse, Response  # noqa: E402
 
-from chessopening.analyze import analyze
+from chessopening.analyze import COST_EXPLAINER, analyze
 from chessopening.demo import load_or_build_demo  # noqa: E402
 from chessopening.board import (BoardError, cp_text, engine_lines,  # noqa: E402
                                 position_payload)
@@ -158,6 +158,8 @@ def meta() -> dict[str, Any]:
         "sample": {"available": bool(files), "files": len(files), "player": player},
         "defaults": {"depth": 12, "max_moves": 15, "min_games": 3, "eval_drop": 0.8,
                      "score_gap": 6.0, "min_db_games": 20, "multipv": 3},
+        # the metric the whole report is ranked by, described where it is computed
+        "metrics": {"cost": COST_EXPLAINER},
         "serverless": True,
         "limits": LIMITS,
         "ingest": {"providers": ["chesscom", "lichess"], "default_provider": "chesscom",

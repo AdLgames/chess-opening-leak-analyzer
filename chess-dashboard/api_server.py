@@ -29,7 +29,7 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException,
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from chessopening.analyze import analyze
+from chessopening.analyze import COST_EXPLAINER, analyze
 from chessopening.demo import load_or_build_demo
 from chessopening.board import BoardError, cp_text, engine_lines, position_payload
 from chessopening.engine import find_engine
@@ -125,6 +125,8 @@ def meta() -> dict[str, Any]:
                    "max_games": 400, "speeds": ["bullet", "blitz", "rapid", "classical", "daily"]},
         "defaults": {"depth": 16, "max_moves": 15, "min_games": 3, "eval_drop": 0.8,
                      "score_gap": 6.0, "min_db_games": 20, "multipv": 3},
+        # the metric the whole report is ranked by, described where it is computed
+        "metrics": {"cost": COST_EXPLAINER},
     }
 
 

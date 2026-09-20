@@ -117,6 +117,13 @@ One set of tokens at the top of `public/styles.css`, from the brand palette:
 | `--slate` | `#3E5265` | Slate Blue: legal moves, selection, hover, secondary borders |
 | `--danger` | `#C95246` | Muted Crimson: a king in check, a move that loses ground |
 
+A dark theme is the same tokens from the other side — Deep Navy grounds the page,
+Off-White becomes the ink — and follows the operating system unless the footer
+switch says otherwise, which is remembered. Severity has three weights rather
+than three new hues (`--sev-high` crimson, `--sev-mid` brass, `--sev-low` a
+neutral), and the flag chip beside a number always says the same thing in words,
+so colour is never the only cue.
+
 The palette is specified for a dark deployment; run light, Deep Navy and Off-White
 swap roles — navy becomes the ink and keeps the nav rail, off-white becomes the page.
 Every colour that carries type has a `-text` sibling dark enough to clear 4.5:1 on the

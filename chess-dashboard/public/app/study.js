@@ -136,8 +136,8 @@
 
     async show(pos, { arrows = [], lastMove = null } = {}) {
       this.current = pos;
+      if (window.App) window.App.setFen(pos.fen);
       this.board.setPosition(pos.fen, { legal: pos.legal, arrows, lastMove });
-      $('fenText').textContent = pos.fen;
       $('lichessLink').href = `https://lichess.org/analysis/standard/${encodeURIComponent(pos.fen.replace(/ /g, '_'))}`;
       $('reviewLine').innerHTML = moveStrip(this.history, this.startNumber, this.base ? this.base.turn : 'white');
       wireStrip($('reviewLine'), this.history, (i) => this.jump(i));
@@ -491,7 +491,7 @@
         : await LB.position(null, this.moves);
       this.pos = pos;
       this.board.setPosition(pos.fen, { legal: pos.legal, lastMove });
-      $('libFen').textContent = pos.fen;
+      if (window.App) window.App.setLibFen(pos.fen);
       $('libLichess').href = `https://lichess.org/analysis/standard/${encodeURIComponent(pos.fen.replace(/ /g, '_'))}`;
       $('libName').textContent =
         pos.opening && pos.opening.name

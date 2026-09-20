@@ -254,3 +254,21 @@ def test_cli_runs_offline_without_engine(tmp_path):
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([os.path.abspath(__file__), "-q"]))
+
+
+def test_engine_cache_key_ignores_the_move_counters():
+    """One entry per position, not one per position per move number.
+
+    Openings repeat constantly and transpose; keying the cache on the EPD rather
+    than the full FEN is most of what makes a second run cheap.
+    """
+    engine_path = _engine_or_skip()
+    with EngineAnalyzer(engine_path=engine_path, depth=8) as eng:
+        early = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        later = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 7 12"
+        assert eng._position_key(early) == eng._position_key(later)
+        # a different position still gets its own entry
+        other = "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq d3 0 1"
+        assert eng._position_key(early) != eng._position_key(other)
+        # and the engine build is part of the key
+        assert eng.engine_id and eng.engine_id in eng._position_key(early)
