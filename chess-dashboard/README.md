@@ -8,9 +8,12 @@ straight to Chess.com or Lichess; uploaded PGNs make even that unnecessary.
 ```
 chess-dashboard/
   api_server.py        FastAPI backend (port 8000)
-  public/              static front end (index.html, styles.css, app.js,
+  public/              index.html + landing.css/.js = the front page
+                       og.png, robots.txt, sitemap.xml
+  public/app/          the tool itself (index.html, styles.css, app.js,
                        vocab.js = the product's vocabulary, store.js = what the
-                       browser remembers, repertoire.js = repertoire + progress)
+                       browser remembers, repertoire.js = repertoire + progress,
+                       explorer.js = the personal openings explorer)
   chessopening/        analyzer package (or reuse ../chess_opening_analyzer/chessopening)
   sample_pgns/         demo archive (83 games, player "SamplePlayer")
   tools/               install_stockfish.py, build_local_db.py, make_sample_pgns.py
@@ -24,10 +27,25 @@ python api_server.py                 # serves the API on :8000
 python -m http.server 8080 -d public # or any static server
 ```
 
-Open `http://localhost:8080`. The front end auto-detects the API at
+Open `http://localhost:8080` for the front page, or go straight to
+`http://localhost:8080/app/` for the tool. The front end auto-detects the API at
 `http://localhost:8000` when served locally.
 
-## What the page does
+## The two pages
+
+`/` is the front page: what the product is, how it works, a sample report and one
+field. Submitting it hands over to `/app/?provider=…&user=…&run=1`, and the tool
+starts that run on arrival rather than asking for the username a second time.
+`/app/?demo=1` opens the sample archive; `/app/?privacy=1` opens the privacy note.
+Each of those is read once and then cleared from the URL, so a reload does not
+repeat it.
+
+Both pages run the brand palette. The front page uses its dark half — Deep Navy
+bands, Off-White type, Aged Brass for branding and the call to action — and the
+tool uses its light half; the board, the move that loses ground (Muted Crimson)
+and the one to play instead (Muted Gold) are the same colours on both.
+
+## What the tool does
 
 The page has three states and shows one at a time. Before a run it is a single
 decision: a username, "Analyse my games", and a sample archive one click away.

@@ -972,6 +972,27 @@ function bootAccount() {
   }
 }
 
+/* The landing page hands work over in the query string: a username to run, the
+   sample archive, or the privacy note. Acted on once, then cleared, so a reload
+   does not run it all again. */
+function bootFromQuery() {
+  const q = new URLSearchParams(location.search);
+  if (!q.toString()) return;
+  const user = (q.get('user') || '').trim();
+  const provider = q.get('provider') === 'chesscom' ? 'chesscom' : 'lichess';
+  const wanted = { demo: q.get('demo'), run: q.get('run'), privacy: q.get('privacy') };
+  history.replaceState(null, '', location.pathname + location.hash);
+
+  if (wanted.privacy) openDialog('privacyDialog');
+  if (wanted.demo) return runDemo();
+  if (!user) return;
+  setProvider(provider);
+  $('optUser').value = user;
+  updateRunLabel();
+  if (wanted.run) startRun('username');
+  else checkAccount({ quiet: true });
+}
+
 function bootReport() {
   const cached = S.lastReport.load();
   if (!cached || !cached.rows || !cached.rows.length) return false;
@@ -1172,4 +1193,5 @@ bootAccount();
 setAppState('empty');
 bootReport();           // a cached run boots straight into `report`
 go(location.hash.slice(1) || 'report');
-loadMeta();
+// `serverless` decides how a run is driven, so the handoff waits for /api/meta
+loadMeta().then(bootFromQuery);

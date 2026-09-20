@@ -105,9 +105,12 @@ have none of these caps.
 
 ## Notes
 
-- `public/og.png`, `public/robots.txt` and `public/sitemap.xml` name the domain,
-  as do the `canonical` and `og:` tags in `index.html`. If the domain ever
-  changes, those four places are the whole list.
+- The CDN serves `/` from `public/index.html` (the front page) and `/app/` from
+  `public/app/index.html` (the tool). Nothing needs a rewrite rule: both are
+  static directories.
+- `public/robots.txt` and `public/sitemap.xml` name the domain, as do the
+  `canonical` and `og:` tags in both `index.html` files. If the domain ever
+  changes, those four files are the whole list.
 - Vercel's git clone does not fetch Git LFS objects, so `prepare.py` detects an
   LFS pointer in place of `openings.sqlite` and pulls the real file from
   `media.githubusercontent.com`, which serves LFS content directly. Override with

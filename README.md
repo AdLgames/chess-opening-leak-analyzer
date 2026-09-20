@@ -93,11 +93,13 @@ python api_server.py                  # API on :8000
 python -m http.server 8080 -d public  # UI on :8080
 ```
 
-Then open `http://localhost:8080`. The first screen is one decision: type your Chess.com or
-Lichess username and run, or take the sample archive one click away — it answers from a
-cached report rather than making you sit through an engine pass. Uploading a PGN instead is
-a link below, and the tuning knobs are behind "Advanced settings". Once a run finishes the
-report appears, and the nav opens up: Repertoire, Practice and Progress.
+Then open `http://localhost:8080`. The front page explains the idea and takes a username;
+submitting it hands over to the tool at `/app/`, which starts the run on arrival. Go to
+`/app/` directly and the first screen is one decision: type your Chess.com or Lichess
+username and run, or take the sample archive one click away — it answers from a cached
+report rather than making you sit through an engine pass. Uploading a PGN instead is a link
+below, and the tuning knobs are behind "Advanced settings". Once a run finishes the report
+appears, and the nav opens up: Repertoire, Practice and Progress.
 
 ## Learning from the report
 
