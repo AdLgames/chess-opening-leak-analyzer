@@ -42,8 +42,23 @@ def database_url() -> str | None:
     return None
 
 
+def driver_available() -> bool:
+    """Whether this deployment can actually talk to Postgres.
+
+    A URL is not enough: the driver has to be installed too. Checking both is
+    what lets the rest of the app treat "no accounts" as a state rather than as
+    a crash — a deployment missing either one serves the analyser exactly as it
+    did before accounts existed, instead of 500ing on every request.
+    """
+    try:
+        import psycopg_pool  # noqa: F401, PLC0415
+    except ImportError:
+        return False
+    return True
+
+
 def configured() -> bool:
-    return database_url() is not None
+    return database_url() is not None and driver_available()
 
 
 def _pool() -> Any:
