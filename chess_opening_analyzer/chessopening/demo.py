@@ -77,10 +77,6 @@ def build_demo_report(
         db="local",
         min_db_games=int(opts["min_db_games"]),
         no_engine=bool(opts["no_engine"]),
-        # The sample archive is nobody's games, so nobody's decisions apply to it —
-        # and the deployment that serves it has a read-only filesystem to not go
-        # looking on.
-        no_marks=True,
         max_games=max_games,
         engine_budget_s=engine_budget_s,
         cache_dir=cache_dir or os.path.join(out_dir, "_cache"),

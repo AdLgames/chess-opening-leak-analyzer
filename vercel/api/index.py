@@ -343,10 +343,6 @@ async def analyse(
             max_games=int(LIMITS["max_games"]),
             engine_budget_s=float(LIMITS["time_budget_s"]),
             cache_dir=os.path.join(WORK_ROOT, "_cache"),
-            # Marks are the local build's way of recording what the player has
-            # settled. Here that job belongs to the account, so there is nothing
-            # to read and a read-only filesystem to not go looking on.
-            no_marks=True,
             log=lambda *parts: log.append(" ".join(str(p) for p in parts)),
         )
         with open(result["report"], encoding="utf-8") as fh:

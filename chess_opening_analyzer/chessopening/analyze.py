@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from .bands import ALL, band_for, label as band_label
 from .engine import EngineAnalyzer, PositionEval
 from .evalstore import DEFAULT_EVALS, open_store
-from .marks import DEFAULT_STATE, filter_flags, load_marks
 from .explorer import OpeningExplorer, PositionStats
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
 from .profiles import build_profiles
@@ -238,10 +237,6 @@ def analyze(
     #: answers most of this far deeper than anything affordable on demand.
     no_evals: bool = False,
     eval_store_path: str = DEFAULT_EVALS,
-    #: Decisions the player has already settled. A tool that keeps flagging a
-    #: move somebody has deliberately chosen is a tool they stop believing.
-    marks_path: str = DEFAULT_STATE,
-    no_marks: bool = False,
     max_games: int | None = None,
     engine_budget_s: float | None = None,
     cache_dir: str | None = None,
@@ -412,10 +407,6 @@ def analyze(
     # Past the fixed cutoff the book decides, for the tree as much as for the
     # leak table: a decision at move 18 in a position theory has never heard of
     # is a middlegame move, not part of the opening.
-    # What the player has already settled. A tool that keeps flagging a move
-    # somebody has deliberately chosen is a tool they stop believing.
-    marks = {} if no_marks else load_marks(marks_path)
-    suppressed = 0
     tree_nodes = {k: n for k, n in in_window.items()
                   if n.ply <= cutoff_ply or k in repeated}
     # Every decision says which of this run's games it came from, as indices
@@ -446,16 +437,6 @@ def analyze(
             pop = stats.popularity(node.played_uci)
             if pop is not None and pop < 0.02 and (gap is None or gap < 0):
                 flags.append(FLAG_UNFAMILIAR)
-        mark = marks.get((node.epd, node.player_color)) if marks else None
-        if flags:
-            surviving = filter_flags(flags, mark, node.played_uci)
-            if surviving is None:
-                # Settled: not a finding any more. It stays in the tree, because it
-                # is still part of what the player plays.
-                suppressed += 1
-                flags = []
-            else:
-                flags = surviving
         if node.n < thin_games and flags:
             flags.append(FLAG_THIN)
 
@@ -591,10 +572,6 @@ def analyze(
                    "traps": trap_report}, fh, indent=1)
     log(f"Profiled {len(profile_report['openings'])} openings -> {profiles_path}")
 
-    if suppressed:
-        log(f"{suppressed} findings set aside as already decided")
-        notes.append(f"{suppressed} findings are not shown because you have already "
-                     "committed to or ignored those moves")
     log(f"Wrote {len(rows)} flagged rows -> {report_path}")
     log(f"Wrote {len(tree)} decisions you play -> {tree_path}")
     log(f"Wrote variation rollup -> {summary_path}")
@@ -608,7 +585,6 @@ def analyze(
         "rows": len(rows),
         "tree": tree,
         "tree_rows": len(tree),
-        "suppressed": suppressed,
         "player_band": player_band if banded else ALL,
         "player_band_label": band_label(player_band if banded else ALL),
         "book_has_bands": bool(banded),

@@ -39,10 +39,7 @@ from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch
                                  lookup_player, provider_label, speeds_from_csv)
 from chessopening.guard import RateLimiter, allowed_origins, client_key
 from chessopening.localdb import DEFAULT_DB, LocalOpeningDatabase
-from chessopening.marks import DEFAULT_STATE, GapStore, MarkStore
 from chessopening.messages import explain_failure
-from chessopening.history import HistoryStore
-from chessopening.review import ReviewStore, describe_due, grade_for_loss
 from chessopening.pgn_loader import detect_main_player, find_pgn_files
 from chessopening.summary import summarise
 
@@ -273,17 +270,6 @@ def _run_job(job_id: str, pgn_dir: str, player: str | None, opts: dict[str, Any]
         with LOCK:
             job["rows"] = rows
             job["summary"] = _summarise(rows, result)
-            # Kept so the next run can answer "did last month's work do anything?".
-            try:
-                store = HistoryStore(DEFAULT_STATE)
-                try:
-                    store.save_run(job["summary"], rows, player=player or "",
-                                   source=job.get("source", ""), options=opts)
-                    job["comparison"] = store.compare_latest()
-                finally:
-                    store.close()
-            except Exception as err:  # noqa: BLE001 - history is a nicety, never a blocker
-                log(f"could not record this run in your history: {err}")
             job["report_path"] = result["report"]
             job["status"] = "done"
             job["finished"] = time.time()
@@ -532,178 +518,6 @@ def openings(q: str = "", limit: int = 30) -> dict[str, Any]:
     if db is None:
         raise HTTPException(503, explain_failure("Local opening database not found"))
     return {"query": q, "results": db.search_openings(q, max(1, min(int(limit), 100)))}
-
-
-@app.get("/api/repertoire")
-def repertoire_marks() -> dict[str, Any]:
-    """Every decision the player has recorded about their own openings."""
-    store = MarkStore(DEFAULT_STATE)
-    try:
-        return {"marks": store.listing()}
-    finally:
-        store.close()
-
-
-@app.post("/api/repertoire")
-def set_repertoire_mark(payload: dict[str, Any]) -> dict[str, Any]:
-    """Commit to a move, ignore a finding, or undo either.
-
-    `decision: "clear"` removes whatever was there, so the player can change their mind
-    without a second endpoint.
-    """
-    epd = str(payload.get("epd") or "").strip()
-    color = str(payload.get("color") or "").strip()
-    decision = str(payload.get("decision") or "").strip()
-    if not epd or color not in ("white", "black"):
-        raise HTTPException(400, "epd and a colour of white or black are required")
-
-    store = MarkStore(DEFAULT_STATE)
-    try:
-        if decision == "clear":
-            return {"ok": True, "cleared": store.clear(epd, color)}
-        try:
-            mark = store.set(
-                epd, color,
-                str(payload.get("uci") or "").strip(),
-                decision,
-                san=str(payload.get("san") or "").strip(),
-                note=str(payload.get("note") or "").strip(),
-            )
-        except ValueError as err:
-            raise HTTPException(400, str(err)) from err
-        return {"ok": True, "mark": mark.__dict__}
-    finally:
-        store.close()
-
-
-@app.get("/api/gaps")
-def gap_decisions() -> dict[str, Any]:
-    """What the player has decided about the replies they are not ready for."""
-    store = GapStore(DEFAULT_STATE)
-    try:
-        return {"decisions": store.listing()}
-    finally:
-        store.close()
-
-
-@app.post("/api/gaps")
-def decide_gap(payload: dict[str, Any]) -> dict[str, Any]:
-    """Learn it, practise it, or stop being told about it.
-
-    "Practising" also enrols the position in the review cycle, so choosing it in one place
-    does the thing rather than only recording an intention. The move to grade against comes
-    from the report, which looked it up in the book when the gap was found.
-    """
-    epd = str(payload.get("epd") or "").strip()
-    color = str(payload.get("color") or "").strip()
-    decision = str(payload.get("decision") or "").strip()
-    if not epd or color not in ("white", "black"):
-        raise HTTPException(400, "epd and a colour of white or black are required")
-
-    store = GapStore(DEFAULT_STATE)
-    try:
-        if decision == "clear":
-            return {"ok": True, "cleared": store.clear(epd, color)}
-        try:
-            saved = store.set(
-                epd, color, decision,
-                reply=str(payload.get("reply") or ""),
-                line=str(payload.get("line") or ""),
-                opening=str(payload.get("opening") or ""),
-            )
-        except ValueError as err:
-            raise HTTPException(400, str(err)) from err
-    finally:
-        store.close()
-
-    progress = None
-    if decision == "practising" and payload.get("answer_uci"):
-        reviews = ReviewStore(DEFAULT_STATE)
-        try:
-            reviews.enrol(epd, color, uci=str(payload.get("answer_uci") or ""),
-                          san=str(payload.get("answer_san") or ""),
-                          opening=str(payload.get("opening") or ""),
-                          line=str(payload.get("line") or ""))
-            progress = reviews.progress()
-        finally:
-            reviews.close()
-    return {"ok": True, "decision": saved, "progress": progress}
-
-
-@app.get("/api/drills")
-def drills_due(limit: int = 30) -> dict[str, Any]:
-    """Positions ready to be seen again, plus how the player is doing overall."""
-    store = ReviewStore(DEFAULT_STATE)
-    try:
-        return {"due": store.due(limit=limit), "progress": store.progress()}
-    finally:
-        store.close()
-
-
-@app.post("/api/drills/enrol")
-def enrol_drills(payload: dict[str, Any]) -> dict[str, Any]:
-    """Take the positions from a finished report into the review cycle.
-
-    Enrolling is idempotent: a position already being reviewed keeps its schedule, so
-    re-running the analysis never wipes out progress.
-    """
-    positions = payload.get("positions") or []
-    store = ReviewStore(DEFAULT_STATE)
-    try:
-        for pos in positions[:100]:
-            epd = str(pos.get("epd") or "").strip()
-            color = str(pos.get("color") or "").strip()
-            if not epd or color not in ("white", "black"):
-                continue
-            store.enrol(epd, color, uci=str(pos.get("uci") or ""),
-                        san=str(pos.get("san") or ""),
-                        opening=str(pos.get("opening") or ""),
-                        line=str(pos.get("line") or ""))
-        return {"ok": True, "progress": store.progress()}
-    finally:
-        store.close()
-
-
-@app.post("/api/drills/attempt")
-def record_attempt(payload: dict[str, Any]) -> dict[str, Any]:
-    """Grade one attempt and say when the position comes back."""
-    epd = str(payload.get("epd") or "").strip()
-    color = str(payload.get("color") or "").strip()
-    if not epd or color not in ("white", "black"):
-        raise HTTPException(400, "epd and a colour of white or black are required")
-
-    cp_loss = payload.get("cp_loss")
-    revealed = bool(payload.get("revealed"))
-    grade = payload.get("grade")
-    if grade is None:
-        grade = grade_for_loss(float(cp_loss or 0), revealed=revealed)
-
-    store = ReviewStore(DEFAULT_STATE)
-    try:
-        schedule = store.record(
-            epd, color, str(payload.get("played_uci") or ""), int(grade),
-            cp_loss=int(cp_loss) if cp_loss is not None else None,
-        )
-        return {
-            "ok": True,
-            "grade": int(grade),
-            "due": describe_due(schedule),
-            "repetitions": schedule.repetitions,
-            "lapses": schedule.lapses,
-            "progress": store.progress(),
-        }
-    finally:
-        store.close()
-
-
-@app.get("/api/history")
-def history(limit: int = 20) -> dict[str, Any]:
-    """Past runs and how the newest compares with the one before it."""
-    store = HistoryStore(DEFAULT_STATE)
-    try:
-        return {"runs": store.runs(limit=limit), "comparison": store.compare_latest()}
-    finally:
-        store.close()
 
 
 @app.get("/api/health")
