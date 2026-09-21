@@ -331,7 +331,7 @@ async def analyse(
             out_dir=out_dir,
             depth=int(depth),
             multipv=int(multipv),
-            threads=2,
+            threads=1,   # reproducible; see EngineAnalyzer
             max_moves=int(max_moves),
             color=color,
             min_games=int(min_games),

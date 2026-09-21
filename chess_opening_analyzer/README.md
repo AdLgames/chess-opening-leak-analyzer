@@ -14,7 +14,8 @@ Runs fully offline: the engine and the opening database both live inside the app
 pip install -r requirements.txt              # python-chess, zstandard
 python tools/install_stockfish.py            # bundles Stockfish into chessopening/bin/
 python tools/build_local_db.py --months 2013-01 2013-02 2013-03 \
-    --speeds blitz,rapid,classical --min-elo 1500 --max-elo 2100
+    --speeds blitz,rapid,classical --min-elo 1500 --max-elo 2100 --max-moves 20
+python tools/check_book.py --expect-moves 20     # before committing it
 ```
 
 `install_stockfish.py` detects your OS/CPU, pulls the official release (Linux, macOS Intel/Apple
@@ -28,6 +29,19 @@ from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings)
 `chessopening/data/eco.tsv`. The shipped database is 19 MB: 157,625 blitz/rapid/classical games
 rated 1500-2100 from 2013-01..03 → 49,327 positions / 80,000 position-move rows. Add months or
 `--pgn <folder>` to deepen it; use `--min-elo/--max-elo` to match your own pool.
+
+Two settings the analyser cares about, and will tell you about at runtime if they are missing:
+
+* `--max-moves` decides how deep theory goes. The analyser follows the book past its own
+  fixed cutoff for as long as the book still covers the position, so a book built to move
+  15 caps that at move 15 no matter what the run asks for.
+* Rating bands are written automatically: every game is counted into its own band and into
+  `all`, so a 1400 can be compared against 1200-1600 rather than against everybody at once.
+  A book built before bands existed has only `all` rows, and every run says so.
+
+`check_book.py` reports what a book actually contains and fails on both of those, plus the
+empty, truncated and still-an-LFS-pointer cases. Worth running before committing one: the
+build takes hours, and "deploy it and see" is a slow way to find out it was shallow.
 
 ## Run
 

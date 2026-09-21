@@ -82,7 +82,14 @@ class EngineAnalyzer:
         depth: int = 18,
         movetime_ms: int | None = None,
         multipv: int = 3,
-        threads: int = 2,
+        #: One, deliberately. Stockfish searching on several threads is not
+        #: reproducible: thread timing changes the order positions are explored,
+        #: so the same position at the same depth comes back with a slightly
+        #: different evaluation each time. Measured here at up to 0.27 pawns of
+        #: jitter against an eval_drop threshold of 0.8 — enough to flip findings
+        #: in and out between identical runs, and enough to make a leak look
+        #: fixed when nothing about the player's games changed.
+        threads: int = 1,
         hash_mb: int = 256,
         cache_path: str | None = None,
     ):
