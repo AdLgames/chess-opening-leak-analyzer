@@ -68,7 +68,7 @@ def build_demo_report(
         out_dir=out_dir,
         depth=int(opts["depth"]),
         multipv=int(opts["multipv"]),
-        threads=2,
+        threads=1,   # reproducible; see EngineAnalyzer
         max_moves=int(opts["max_moves"]),
         color=opts["color"],
         min_games=int(opts["min_games"]),
@@ -88,6 +88,10 @@ def build_demo_report(
         "player": player,
         "summary": summarise(rows, result),
         "rows": rows,
+        # The same shape the live run returns. Without it the demo's "everything
+        # you play" panel is empty, which makes the sample look like a report
+        # that only knows about problems.
+        "tree": result.get("tree", []),
         "log": log[-40:],
         "notes": list(result.get("notes", [])),
         "elapsed": round(time.time() - started, 1),

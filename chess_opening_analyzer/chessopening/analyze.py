@@ -213,7 +213,10 @@ def analyze(
     depth: int = 18,
     movetime_ms: int | None = None,
     multipv: int = 3,
-    threads: int = 2,
+    #: One by default: a reproducible verdict is worth more than a faster one
+    #: when the whole product is "did this change since last time?". See
+    #: EngineAnalyzer.
+    threads: int = 1,
     max_moves: int = 15,
     color: str = "both",
     min_games: int = 3,

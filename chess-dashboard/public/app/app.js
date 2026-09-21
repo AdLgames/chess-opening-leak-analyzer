@@ -718,7 +718,13 @@ function renderSummaryBand() {
   const cards = [
     { label: V.METRICS.coverage.label, value: `${cov.pct}%`, note: cov.note, cls: 'accent', title: V.METRICS.coverage.definition },
     { label: 'Leaks', value: s.leaks, note: `${s.white_leaks} white · ${s.black_leaks} black` },
-    { label: 'Points shed', value: s.lost_points.toFixed(1), note: 'against the book expectation' },
+    // Who the baseline came from belongs next to the number it produced: "6%
+    // below the book" means something different if the book is everybody.
+    { label: 'Points shed', value: s.lost_points.toFixed(1),
+      note: s.banded ? `against ${esc(s.band)} players` : 'against the book expectation',
+      title: s.banded
+        ? `Your games read as about ${s.band} strength, so the book's figures here are that band's, not everybody's.`
+        : 'This opening book has no rating bands, so the comparison is against players of every strength at once.' },
     { label: 'Games read', value: s.games, note: `${plural(s.judged, 'repeated decision')}` },
     { label: 'Worst opening', value: worst ? worst.lost_points.toFixed(1) : '0', note: worst ? worst.opening : 'nothing flagged' },
   ];

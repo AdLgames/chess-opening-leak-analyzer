@@ -53,6 +53,11 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         "judged": stats["repeated"],
         # every game-appearance behind a judged decision: the denominator of coverage
         "judged_games": stats.get("repeated_games", 0),
+        # Who the book compared them against. A score gap means something quite
+        # different depending on whose games set the baseline, so the figure
+        # should never be read without it.
+        "band": stats.get("player_band_label", ""),
+        "banded": bool(stats.get("book_has_bands")),
         # how many repeated decisions were examined at all, so "24 leaks" can be
         # read as a share of what you play rather than as a bare count
         "tree_rows": stats.get("tree_rows", 0),

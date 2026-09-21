@@ -213,6 +213,11 @@ def test_end_to_end_against_bundled_local_db(tmp_path):
 
     if not os.path.exists(DEFAULT_DB):
         pytest.skip("no bundled opening database - run tools/build_local_db.py")
+    # A fresh clone without `git lfs pull` has the file but not its contents, and
+    # sqlite's complaint about that is a poor way to find out.
+    with open(DEFAULT_DB, "rb") as fh:
+        if fh.read(16) != b"SQLite format 3\x00":
+            pytest.skip("the bundled book is a Git LFS pointer - run `git lfs pull`")
     out = str(tmp_path / "local-out")
     result = analyze(
         pgn_dir=PGN_DIR,
@@ -272,3 +277,34 @@ def test_engine_cache_key_ignores_the_move_counters():
         assert eng._position_key(early) != eng._position_key(other)
         # and the engine build is part of the key
         assert eng.engine_id and eng.engine_id in eng._position_key(early)
+
+
+def test_the_same_position_evaluates_the_same_way_twice(tmp_path):
+    """The engine has to be reproducible, or the leak lifecycle is noise.
+
+    Stockfish on several threads explores in an order that depends on thread
+    timing, so the same position at the same depth comes back slightly
+    differently each run — measured at up to 0.27 pawns, against an eval_drop
+    threshold of 0.8. That is enough to flip a finding in and out between
+    identical runs, which would show up to the player as a leak they never
+    fixed going away, and coming back.
+    """
+    engine = _engine_or_skip()
+    fen = "r1bqk1nr/pppp1ppp/8/4n3/2BbP3/8/PPP2PPP/RNBQK2R w KQkq - 0 6"
+    seen = []
+    for run in range(3):
+        # a fresh cache each time, so it is the search being compared, not a memo
+        with EngineAnalyzer(engine_path=engine, depth=10, multipv=3,
+                            cache_path=str(tmp_path / f"c{run}.json")) as eng:
+            seen.append(round(eng.evaluate_move(fen, "b1c3").eval_drop_pawns, 4))
+    assert len(set(seen)) == 1, f"the same position evaluated three ways: {seen}"
+
+
+def test_the_analysis_path_does_not_ask_for_extra_threads():
+    """Speed is not worth reproducibility here, and the default says so."""
+    import inspect
+
+    from chessopening.analyze import analyze
+
+    assert inspect.signature(analyze).parameters["threads"].default == 1
+    assert inspect.signature(EngineAnalyzer.__init__).parameters["threads"].default == 1

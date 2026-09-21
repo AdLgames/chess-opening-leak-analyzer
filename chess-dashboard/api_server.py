@@ -253,7 +253,7 @@ def _run_job(job_id: str, pgn_dir: str, player: str | None, opts: dict[str, Any]
             out_dir=out_dir,
             depth=int(opts["depth"]),
             multipv=int(opts["multipv"]),
-            threads=2,
+            threads=1,   # reproducible; see EngineAnalyzer
             max_moves=int(opts["max_moves"]),
             color=opts["color"],
             min_games=int(opts["min_games"]),
