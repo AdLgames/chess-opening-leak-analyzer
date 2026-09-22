@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chessopening.bands import ALL, BANDS  # noqa: E402
 
 
-def check(path: str, expect_moves: int | None) -> int:
+def check(path: str, expect_moves: int | None, max_mb: float | None = None) -> int:
     if not os.path.isfile(path):
         print(f"FAIL  no such file: {path}")
         return 1
@@ -86,6 +86,13 @@ def check(path: str, expect_moves: int | None) -> int:
             problems.append("only 'all' rows: nothing to compare a rated player against")
     con.close()
 
+    if max_mb is not None and size_mb > max_mb:
+        problems.append(
+            f"{size_mb:.1f} MB exceeds the {max_mb:.0f} MB budget. The deployment bundles "
+            "this file with the engine and the Python dependencies, under a fixed total, "
+            "so an oversized book does not fail here — it fails the deploy. Raise "
+            "--min-move-games and build again.")
+
     if problems:
         print()
         for p in problems:
@@ -104,8 +111,10 @@ def main() -> int:
                         "openings.sqlite"))
     ap.add_argument("--expect-moves", type=int, default=None,
                     help="fail if the book is shallower than this many full moves")
+    ap.add_argument("--max-mb", type=float, default=None,
+                    help="fail if the book is larger than this, before it reaches a deploy")
     args = ap.parse_args()
-    return check(args.path, args.expect_moves)
+    return check(args.path, args.expect_moves, args.max_mb)
 
 
 if __name__ == "__main__":
