@@ -255,8 +255,10 @@ def build(
         con.commit()
         counts.clear()
 
+    read_sources: list[str] = []
     for src in sources:
         print(f"Reading {src}")
+        read_sources.append(src)
         for headers, movetext in iter_games(src):
             result = headers.get("Result", "*")
             if result not in RESULTS:
@@ -307,6 +309,17 @@ def build(
             break
     flush()
 
+    # The cap stops the whole build, and sources are read in the order given, so a
+    # run that asks for twelve months with a cap the first one fills reads exactly
+    # one month and silently ignores the rest. Say so: this is hours of runner time
+    # spent on a book that is not what was asked for.
+    if len(read_sources) < len(sources):
+        missed = [os.path.basename(x) for x in sources[len(read_sources):]]
+        print(f"\nWARNING: stopped at the {max_games}-game cap after "
+              f"{len(read_sources)} of {len(sources)} sources.")
+        print(f"         never opened: {', '.join(missed)}")
+        print("         raise --max-games, or the extra months add nothing.\n")
+
     if min_move_games > 1:
         # Only ever thin the "all" rows on this rule. A band row is a subset of one, so a
         # threshold meant for the whole book would delete most of every band.
@@ -325,7 +338,11 @@ def build(
               f"max_moves={max_moves}"
     con.executemany(
         "INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)",
-        [("games", str(kept)), ("source", "; ".join(os.path.basename(s) for s in sources)),
+        # Only what was actually read: a capped build that recorded every source it
+        # was handed would claim months it never opened, and check_book, the
+        # dashboard and anyone reading the file would believe it.
+        [("games", str(kept)),
+         ("source", "; ".join(os.path.basename(x) for x in read_sources)),
          ("filters", filters), ("bands", "1"),
          ("built_at", time.strftime("%Y-%m-%d %H:%M:%S"))],
     )
