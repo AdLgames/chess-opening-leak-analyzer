@@ -43,13 +43,53 @@ class DatabaseUnavailable(RuntimeError):
     """No database is configured, or it cannot be reached."""
 
 
-def database_url() -> str | None:
-    """The connection string, preferring the pooled endpoint."""
-    for name in ("POSTGRES_PRISMA_URL", "POSTGRES_URL", "DATABASE_URL"):
+# In preference order: the pooled endpoints first, since a serverless function
+# opens a connection per invocation and a direct endpoint runs out of slots.
+URL_NAMES = ("POSTGRES_PRISMA_URL", "POSTGRES_URL", "DATABASE_URL")
+
+# The subset a storage integration's prefix may be accepted on. See resolve_url.
+PREFIXABLE = ("POSTGRES_PRISMA_URL", "POSTGRES_URL")
+
+
+def resolve_url() -> tuple[str, str] | None:
+    """The connection string and the variable it came from, or None.
+
+    Vercel offers a prefix when a storage integration is connected to a
+    project, and a prefixed deployment injects `<PREFIX>_POSTGRES_URL` and
+    nothing named plainly. Accepting a suffix match means the integration's
+    prefix — whatever it is — does not have to be mirrored in this code, and
+    the alternative was accounts silently staying off with every variable
+    present and correct.
+
+    Only the `POSTGRES_*` names are scanned for, never `DATABASE_URL`. That
+    tail is far too common to claim: a first draft of this matched
+    `LEAKLAB_TEST_DATABASE_URL` out of the test environment, and the same
+    mistake against a stray `OLD_DATABASE_URL` would have pointed a live
+    deployment at the wrong database. `POSTGRES_URL` is distinctive to the
+    integration, and it always injects one.
+
+    The match is narrow in the other direction too: `_POSTGRES_URL` does not
+    match `POSTGRES_URL_NON_POOLING`, so the unpooled endpoint is never picked
+    up as though it were the pooled one. Exact names win, and the environment
+    is scanned in sorted order so two prefixes cannot make this vary by run.
+    """
+    for name in URL_NAMES:
         value = os.environ.get(name, "").strip()
         if value:
-            return value
+            return name, value
+    for name in PREFIXABLE:
+        for key in sorted(os.environ):
+            if key.endswith(f"_{name}"):
+                value = os.environ[key].strip()
+                if value:
+                    return key, value
     return None
+
+
+def database_url() -> str | None:
+    """The connection string, preferring the pooled endpoint."""
+    found = resolve_url()
+    return found[1] if found else None
 
 
 def driver_available() -> bool:
@@ -458,9 +498,9 @@ def diagnosis() -> dict[str, Any]:
     connection string, the host, or a driver message, any of which would put
     infrastructure detail on a public endpoint.
     """
-    found = next((n for n in ("POSTGRES_PRISMA_URL", "POSTGRES_URL", "DATABASE_URL")
-                  if os.environ.get(n, "").strip()), None)
-    out: dict[str, Any] = {"url_env": found, "driver": driver_available()}
+    found = resolve_url()
+    out: dict[str, Any] = {"url_env": found[0] if found else None,
+                           "driver": driver_available()}
     if not found or not out["driver"]:
         out["connect"] = "not attempted"
         return out
