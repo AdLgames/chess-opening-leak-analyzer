@@ -19,6 +19,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import threading
 import time
 import traceback
 from typing import Any
@@ -53,7 +54,31 @@ def prepare_engine() -> str | None:
         return None
 
 
-ENGINE_PATH = prepare_engine()
+# Whether an engine could be prepared, which is all the health check and the
+# analysis guard need to know. Answering it costs a stat() rather than a copy.
+ENGINE_AVAILABLE = os.path.isfile(BUNDLED_ENGINE)
+
+_ENGINE_LOCK = threading.Lock()
+_ENGINE_PATH: str | None = None
+_ENGINE_TRIED = False
+
+
+def engine_path() -> str | None:
+    """The runnable engine, copied into /tmp the first time one is actually wanted.
+
+    This used to run at import, which meant every cold start copied 78 MB before
+    serving anything — including `/api/health`, which never runs a search. Only
+    the analysis endpoint needs the binary, so only it should pay for it.
+
+    The lock matters because FastAPI runs sync endpoints on a threadpool: two
+    requests arriving together on a cold instance would otherwise both copy.
+    """
+    global _ENGINE_PATH, _ENGINE_TRIED
+    with _ENGINE_LOCK:
+        if not _ENGINE_TRIED:
+            _ENGINE_PATH = prepare_engine()
+            _ENGINE_TRIED = True
+        return _ENGINE_PATH
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
@@ -465,7 +490,8 @@ def engine_eval(payload: dict[str, Any]) -> dict[str, Any]:
     fen = str(payload.get("fen") or "").strip()
     if not fen:
         raise HTTPException(400, "fen is required")
-    if not ENGINE_PATH:
+    engine = engine_path()
+    if not engine:
         raise HTTPException(503, "No engine available in this deployment")
     depth = max(6, min(int(payload.get("depth") or 12), LIMITS["max_board_depth"]))
     multipv = max(1, min(int(payload.get("multipv") or 3), LIMITS["max_board_multipv"]))
@@ -475,7 +501,7 @@ def engine_eval(payload: dict[str, Any]) -> dict[str, Any]:
             depth=depth,
             multipv=multipv,
             pv_len=max(1, min(int(payload.get("pv_len") or 6), 8)),
-            engine_path=ENGINE_PATH,
+            engine_path=engine,
             cache_path=BOARD_CACHE,
         )
     except FileNotFoundError as exc:
@@ -504,7 +530,7 @@ def health(db_detail: bool = False) -> dict[str, Any]:
     The detail is opt-in because it dials the database, and a liveness check
     that waits on a network round trip is not much of a liveness check.
     """
-    out = {"ok": True, "engine": bool(ENGINE_PATH), "serverless": True,
+    out = {"ok": True, "engine": ENGINE_AVAILABLE, "serverless": True,
            "database": db.configured()}
     if db_detail:
         out["db_detail"] = db.diagnosis()
