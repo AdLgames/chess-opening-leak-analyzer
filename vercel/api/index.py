@@ -498,9 +498,17 @@ def openings(q: str = "", limit: int = 30) -> dict[str, Any]:
 
 
 @app.get("/api/health")
-def health() -> dict[str, Any]:
-    return {"ok": True, "engine": bool(ENGINE_PATH), "serverless": True,
-            "database": db.configured()}
+def health(db_detail: bool = False) -> dict[str, Any]:
+    """Liveness, plus — with `?db_detail=1` — why accounts are off.
+
+    The detail is opt-in because it dials the database, and a liveness check
+    that waits on a network round trip is not much of a liveness check.
+    """
+    out = {"ok": True, "engine": bool(ENGINE_PATH), "serverless": True,
+           "database": db.configured()}
+    if db_detail:
+        out["db_detail"] = db.diagnosis()
+    return out
 
 
 # On Vercel the CDN serves `public/`, so this mount never sees traffic there. Locally it
