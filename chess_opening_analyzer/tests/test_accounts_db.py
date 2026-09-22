@@ -314,6 +314,60 @@ def test_export_is_complete_and_delete_leaves_nothing():
     assert db.query_one("SELECT count(*) AS n FROM users WHERE id = %s", (uid,))["n"] == 0
 
 
+def test_a_storage_integration_prefix_still_resolves():
+    """Vercel can prefix every variable a storage integration injects.
+
+    The live deployment had `cheop_DATABASE_URL` and nothing named plainly,
+    which read as "no database configured" while every variable was present,
+    correct, and scoped to Production. Matching the suffix fixes that without
+    this code having to know the prefix.
+
+    The corroboration rule is the interesting half. A prefixed `DATABASE_URL`
+    is believed only when a sibling shares its prefix, because that tail is
+    common enough to appear by accident — an earlier draft claimed this very
+    suite's `LEAKLAB_TEST_DATABASE_URL`, and a leftover `OLD_DATABASE_URL`
+    would aim a live deployment at the wrong database the same way.
+    """
+    auth, db, state, TestClient = _load()
+    tails = tuple(f"_{n}" for n in db.URL_NAMES + db.SIBLINGS)
+    saved = {k: os.environ[k] for k in os.environ
+             if k in db.URL_NAMES or k.endswith(tails)}
+
+    def only(env):
+        for k in list(os.environ):
+            if k in db.URL_NAMES or k.endswith(tails):
+                del os.environ[k]
+        os.environ.update(env)
+        return db.resolve_url()
+
+    family = {"cheop_DATABASE_URL": "real", "cheop_PGHOST": "h", "cheop_PGUSER": "u"}
+    try:
+        assert only(dict(family))[0] == "cheop_DATABASE_URL"
+        # Pooled first: a serverless function opens a connection per invocation.
+        assert only({**family, "cheop_POSTGRES_URL": "p"})[0] == "cheop_POSTGRES_URL"
+        # An exact name is still the answer when both are present.
+        assert only({**family, "POSTGRES_URL": "b"})[0] == "POSTGRES_URL"
+
+        # Uncorroborated tails stay rejected, including this module's own.
+        assert only({"LEAKLAB_TEST_DATABASE_URL": "u"}) is None
+        assert only({"OLD_DATABASE_URL": "u"}) is None
+        # ...even while a real family is present alongside one.
+        assert only({**family, "OLD_DATABASE_URL": "u"})[0] == "cheop_DATABASE_URL"
+
+        # A POSTGRES_* name needs no corroboration; nothing else uses it.
+        assert only({"cheop_POSTGRES_URL": "u"})[0] == "cheop_POSTGRES_URL"
+        # The unpooled endpoint must never be mistaken for the pooled one.
+        assert only({"cheop_POSTGRES_URL_NON_POOLING": "u"}) is None
+        assert only({}) is None
+    finally:
+        for k in list(os.environ):
+            if k in db.URL_NAMES or k.endswith(tails):
+                del os.environ[k]
+        os.environ.update(saved)
+    # The restore has to leave the rest of this module able to reach Postgres.
+    assert db.configured() is True
+
+
 def test_diagnosis_separates_the_two_ways_accounts_stay_off():
     """`configured()` says no; `diagnosis()` has to say which no.
 
