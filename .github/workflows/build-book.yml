@@ -1,0 +1,121 @@
+name: build opening book
+
+# The opening book is rebuilt here rather than on a laptop because the job is
+# "download tens of gigabytes, keep a few megabytes": a datacentre runner reaches
+# database.lichess.org far faster than a home connection, and the result can be
+# published straight to a Release without anything touching a local disk.
+#
+# Run it from the Actions tab (or the GitHub mobile app): Run workflow, adjust the
+# inputs, go. The finished book arrives two ways — as a run artifact, and as
+# `openings.sqlite` on the `book-latest` Release, which is what LEAKLAB_DB_URL
+# should point at. Release downloads do not count against the Git LFS bandwidth
+# quota, and every Vercel build fetches this file.
+
+on:
+  workflow_dispatch:
+    inputs:
+      months:
+        description: 'Lichess dump months, space separated (e.g. 2026-08)'
+        default: '2026-08'
+      max_moves:
+        description: 'How deep theory goes. The analyser follows the book past its own cutoff, so this caps that.'
+        default: '20'
+      max_games:
+        description: 'Stop after this many accepted games. Higher = better rating bands, longer run.'
+        default: '500000'
+      min_move_games:
+        description: 'Drop position-moves seen fewer times than this'
+        default: '3'
+      speeds:
+        description: 'Time controls to accept'
+        default: 'blitz,rapid,classical'
+      publish:
+        description: 'Publish to the book-latest Release when the checks pass'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write        # needed to create or replace the Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # A hosted runner is killed at 6 hours. Stopping just short leaves time for the
+    # failure to be reported as a failure rather than as a cancellation.
+    timeout-minutes: 350
+    steps:
+      # No `lfs: true` here on purpose: this job replaces openings.sqlite, so pulling
+      # the old one would spend LFS bandwidth on a file about to be thrown away.
+      - uses: actions/checkout@v4
+
+      # The builder opens the output path rather than truncating it, and without LFS
+      # that path holds a text pointer, which SQLite rejects as "file is not a
+      # database". Removing it first is what makes the cheap checkout above safe.
+      - name: Clear the checked-out book
+        run: rm -f chess_opening_analyzer/chessopening/data/openings.sqlite
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r chess_opening_analyzer/requirements.txt
+
+      # No --min-elo/--max-elo: every game is counted into its own rating band and
+      # into `all`, so filtering the input by rating would leave the outer bands
+      # empty and make the band comparison decorative.
+      - name: Build the book
+        run: |
+          cd chess_opening_analyzer
+          python tools/build_local_db.py \
+            --months ${{ inputs.months }} \
+            --speeds '${{ inputs.speeds }}' \
+            --max-moves '${{ inputs.max_moves }}' \
+            --max-games '${{ inputs.max_games }}' \
+            --min-move-games '${{ inputs.min_move_games }}'
+
+      - name: Check the book
+        run: |
+          cd chess_opening_analyzer
+          python tools/check_book.py --expect-moves '${{ inputs.max_moves }}'
+
+      - name: Summarise
+        run: |
+          cd chess_opening_analyzer
+          BOOK=chessopening/data/openings.sqlite
+          {
+            echo "## Opening book"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Months | \`${{ inputs.months }}\` |"
+            echo "| Depth | ${{ inputs.max_moves }} moves |"
+            echo "| Size | $(du -h "$BOOK" | cut -f1) |"
+            echo
+            echo '```'
+            python tools/check_book.py --expect-moves '${{ inputs.max_moves }}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openings-sqlite
+          path: chess_opening_analyzer/chessopening/data/openings.sqlite
+          compression-level: 0     # already a packed SQLite file
+
+      # A fixed tag, deleted and recreated, so LEAKLAB_DB_URL is set once and keeps
+      # working. `gh` ships on the runner, which keeps this off a third-party action.
+      - name: Publish to the book-latest Release
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd chess_opening_analyzer
+          NOTES="Built from ${{ inputs.months }} to ${{ inputs.max_moves }} moves, \
+          max ${{ inputs.max_games }} games, by run ${{ github.run_id }}."
+          gh release delete book-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create book-latest chessopening/data/openings.sqlite \
+            --title 'Opening book (latest)' --notes "$NOTES"
+          echo "LEAKLAB_DB_URL=https://github.com/${{ github.repository }}/releases/download/book-latest/openings.sqlite" \
+            >> "$GITHUB_STEP_SUMMARY"
