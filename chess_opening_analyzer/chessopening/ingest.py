@@ -475,21 +475,33 @@ def _fetch_lichess(opts: FetchOptions, progress: Progress) -> FetchResult:
                 download_url=download_url,
             ) from exc
         text = raw.decode("utf-8", errors="replace")
-        if not text.lstrip().startswith("[Event"):
+        head = text.lstrip()
+        # An empty body is Lichess answering "nothing matched", not refusing us.
+        # It used to be caught by the check below and reported as a missing API
+        # token, which sent people to create one for a filter problem. Falling
+        # through leaves it to the count check, which says the accurate thing.
+        if head and not head.startswith("[Event"):
             raise IngestError(
                 "Lichess did not return PGN data.",
                 hint="Use a personal API token, or download the games and upload them.",
                 download_url=download_url,
             )
         result.requests += 1
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(text)
+        # An empty export is not worth keeping: the cache is keyed by day and
+        # filters, so storing it would answer the rest of the day with nothing
+        # even once the account has games that match.
+        if head:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
 
     count = _count_games(text)
     if not count:
         raise IngestError(
             f"No games matched for {opts.username} on Lichess.",
-            hint="Widen the date range or the time controls, or turn off rated-only.",
+            hint="Lichess answered, with nothing in it. Usually that is rated-only "
+                 "against an account that plays casually, time controls that exclude "
+                 "everything they play, or a date range with no games in it. Check the "
+                 "spelling too — Lichess usernames are not Chess.com usernames.",
             download_url=download_url,
         )
     result.games = count
