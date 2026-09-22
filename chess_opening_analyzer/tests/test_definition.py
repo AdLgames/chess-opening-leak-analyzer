@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import csv
 import os
+import sqlite3
 import sys
 
 import pytest
@@ -158,3 +159,32 @@ def test_the_book_reports_its_own_depth(tmp_path):
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+def test_a_book_can_be_rebuilt_over_itself(tmp_path):
+    """Interning must not make the next build impossible.
+
+    `intern_positions` leaves `moves` as a view, and SQLite will not insert into
+    one. Building over an existing book is ordinary — deepening it, adding a
+    month — so the builder has to undo the interned shape before it writes, and
+    restore it afterwards. Without that the second build dies with "cannot
+    modify moves because it is a view".
+    """
+    from build_local_db import build  # noqa: PLC0415
+
+    path = str(tmp_path / "rebuilt.sqlite")
+    for _ in range(2):
+        build(find_pgn_files(PGN_DIR), path, max_moves=6, speeds=None,
+              min_move_games=1, offline_eco=True)
+
+    db = LocalOpeningDatabase(path)
+    assert db.max_ply == 12
+    con = sqlite3.connect(path)
+    kinds = dict(con.execute("SELECT name, type FROM sqlite_master "
+                             "WHERE name IN ('moves', 'moves_i', 'positions')"))
+    # The rebuild has to leave the book interned, not just writable.
+    assert kinds == {"moves": "view", "moves_i": "table", "positions": "table"}
+    rows = con.execute("SELECT count(*) FROM moves").fetchone()[0]
+    # Rebuilding must not double the counts: the second pass starts from empty.
+    assert rows == con.execute("SELECT count(*) FROM moves_i").fetchone()[0]
+    con.close()

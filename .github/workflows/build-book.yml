@@ -18,14 +18,14 @@ on:
         description: 'Lichess dump months, space separated (e.g. 2026-08)'
         default: '2026-08'
       max_moves:
-        description: 'How deep theory goes. The analyser follows the book past its own cutoff, so this caps that.'
+        description: 'DEPTH: how many moves into the game the book covers. The analyser follows the book past its own cutoff, so this caps that.'
         default: '20'
       max_games:
         description: 'Stop after this many accepted games. Higher = better rating bands, longer run.'
         default: '500000'
       min_move_games:
-        description: 'Drop position-moves seen fewer times than this. Raise it if the size check fails.'
-        default: '20'
+        description: 'POPULARITY, not depth: a move must appear in at least this many games to be kept. Low = broader coverage, bigger file.'
+        default: '5'
       speeds:
         description: 'Time controls to accept'
         default: 'blitz,rapid,classical'
@@ -75,20 +75,21 @@ jobs:
             --max-games '${{ inputs.max_games }}' \
             --min-move-games '${{ inputs.min_move_games }}'
 
-      # The size budget is the real gate, and 35 MB is measured rather than guessed.
-      # Everything in the deployment except the book — the engine, the Python
-      # dependencies, the app — comes to 93.5 MB. A 19 MB book (112 MB total) served
-      # fine; an 81 MB book (175 MB total) failed every request with
-      # INTERNAL_FUNCTION_INVOCATION_FAILED, the function never starting at all. 35 MB
-      # keeps the total near the size known to work.
+      # The size budget is the real gate, and it is measured rather than guessed.
+      # A guessed 120 MB once passed an 81 MB book that stopped the deployed
+      # function from starting at all — every request returning
+      # INTERNAL_FUNCTION_INVOCATION_FAILED.
       #
-      # A book that is merely large does not fail here — it fails the next deploy,
-      # after this workflow has reported success and published it. That is exactly
-      # what happened when this gate was set to a guessed 120 MB.
+      # Two changes since bought most of the room back: the engine is no longer
+      # bundled (it is fetched into /tmp on first use) and positions are interned,
+      # which took a real book from 81 MB to 36 MB unchanged. Everything in the
+      # function except the book now comes to about 20 MB, against 93.5 MB before,
+      # and a 112 MB total is known to work. 60 MB keeps a wide margin and leaves
+      # room to lower --min-move-games later for still broader coverage.
       - name: Check the book
         run: |
           cd chess_opening_analyzer
-          python tools/check_book.py --expect-moves '${{ inputs.max_moves }}' --max-mb 35
+          python tools/check_book.py --expect-moves '${{ inputs.max_moves }}' --max-mb 60
 
       - name: Summarise
         run: |

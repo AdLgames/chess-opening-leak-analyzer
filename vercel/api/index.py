@@ -15,8 +15,8 @@ from __future__ import annotations
 import csv
 import io
 import os
+import importlib.util
 import shutil
-import stat
 import sys
 import tempfile
 import threading
@@ -30,33 +30,52 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 # --------------------------------------------------------------- engine bootstrap
-BUNDLED_ENGINE = os.path.join(ROOT, "engine", "stockfish")
+# The engine is not in the bundle. It and the opening book together came to more
+# than the function could carry, and the deployment stopped starting at all —
+# every request returning INTERNAL_FUNCTION_INVOCATION_FAILED. The book has to be
+# present to answer anything; the engine is only wanted by the analysis endpoints,
+# so it is fetched into /tmp on first use and kept for the life of the instance.
 RUNTIME_DIR = os.path.join(tempfile.gettempdir(), "leaklab-engine")
-RUNTIME_ENGINE = os.path.join(RUNTIME_DIR, "stockfish")
+ENGINE_BUILD = os.environ.get("LEAKLAB_ENGINE_BUILD", "sse41-popcnt")
+ENGINE_VERSION = os.environ.get("LEAKLAB_ENGINE_VERSION", "sf_17.1")
+
+# `prepare.py` ships the installer beside this file; a checkout has it under the
+# analyzer's tools. Finding either means the engine can be had, which is all the
+# health check needs to report — and it costs a stat(), not a download.
+_INSTALLER_CANDIDATES = (
+    os.path.join(ROOT, "install_stockfish.py"),
+    os.path.join(os.path.dirname(os.path.dirname(ROOT)),
+                 "chess_opening_analyzer", "tools", "install_stockfish.py"),
+)
+INSTALLER = next((p for p in _INSTALLER_CANDIDATES if os.path.isfile(p)), None)
+ENGINE_AVAILABLE = INSTALLER is not None
 
 
 def prepare_engine() -> str | None:
-    """Copy the shipped binary into /tmp and make it executable. Returns its path."""
-    if not os.path.isfile(BUNDLED_ENGINE):
+    """Fetch Stockfish into /tmp and return its path, or None if it cannot be had.
+
+    `install_stockfish.py` already knows how to pick a build the CPU can run and
+    to reject one it cannot, and it skips the download when /tmp already holds a
+    working engine — so a warm instance pays nothing.
+    """
+    if INSTALLER is None:
         return None
     try:
-        os.makedirs(RUNTIME_DIR, exist_ok=True)
-        if not os.path.isfile(RUNTIME_ENGINE) or \
-                os.path.getsize(RUNTIME_ENGINE) != os.path.getsize(BUNDLED_ENGINE):
-            tmp = RUNTIME_ENGINE + ".part"
-            shutil.copyfile(BUNDLED_ENGINE, tmp)
-            os.chmod(tmp, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP)
-            os.replace(tmp, RUNTIME_ENGINE)
-        os.environ["STOCKFISH_PATH"] = RUNTIME_ENGINE
-        return RUNTIME_ENGINE
-    except OSError:
+        spec = importlib.util.spec_from_file_location("leaklab_engine_installer", INSTALLER)
+        if spec is None or spec.loader is None:
+            return None
+        installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(installer)
+        # Every argument by keyword: install() takes (version, build, dest_dir, ...),
+        # so a positional directory silently lands in `version`.
+        path = installer.install(version=ENGINE_VERSION, build=ENGINE_BUILD,
+                                 dest_dir=RUNTIME_DIR, quiet=True)
+    except Exception:  # noqa: BLE001 - a missing engine is a state, not a crash
         traceback.print_exc()
         return None
+    os.environ["STOCKFISH_PATH"] = path
+    return path
 
-
-# Whether an engine could be prepared, which is all the health check and the
-# analysis guard need to know. Answering it costs a stat() rather than a copy.
-ENGINE_AVAILABLE = os.path.isfile(BUNDLED_ENGINE)
 
 _ENGINE_LOCK = threading.Lock()
 _ENGINE_PATH: str | None = None

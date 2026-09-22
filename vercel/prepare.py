@@ -137,12 +137,21 @@ def build_opening_pages() -> None:
         say(f"opening pages skipped ({result.stderr.strip().splitlines()[-1:] or 'no output'})")
 
 
-def ensure_engine() -> None:
-    dest = os.path.join(HERE, "engine")
-    installer = os.path.join(ANALYZER, "tools", "install_stockfish.py")
-    cmd = [sys.executable, installer, "--dest", dest, "--build", ENGINE_BUILD]
-    say(" ".join(cmd[1:]))
-    subprocess.run(cmd, check=True)
+def ship_engine_installer() -> None:
+    """Put the installer in the bundle instead of the 76 MB engine it installs.
+
+    The binary used to be downloaded here and shipped inside the function. Between
+    it and the opening book that came to more than the function could carry, and
+    the deployment stopped starting at all. The engine is the half that can wait:
+    only the analysis endpoints need it, so the function fetches it into /tmp the
+    first time one is called and keeps it for the life of the instance.
+
+    The installer is copied rather than imported across directories because the
+    bundle is flat — it is stdlib-only and about 6 KB.
+    """
+    src = os.path.join(ANALYZER, "tools", "install_stockfish.py")
+    shutil.copyfile(src, os.path.join(HERE, "install_stockfish.py"))
+    say("engine installer shipped; the binary is fetched on first use")
 
 
 def main() -> int:
@@ -153,7 +162,7 @@ def main() -> int:
     copy_demo_report()
     ensure_database()
     build_opening_pages()
-    ensure_engine()
+    ship_engine_installer()
     say("bundle ready")
     return 0
 
