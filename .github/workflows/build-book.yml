@@ -15,13 +15,13 @@ on:
   workflow_dispatch:
     inputs:
       months:
-        description: 'Lichess dump months, space separated (e.g. 2026-08)'
+        description: 'Lichess dump months, space separated (e.g. 2025-09 2025-10 2026-08). Raise max_games to match, or the later months are never opened.'
         default: '2026-08'
       max_moves:
         description: 'DEPTH: how many moves into the game the book covers. The analyser follows the book past its own cutoff, so this caps that.'
         default: '20'
       max_games:
-        description: 'Stop after this many accepted games. Higher = better rating bands, longer run.'
+        description: 'Stop after this many accepted games IN TOTAL across all months. The months are read in order and the cap ends the build, so one month of budget means one month of book.'
         default: '500000'
       min_move_games:
         description: 'POPULARITY, not depth: a move must appear in at least this many games to be kept. Low = broader coverage, bigger file.'

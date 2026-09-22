@@ -188,3 +188,28 @@ def test_a_book_can_be_rebuilt_over_itself(tmp_path):
     # Rebuilding must not double the counts: the second pass starts from empty.
     assert rows == con.execute("SELECT count(*) FROM moves_i").fetchone()[0]
     con.close()
+
+
+def test_a_capped_build_records_only_the_months_it_read(tmp_path, capsys):
+    """The cap stops the build, so later sources are never opened.
+
+    Sources are read in order and `max_games` ends the whole build, so asking for
+    several months with a cap the first one fills reads one month and ignores the
+    rest. Recording every source handed in would have the book claim months it
+    never opened, and everything downstream believes `meta.source`.
+    """
+    from build_local_db import build  # noqa: PLC0415
+
+    pgns = find_pgn_files(PGN_DIR)
+    assert len(pgns) >= 2, "this test needs two source files"
+    path = str(tmp_path / "capped.sqlite")
+    # A cap the first file alone exceeds, so the second is never reached.
+    build(pgns, path, max_moves=6, speeds=None, min_move_games=1,
+          offline_eco=True, max_games=1)
+
+    con = sqlite3.connect(path)
+    source = dict(con.execute("SELECT key, value FROM meta"))["source"]
+    con.close()
+    assert os.path.basename(pgns[0]) in source
+    assert os.path.basename(pgns[1]) not in source, "claimed a file it never read"
+    assert "WARNING" in capsys.readouterr().out, "a truncated build must say so"
