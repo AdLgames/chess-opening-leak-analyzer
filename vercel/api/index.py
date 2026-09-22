@@ -120,15 +120,24 @@ SAMPLE_DIR = os.path.join(ROOT, "sample_pgns")
 WORK_ROOT = os.path.join(tempfile.gettempdir(), "leaklab")
 os.makedirs(WORK_ROOT, exist_ok=True)
 
+# When the engine pass has to stop, whatever it has reached. The function is
+# allowed 60s; this leaves room to write the CSV, build the payload and return
+# it. The engine is given whatever is left of it when the analysis starts, so
+# reading more games shortens the engine pass rather than overrunning the
+# deadline — the pass already degrades by judging the rest on statistics alone.
+DEADLINE_S = 50.0
+# Below this an engine pass is not worth starting; statistics-only is honest.
+MIN_ENGINE_BUDGET_S = 6.0
+
 # what one invocation is allowed to attempt — the function has 60s and 3 GB
 LIMITS = {
     "max_upload_mb": 8,
-    "max_games": 120,
+    "max_games": 400,
     "max_depth": 14,
     "max_multipv": 3,
     "max_moves": 15,
     "time_budget_s": 42.0,
-    "max_fetch_games": 120,
+    "max_fetch_games": 400,
     "max_board_depth": 12,
     "max_board_multipv": 3,
 }
@@ -246,6 +255,23 @@ def _clamp(name: str, value: float, hi: float) -> tuple[float, str | None]:
     if value > hi:
         return hi, f"{name} clamped to {hi:g} on the hosted deployment"
     return value, None
+
+
+def engine_budget_for(spent_s: float) -> float:
+    """How long the engine pass may run, given what the request has already spent.
+
+    Fetching and parsing come first, so the engine gets what is left of the
+    deadline rather than a fixed slice of it. Reading a bigger archive then
+    trades engine coverage for games — the pass already degrades by judging the
+    rest on statistics alone — instead of running past the function's limit and
+    returning nothing at all.
+
+    Never more than the standing budget, and never less than the floor: below
+    that an engine pass is not worth starting, and saying so is more honest than
+    a handful of evaluated positions.
+    """
+    return max(MIN_ENGINE_BUDGET_S,
+               min(float(LIMITS["time_budget_s"]), DEADLINE_S - spent_s))
 
 
 @app.post("/api/analyze")
@@ -369,6 +395,10 @@ async def analyse(
 
         out_dir = os.path.join(work, "out")
         os.makedirs(out_dir, exist_ok=True)
+        engine_budget = engine_budget_for(time.time() - started)
+        if engine_budget < float(LIMITS["time_budget_s"]):
+            notes.append(f"engine pass limited to {engine_budget:.0f}s by what was "
+                         "left of this request's time")
         result = analyze(
             pgn_dir=pgn_dir,
             player=player,
@@ -385,7 +415,7 @@ async def analyse(
             min_db_games=int(min_db_games),
             no_engine=no_engine.lower() == "true",
             max_games=int(LIMITS["max_games"]),
-            engine_budget_s=float(LIMITS["time_budget_s"]),
+            engine_budget_s=engine_budget,
             cache_dir=os.path.join(WORK_ROOT, "_cache"),
             log=lambda *parts: log.append(" ".join(str(p) for p in parts)),
         )
@@ -453,7 +483,7 @@ def demo_report() -> JSONResponse:
             cache_path=os.path.join(WORK_ROOT, "demo", "demo_report.json"),
             cache_dir=os.path.join(WORK_ROOT, "_cache"),
             max_games=int(LIMITS["max_games"]),
-            engine_budget_s=float(LIMITS["time_budget_s"]),
+            engine_budget_s=engine_budget,
         ))
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
