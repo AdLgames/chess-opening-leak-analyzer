@@ -13,6 +13,7 @@ vercel/chessopening/
 vercel/public/
 vercel/sample_pgns/
 vercel/engine/
+chess-dashboard/public/openings/
 vercel/demo_report.json
 vercel/.dbcache/
 .vercel/

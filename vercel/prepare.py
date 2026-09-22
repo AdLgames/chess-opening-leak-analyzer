@@ -10,7 +10,9 @@ Steps
   3. make sure chessopening/data/openings.sqlite is real content, not a Git LFS
      pointer (Vercel's git clone does not fetch LFS objects, so it is pulled from
      media.githubusercontent.com, which serves LFS files directly)
-  4. download the Stockfish build that runs on the function's CPU
+  4. generate one page per opening the book can describe (see
+     ../chess_opening_analyzer/tools/build_opening_pages.py)
+  5. download the Stockfish build that runs on the function's CPU
 
 Override the database source with LEAKLAB_DB_URL, or the repo it comes from with
 LEAKLAB_REPO and LEAKLAB_REF. Pointing LEAKLAB_DB_URL at a GitHub Release asset
@@ -114,6 +116,27 @@ def copy_demo_report() -> None:
     say(f"baked demo report copied ({os.path.getsize(src) / 1e6:.1f} MB)")
 
 
+def build_opening_pages() -> None:
+    """Generate the per-opening pages into the bundle, from the book just fetched.
+
+    Generated rather than committed: they are a pure function of the book, so a
+    hundred and fifty files in the repository would be a copy of something we
+    already have, going stale the moment the book is rebuilt.
+    """
+    out = os.path.join(HERE, "public")
+    tool = os.path.join(ANALYZER, "tools", "build_opening_pages.py")
+    db = os.path.join(HERE, DB_REL)
+    cmd = [sys.executable, tool, "--db", db, "--out", out]
+    say(" ".join(cmd[1:]))
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    for line in (result.stdout or "").splitlines():
+        say(" ", line)
+    if result.returncode != 0:
+        # A bundle without them is a working site with fewer pages, which beats
+        # a deployment that does not happen.
+        say(f"opening pages skipped ({result.stderr.strip().splitlines()[-1:] or 'no output'})")
+
+
 def ensure_engine() -> None:
     dest = os.path.join(HERE, "engine")
     installer = os.path.join(ANALYZER, "tools", "install_stockfish.py")
@@ -129,6 +152,7 @@ def main() -> int:
     copy_tree(os.path.join(DASHBOARD, "public"), os.path.join(HERE, "public"))
     copy_demo_report()
     ensure_database()
+    build_opening_pages()
     ensure_engine()
     say("bundle ready")
     return 0
