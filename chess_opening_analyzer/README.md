@@ -14,8 +14,8 @@ Runs fully offline: the engine and the opening database both live inside the app
 pip install -r requirements.txt              # python-chess, zstandard
 python tools/install_stockfish.py            # bundles Stockfish into chessopening/bin/
 python tools/build_local_db.py --months 2026-08 --speeds blitz,rapid,classical \
-    --max-moves 20 --max-games 500000 --min-move-games 3
-python tools/check_book.py --expect-moves 20     # before committing it
+    --max-moves 20 --max-games 500000 --min-move-games 20
+python tools/check_book.py --expect-moves 20 --max-mb 35    # before committing it
 ```
 
 `install_stockfish.py` detects your OS/CPU, pulls the official release (Linux, macOS Intel/Apple

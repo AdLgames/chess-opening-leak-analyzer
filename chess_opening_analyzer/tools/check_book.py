@@ -89,9 +89,9 @@ def check(path: str, expect_moves: int | None, max_mb: float | None = None) -> i
     if max_mb is not None and size_mb > max_mb:
         problems.append(
             f"{size_mb:.1f} MB exceeds the {max_mb:.0f} MB budget. The deployment bundles "
-            "this file with the engine and the Python dependencies, under a fixed total, "
-            "so an oversized book does not fail here — it fails the deploy. Raise "
-            "--min-move-games and build again.")
+            "this file with the engine and the Python dependencies under a fixed total, so "
+            "an oversized book does not fail here — the deployed function fails to start "
+            "at all, on every request. Raise --min-move-games and build again.")
 
     if problems:
         print()
