@@ -187,9 +187,15 @@ Score is win% + half of draw%, matching Lichess convention.
   not working for you either.
 - `thin` — "Worth watching". Real, but seen too few times to act on yet.
 
-Rows are ranked by **cost**: `(score points shed per game + eval drop / 4) x games`, shrunk
-by `games / (games + 4)`. The shrinkage is the point — it stops a habit seen three times
-outranking one seen thirty.
+Rows are ranked by **cost**: `max(0, score points shed per game + 1.8 x win probability
+handed over) x games`, shrunk by `games / (games + 4)`. The shrinkage is the point — it
+stops a habit seen three times outranking one seen thirty.
+
+The engine's objection is measured as expected result, not pawns: losing a pawn from level
+takes you from 64% to 50%, while losing one at +6.0 takes 96.9% to 94.7%, and charging those
+the same overstates the second about sixfold. The two measurements are netted before the
+floor, so a move you genuinely score well with is not charged for the engine disliking it —
+it is still flagged, because the flag is about the move and the cost is about you.
 
 ## What ships in the repo
 

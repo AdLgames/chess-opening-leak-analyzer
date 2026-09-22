@@ -77,15 +77,22 @@ FLAG_THIN = "thin"                      # too few games to be sure
 #: cannot drag the whole run along with it.
 BOOK_CEILING_PLY = 40
 
-#: `cost` = (score points shed per game + a quarter of the eval drop) x games,
-#: shrunk by games / (games + COST_PRIOR) so a habit seen three times cannot
-#: outrank one seen thirty.
+#: `cost` = (score points shed per game, net of what the engine says the move
+#: gave away) x games, shrunk by games / (games + COST_PRIOR) so a habit seen
+#: three times cannot outrank one seen thirty.
 COST_PRIOR = 4.0
+
+#: What a unit of handed-over result is worth against a unit of score actually
+#: shed. Derived, not picked: at the blunder threshold in a balanced position —
+#: which is where opening decisions sit — 1.8 reproduces the weight the old
+#: per-pawn term gave, so moving to the probabilistic drop rebalances *where*
+#: the engine matters without quietly changing *how much* it matters.
+ENGINE_WEIGHT = 1.8
 
 #: Bumped whenever the formula above changes. Stored on every row, so a ranking
 #: can always be traced to the maths that produced it and old reports are never
 #: silently reshuffled by a new release.
-COST_VERSION = 1
+COST_VERSION = 2
 
 #: The one description of the metric. Served by /api/meta and shown in the
 #: interface, so the explanation cannot drift away from the calculation.
@@ -93,8 +100,12 @@ COST_EXPLAINER = {
     "version": COST_VERSION,
     "label": "Cost",
     "definition": "Frequency x severity, with a cautious estimate on thin samples.",
-    "formula": "cost = (score points shed per game + eval drop / 4) x games x games / (games + 4)",
-    "why": "The shrinkage is what stops a habit seen three times outranking one seen thirty.",
+    "formula": "cost = max(0, points shed per game + 1.8 x win probability handed over) "
+               "x games x games / (games + 4)",
+    "why": "The shrinkage is what stops a habit seen three times outranking one seen thirty. "
+           "Results and engine are netted before the floor, so a move you genuinely score "
+           "well with is not charged for the engine disliking it — though it is still "
+           "flagged, because the flag is about the move and the cost is about you.",
 }
 
 #: The repertoire tree: one row per repeated decision, whether or not it leaks.
@@ -203,6 +214,26 @@ def build_nodes(
 
 def _pct(x: float | None) -> str:
     return "" if x is None else f"{100 * x:.1f}"
+
+
+def node_severity(gap: float | None, win_prob_drop: float | None) -> float:
+    """How bad one decision is per game, from both measurements at once.
+
+    The two are netted before the floor, not after. Scoring above the book with a
+    move the engine dislikes cancels out instead of being charged anyway: the
+    cost is what the habit is costing *you*, and by your own results it is
+    costing you nothing.
+
+    The blunder flag is computed separately and survives a zero cost, so the move
+    is still named. That matters — opponents who punish it exist whether or not
+    you have met them yet — but naming it and ranking it are different jobs.
+
+    Negative, i.e. never a bonus: outscoring the book earns nothing back, it only
+    offsets. Cost measures what is going wrong.
+    """
+    shed = -gap if gap is not None else 0.0
+    handed_over = ENGINE_WEIGHT * win_prob_drop if win_prob_drop is not None else 0.0
+    return max(0.0, shed + handed_over)
 
 
 def analyze(
@@ -444,10 +475,16 @@ def analyze(
             flags.append(FLAG_THIN)
 
         lost_points = round(-gap * node.n, 2) if gap is not None and gap < 0 else 0.0
-        # frequency x severity, held back while the sample is small
-        severity = (-gap if gap is not None and gap < 0 else 0.0) + (
-            ev.eval_drop_pawns * 0.25 if ev else 0.0
-        )
+        # Frequency x severity, held back while the sample is small.
+        #
+        # The two measurements are netted before the floor, not after. Scoring
+        # above the book with a move the engine dislikes now cancels out instead
+        # of being charged anyway: the cost is what the habit is costing *you*,
+        # and by your own results it is costing you nothing. The blunder flag is
+        # computed separately and survives a zero cost, so the move is still
+        # named — which matters, because opponents who punish it exist even if
+        # you have not met them yet.
+        severity = node_severity(gap, ev.win_prob_drop if ev else None)
         confidence = node.n / (node.n + COST_PRIOR)
         cost = round(severity * node.n * confidence, 2)
 

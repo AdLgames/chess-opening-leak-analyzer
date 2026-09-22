@@ -139,7 +139,11 @@ this player walked into:
   Positions the database has never seen leave those columns blank rather than reporting zeros.
 - A decision is only judged after `--min-games` repetitions, which is what makes a decline
   "consistent" rather than one bad game.
-- **Cost** = `(score points shed per game + eval drop / 4) x games x games / (games + 4)`. The
+- **Cost** = `max(0, score points shed per game + 1.8 x win probability handed over) x games
+  x games / (games + 4)`. The engine term is a probability, not a pawn count, because a pawn
+  lost from level costs far more of the result than one lost at +6.0; and it is netted with
+  your own results *inside* the `max`, so outscoring the book cancels it rather than being
+  charged anyway. The blunder flag is separate and survives a zero cost. The
   last term is the cautious part: it holds a finding back while its sample is small, and
   approaches 1 once you have played the position often. Every row carries the
   `cost_version` that produced it, so the formula can change without silently reshuffling
