@@ -142,6 +142,30 @@ The Repertoire view shows these under "Adding up across runs", including the
 ones still short of the threshold, so the evidence arriving is visible rather
 than appearing from nowhere.
 
+### The opening book, and LFS bandwidth
+
+`prepare.py` fetches the book on every build: Vercel's git clone does not pull Git
+LFS objects, so the checked-out file is always a pointer. It is now kept in
+`vercel/.dbcache/` between builds, which skips the download whenever the build
+cache survives — but a cold build still costs one full fetch, and every one of
+those counts against the repository's **Git LFS bandwidth quota** (1 GB/month on
+the free tier).
+
+At the current 19 MB that is roughly fifty builds a month. A deeper, banded book
+is likely to be two to three times the size, which brings it under twenty — and
+an exhausted quota answers 403, so the build fails rather than degrading.
+
+If the book grows, put it somewhere that does not count against that quota and
+point the build at it:
+
+```bash
+# attach openings.sqlite to a GitHub Release, then in the Vercel project:
+LEAKLAB_DB_URL=https://github.com/<owner>/<repo>/releases/download/<tag>/openings.sqlite
+```
+
+Release asset downloads are not metered as LFS. The file stays in the repository
+for local use either way.
+
 ### What is stored, and what is not
 
 The games are not kept. A fetched archive lives in the function's temporary

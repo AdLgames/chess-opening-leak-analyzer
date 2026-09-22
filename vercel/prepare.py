@@ -13,7 +13,9 @@ Steps
   4. download the Stockfish build that runs on the function's CPU
 
 Override the database source with LEAKLAB_DB_URL, or the repo it comes from with
-LEAKLAB_REPO and LEAKLAB_REF.
+LEAKLAB_REPO and LEAKLAB_REF. Pointing LEAKLAB_DB_URL at a GitHub Release asset
+is worth doing for a large book: Release downloads do not count against the
+repository's Git LFS bandwidth quota, and every build fetches this file.
 """
 from __future__ import annotations
 
@@ -60,13 +62,29 @@ def is_pointer(path: str) -> bool:
         return True
 
 
+#: Where a downloaded book is kept between builds. It has to sit outside the
+#: directory `copy_tree` wipes, or every build re-downloads it — which is what
+#: was happening: Vercel's git clone does not fetch LFS objects, so the copied
+#: file is always a pointer and the real one was always fetched again. At ~19 MB
+#: a build that is wasteful; at three times that it threatens GitHub's LFS
+#: bandwidth quota, and an exhausted quota answers 403, which fails the build.
+DB_CACHE = os.path.join(HERE, ".dbcache", os.path.basename(DB_REL))
+
+
 def ensure_database() -> None:
     path = os.path.join(HERE, DB_REL)
     if os.path.isfile(path) and not is_pointer(path):
         say(f"database present ({os.path.getsize(path) / 1e6:.1f} MB)")
         return
-    say(f"database is a pointer or missing, downloading from {DB_URL}")
     os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    if os.path.isfile(DB_CACHE) and not is_pointer(DB_CACHE):
+        shutil.copyfile(DB_CACHE, path)
+        say(f"database from the build cache ({os.path.getsize(path) / 1e6:.1f} MB, "
+            "no download)")
+        return
+
+    say(f"database is a pointer or missing, downloading from {DB_URL}")
     tmp = path + ".part"
     with urllib.request.urlopen(DB_URL, timeout=180) as resp, open(tmp, "wb") as out:
         shutil.copyfileobj(resp, out)
@@ -74,6 +92,11 @@ def ensure_database() -> None:
         os.remove(tmp)
         raise SystemExit("the download was another LFS pointer — check LEAKLAB_DB_URL")
     os.replace(tmp, path)
+    try:
+        os.makedirs(os.path.dirname(DB_CACHE), exist_ok=True)
+        shutil.copyfile(path, DB_CACHE)
+    except OSError:
+        pass        # an uncacheable build is slow, not broken
     say(f"database ready ({os.path.getsize(path) / 1e6:.1f} MB)")
 
 

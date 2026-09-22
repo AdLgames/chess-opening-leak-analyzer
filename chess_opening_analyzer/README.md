@@ -13,8 +13,8 @@ Runs fully offline: the engine and the opening database both live inside the app
 ```bash
 pip install -r requirements.txt              # python-chess, zstandard
 python tools/install_stockfish.py            # bundles Stockfish into chessopening/bin/
-python tools/build_local_db.py --months 2013-01 2013-02 2013-03 \
-    --speeds blitz,rapid,classical --min-elo 1500 --max-elo 2100 --max-moves 20
+python tools/build_local_db.py --months 2026-08 --speeds blitz,rapid,classical \
+    --max-moves 20 --max-games 500000 --min-move-games 3
 python tools/check_book.py --expect-moves 20     # before committing it
 ```
 
@@ -38,6 +38,14 @@ Two settings the analyser cares about, and will tell you about at runtime if the
 * Rating bands are written automatically: every game is counted into its own band and into
   `all`, so a 1400 can be compared against 1200-1600 rather than against everybody at once.
   A book built before bands existed has only `all` rows, and every run says so.
+
+  This is why the build above sets **no** `--min-elo/--max-elo`. Filtering the corpus by
+  rating and then asking it for bands gives bands that mostly do not exist: the shipped
+  book's 1500-2100 filter leaves `u1200` and `2400+` empty, `all` meaning "1500-2100
+  players" rather than everybody, and a 1400 falling back through the neighbours to that
+  same narrow slice. The bands are the stratification now, so the corpus should span them.
+  `--max-games` caps the work instead — it stops the stream, so a recent month costs a
+  fraction of its full size.
 
 `check_book.py` reports what a book actually contains and fails on both of those, plus the
 empty, truncated and still-an-LFS-pointer cases. Worth running before committing one: the
