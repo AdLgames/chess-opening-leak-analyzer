@@ -363,3 +363,49 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.012
   .start-field input { flex: 1 1 100%; padding: 4px 0; }
   .start-go { flex: 1 1 100%; }
 }
+
+/* ------------------------------------------------- generated opening pages
+   One page per opening the book has enough games to describe. They sit on the
+   same navy as the front page and borrow its type, so arriving from a search
+   result does not feel like arriving somewhere else. */
+.doc-body { padding-block: clamp(28px, 5vw, 56px) 64px; max-width: 900px; }
+.doc-body h1 { font-family: var(--serif); font-size: clamp(30px, 5vw, 46px); line-height: 1.1; }
+.doc-body h2 {
+  font-size: 20px; margin: 40px 0 12px; padding-top: 22px;
+  border-top: 1px solid var(--rule-softer);
+}
+.doc-body p { color: var(--bone-2); margin: 0 0 14px; }
+.doc-lead { font-size: 19px; color: var(--bone) !important; margin-top: 14px !important; }
+.crumbs { font-size: 13px; color: var(--bone-4); margin-bottom: 18px; }
+.crumbs a { color: var(--bone-3); text-decoration: underline; text-underline-offset: 2px; }
+.doc-eco { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }
+.doc-eco .eco {
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em;
+  color: var(--navy); background: var(--brass); padding: 3px 8px; border-radius: 4px;
+}
+.doc-eco .mono { font-family: var(--mono); font-size: 14px; color: var(--bone-3); }
+
+.doc-table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 15px; }
+.doc-table th, .doc-table td { padding: 9px 12px; text-align: left; }
+.doc-table thead th {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--bone-4); border-bottom: 1px solid var(--rule);
+}
+.doc-table tbody tr { border-bottom: 1px solid var(--rule-softer); }
+.doc-table td.num, .doc-table th.num { text-align: right; font-family: var(--mono); }
+.doc-table .mono { font-family: var(--mono); color: var(--bone); }
+.doc-table tr.is-under td:last-child { color: var(--crimson); }
+.doc-table tr.is-under { background: rgba(201, 82, 70, 0.07); }
+
+.doc-links { list-style: none; padding: 0; margin: 0; display: grid; gap: 7px; }
+.doc-links a { color: var(--bone); text-decoration: underline; text-underline-offset: 3px; }
+.doc-links a:hover { color: var(--brass-lift); }
+.doc-links .muted { color: var(--bone-4); font-family: var(--mono); font-size: 12.5px; }
+.doc-body .small { font-size: 13px; }
+.doc-body .muted { color: var(--bone-4); }
+.doc-body section { margin-top: 8px; }
+
+@media (max-width: 560px) {
+  .doc-table { font-size: 13.5px; }
+  .doc-table th, .doc-table td { padding: 7px 6px; }
+}
