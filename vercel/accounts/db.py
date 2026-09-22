@@ -47,42 +47,59 @@ class DatabaseUnavailable(RuntimeError):
 # opens a connection per invocation and a direct endpoint runs out of slots.
 URL_NAMES = ("POSTGRES_PRISMA_URL", "POSTGRES_URL", "DATABASE_URL")
 
-# The subset a storage integration's prefix may be accepted on. See resolve_url.
+# Names distinctive enough that a prefixed one is the integration's, whatever
+# else is in the environment.
 PREFIXABLE = ("POSTGRES_PRISMA_URL", "POSTGRES_URL")
+
+# Other variables the same integration injects. A prefixed `DATABASE_URL` is
+# only believed when one of these shares its prefix. See resolve_url.
+SIBLINGS = ("POSTGRES_URL", "POSTGRES_PRISMA_URL", "POSTGRES_URL_NON_POOLING",
+            "DATABASE_URL_UNPOOLED", "PGHOST", "PGUSER", "PGDATABASE", "PGPASSWORD")
+
+
+def _prefixed(name: str) -> list[tuple[str, str]]:
+    """Every `<PREFIX>_<name>` in the environment, with a value, sorted by key.
+
+    Sorted so that two prefixes cannot make the choice vary from run to run.
+    """
+    tail = f"_{name}"
+    return [(k, os.environ[k].strip()) for k in sorted(os.environ)
+            if k.endswith(tail) and os.environ[k].strip()]
 
 
 def resolve_url() -> tuple[str, str] | None:
     """The connection string and the variable it came from, or None.
 
     Vercel offers a prefix when a storage integration is connected to a
-    project, and a prefixed deployment injects `<PREFIX>_POSTGRES_URL` and
-    nothing named plainly. Accepting a suffix match means the integration's
+    project, and a prefixed deployment injects `<PREFIX>_DATABASE_URL` and
+    friends, with nothing named plainly. Accepting a suffix match means the
     prefix — whatever it is — does not have to be mirrored in this code, and
-    the alternative was accounts silently staying off with every variable
-    present and correct.
+    the alternative was accounts silently off with every variable present,
+    correct, and scoped to Production.
 
-    Only the `POSTGRES_*` names are scanned for, never `DATABASE_URL`. That
-    tail is far too common to claim: a first draft of this matched
-    `LEAKLAB_TEST_DATABASE_URL` out of the test environment, and the same
-    mistake against a stray `OLD_DATABASE_URL` would have pointed a live
-    deployment at the wrong database. `POSTGRES_URL` is distinctive to the
-    integration, and it always injects one.
+    `DATABASE_URL` cannot simply be claimed by its tail, though. A first draft
+    did, and matched `LEAKLAB_TEST_DATABASE_URL` out of the test environment;
+    a stray `OLD_DATABASE_URL` would point a live deployment at the wrong
+    database by the same route. So a prefixed `DATABASE_URL` is believed only
+    when another variable of the same integration shares its prefix, which is
+    what separates one leftover name from a family that was injected together.
+    The `POSTGRES_*` names need no such corroboration — nothing else uses them.
 
-    The match is narrow in the other direction too: `_POSTGRES_URL` does not
+    The match stays narrow in the other direction too: `_POSTGRES_URL` does not
     match `POSTGRES_URL_NON_POOLING`, so the unpooled endpoint is never picked
-    up as though it were the pooled one. Exact names win, and the environment
-    is scanned in sorted order so two prefixes cannot make this vary by run.
+    up as though it were the pooled one.
     """
     for name in URL_NAMES:
         value = os.environ.get(name, "").strip()
         if value:
             return name, value
     for name in PREFIXABLE:
-        for key in sorted(os.environ):
-            if key.endswith(f"_{name}"):
-                value = os.environ[key].strip()
-                if value:
-                    return key, value
+        for key, value in _prefixed(name):
+            return key, value
+    for key, value in _prefixed("DATABASE_URL"):
+        prefix = key[: -len("DATABASE_URL")]
+        if any(f"{prefix}{sib}" in os.environ for sib in SIBLINGS):
+            return key, value
     return None
 
 
