@@ -25,7 +25,7 @@ on:
         default: '500000'
       min_move_games:
         description: 'Drop position-moves seen fewer times than this. Raise it if the size check fails.'
-        default: '5'
+        default: '20'
       speeds:
         description: 'Time controls to accept'
         default: 'blitz,rapid,classical'
@@ -75,14 +75,20 @@ jobs:
             --max-games '${{ inputs.max_games }}' \
             --min-move-games '${{ inputs.min_move_games }}'
 
-      # The size budget is the real gate. The deployment bundles this file with the
-      # engine (79 MB) and the Python dependencies (17 MB) under one fixed total, so a
-      # book that is merely large does not fail here — it fails the next deploy, after
-      # this workflow has already reported success and published it.
+      # The size budget is the real gate, and 35 MB is measured rather than guessed.
+      # Everything in the deployment except the book — the engine, the Python
+      # dependencies, the app — comes to 93.5 MB. A 19 MB book (112 MB total) served
+      # fine; an 81 MB book (175 MB total) failed every request with
+      # INTERNAL_FUNCTION_INVOCATION_FAILED, the function never starting at all. 35 MB
+      # keeps the total near the size known to work.
+      #
+      # A book that is merely large does not fail here — it fails the next deploy,
+      # after this workflow has reported success and published it. That is exactly
+      # what happened when this gate was set to a guessed 120 MB.
       - name: Check the book
         run: |
           cd chess_opening_analyzer
-          python tools/check_book.py --expect-moves '${{ inputs.max_moves }}' --max-mb 120
+          python tools/check_book.py --expect-moves '${{ inputs.max_moves }}' --max-mb 35
 
       - name: Summarise
         run: |
