@@ -24,8 +24,8 @@ on:
         description: 'Stop after this many accepted games. Higher = better rating bands, longer run.'
         default: '500000'
       min_move_games:
-        description: 'Drop position-moves seen fewer times than this'
-        default: '3'
+        description: 'Drop position-moves seen fewer times than this. Raise it if the size check fails.'
+        default: '5'
       speeds:
         description: 'Time controls to accept'
         default: 'blitz,rapid,classical'
@@ -75,10 +75,14 @@ jobs:
             --max-games '${{ inputs.max_games }}' \
             --min-move-games '${{ inputs.min_move_games }}'
 
+      # The size budget is the real gate. The deployment bundles this file with the
+      # engine (79 MB) and the Python dependencies (17 MB) under one fixed total, so a
+      # book that is merely large does not fail here — it fails the next deploy, after
+      # this workflow has already reported success and published it.
       - name: Check the book
         run: |
           cd chess_opening_analyzer
-          python tools/check_book.py --expect-moves '${{ inputs.max_moves }}'
+          python tools/check_book.py --expect-moves '${{ inputs.max_moves }}' --max-mb 120
 
       - name: Summarise
         run: |
