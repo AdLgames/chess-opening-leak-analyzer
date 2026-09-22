@@ -93,3 +93,25 @@ def test_an_unrecorded_depth_is_a_failure_not_a_shrug(tmp_path, capsys):
     path = book(tmp_path / "nodepth.sqlite", filters="speeds=all elo=0-4000")
     assert check(path, None) == 1
     assert "does not record max_moves" in capsys.readouterr().out
+
+
+def test_a_rating_filtered_book_leaves_most_bands_empty(tmp_path, capsys):
+    """Why the build command no longer filters by rating.
+
+    Filtering the corpus to 1500-2100 and then asking it for bands gives bands
+    that mostly do not exist. The checker cannot know the corpus, but it can see
+    that only one real band came out, which is the symptom.
+    """
+    path = book(tmp_path / "narrow.sqlite", bands=("all", "1600-2000"))
+    assert check(path, 20) == 0          # usable, but only just
+    out = capsys.readouterr().out
+    assert "1600-2000" in out and "all" in out
+
+
+def test_a_book_spanning_the_bands_reports_them_all(tmp_path, capsys):
+    path = book(tmp_path / "wide.sqlite",
+                bands=("all", "u1200", "1200-1600", "1600-2000", "2000-2400", "2400+"))
+    assert check(path, 20) == 0
+    out = capsys.readouterr().out
+    for band in ("u1200", "1200-1600", "1600-2000", "2000-2400", "2400+"):
+        assert band in out
