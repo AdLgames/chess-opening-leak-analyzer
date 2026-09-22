@@ -219,6 +219,40 @@ def test_lichess_non_pgn_body_is_rejected(responder, tmp_path):
     assert "did not return pgn" in str(err.value).lower()
 
 
+def test_an_empty_lichess_export_blames_the_filters_not_the_token(responder, tmp_path):
+    """200 with an empty body is "nothing matched", not "we refused you".
+
+    Lichess answers an export that matches no games with an empty 200. That used
+    to trip the not-PGN check and be reported as a missing API token, sending
+    people to create one for what is really rated-only against a casual account,
+    or time controls that exclude everything they play.
+    """
+    responder.routes["lichess.org/api/games/user"] = b""
+    with pytest.raises(IngestError) as err:
+        fetch_games(opts(tmp_path, provider="lichess", username="alice"))
+    assert "no games matched" in str(err.value).lower()
+    assert "token" not in str(err.value).lower()
+    hint = (err.value.hint or "").lower()
+    assert "rated" in hint and "time controls" in hint
+
+
+def test_an_empty_lichess_export_is_not_cached(responder, tmp_path):
+    """Caching nothing would answer the rest of the day with nothing.
+
+    The export cache is keyed by day and filters, so an empty body written to it
+    would keep failing even once the account has games that match.
+    """
+    responder.routes["lichess.org/api/games/user"] = b""
+    with pytest.raises(IngestError):
+        fetch_games(opts(tmp_path, provider="lichess", username="alice"))
+    before = len(responder.calls)
+
+    responder.routes["lichess.org/api/games/user"] = (GAME + "\n" + GAME).encode()
+    res = fetch_games(opts(tmp_path, provider="lichess", username="alice"))
+    assert res.games == 2, "the retry must reach Lichess, not a cached blank"
+    assert len(responder.calls) == before + 1
+
+
 @pytest.mark.parametrize("bad", ["", "a", "has space", "way" * 30, "semi;colon"])
 def test_bad_usernames_are_refused_before_any_request(responder, tmp_path, bad):
     with pytest.raises(IngestError):
