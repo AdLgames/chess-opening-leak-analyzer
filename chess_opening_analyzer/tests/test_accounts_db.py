@@ -12,6 +12,7 @@ account must leave nothing behind.
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 import uuid
@@ -311,6 +312,34 @@ def test_export_is_complete_and_delete_leaves_nothing():
         left = db.query_one(f"SELECT count(*) AS n FROM {table} WHERE user_id = %s", (uid,))
         assert int(left["n"]) == 0, f"{table} survived the deletion"
     assert db.query_one("SELECT count(*) AS n FROM users WHERE id = %s", (uid,))["n"] == 0
+
+
+def test_diagnosis_separates_the_two_ways_accounts_stay_off():
+    """`configured()` says no; `diagnosis()` has to say which no.
+
+    The only view of a deployment is often a phone browser, where one False is
+    not enough to act on: a missing connection string and a missing driver need
+    opposite fixes. The report must also stay safe to serve publicly, so the
+    connection string itself is never allowed to appear in it.
+    """
+    auth, db, state, TestClient = _load()
+
+    good = db.diagnosis()
+    assert good["url_env"] in ("POSTGRES_PRISMA_URL", "POSTGRES_URL", "DATABASE_URL")
+    assert good["driver"] is True
+    assert good["connect"] == "ok"
+    assert URL not in json.dumps(good)
+
+    saved = {n: os.environ.pop(n) for n in
+             ("POSTGRES_PRISMA_URL", "POSTGRES_URL", "DATABASE_URL") if n in os.environ}
+    try:
+        blind = db.diagnosis()
+        assert blind["url_env"] is None
+        # Not "failed": nothing was dialled, so nothing can be said about reachability.
+        assert blind["connect"] == "not attempted"
+        assert db.configured() is False
+    finally:
+        os.environ.update(saved)
 
 
 if __name__ == "__main__":

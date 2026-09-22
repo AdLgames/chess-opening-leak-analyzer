@@ -447,3 +447,38 @@ def sweep_expired() -> None:
         cur.execute("DELETE FROM sessions WHERE expires_at < now()")
         cur.execute("DELETE FROM login_tokens WHERE expires_at < now() - interval '1 day'")
         cur.execute("DELETE FROM oauth_states WHERE expires_at < now()")
+
+
+def diagnosis() -> dict[str, Any]:
+    """Why accounts are off, in terms safe to serve publicly.
+
+    `configured()` collapses two very different failures into one False, which
+    is unhelpful when the only view of the deployment is a phone browser. This
+    separates them, and reports names and exception classes only — never the
+    connection string, the host, or a driver message, any of which would put
+    infrastructure detail on a public endpoint.
+    """
+    found = next((n for n in ("POSTGRES_PRISMA_URL", "POSTGRES_URL", "DATABASE_URL")
+                  if os.environ.get(n, "").strip()), None)
+    out: dict[str, Any] = {"url_env": found, "driver": driver_available()}
+    if not found or not out["driver"]:
+        out["connect"] = "not attempted"
+        return out
+    try:
+        conn = _connect()
+    except Exception as exc:  # noqa: BLE001 - any failure is a finding here
+        # The SQLSTATE is worth reporting and safe to: it separates a refused
+        # password (28P01) from a missing database (3D000) in five standard
+        # characters. The message itself is not — pg8000 spells out the host
+        # and port it tried, which is not for a public endpoint.
+        out["connect"] = type(exc).__name__
+        args = exc.args[0] if exc.args else None
+        if isinstance(args, dict) and args.get("C"):
+            out["sqlstate"] = str(args["C"])
+    else:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001, S110 - already past the useful answer
+            pass
+        out["connect"] = "ok"
+    return out
