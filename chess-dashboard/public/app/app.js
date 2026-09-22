@@ -34,6 +34,9 @@ const VIEWS = {
   dashboard: { title: 'Dashboard', needsRun: false },
   clinic: { title: 'Clinic', needsRun: true },
   repertoire: { title: 'Repertoire', needsRun: false },
+  // Prep needs no run: building the lines you mean to play is the one thing here
+  // you can do before the analyser has ever seen a game of yours.
+  prep: { title: 'Prep', needsRun: false },
 };
 
 const state = {
@@ -127,6 +130,7 @@ function go(view) {
     window.Repertoire.renderProgress(reportContext());
     window.Explorer.render(reportContext());
   }
+  if (view === 'prep' && window.Prep) window.Prep.render();
   $('main').scrollTop = 0;
 }
 
@@ -1540,6 +1544,7 @@ wire();
 restoreTheme();
 restoreAdvanced();
 if (window.Study) window.Study.init(API);
+if (window.Prep) window.Prep.init();
 bootAccount();
 setAppState('empty');
 bootReport();           // a cached run boots straight into `report`
