@@ -11,7 +11,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from chessopening.summary import summarise  # noqa: E402
+from chessopening.summary import family_of, summarise  # noqa: E402
 
 ROWS = [
     {"cost": "6.0", "flag": "blunder+underperforming", "eco": "C50", "opening": "Italian Game",
@@ -51,6 +51,63 @@ def test_openings_are_ranked_by_points_shed():
     s = summarise(ROWS, STATS)
     assert [o["opening"] for o in s["by_opening"]] == ["Italian Game", "Sicilian, Alapin"]
     assert s["by_opening"][0]["games"] == 12
+
+
+def test_a_family_is_the_name_before_the_colon():
+    """ECO names are "Family: Variation, Sub-variation"."""
+    assert family_of("Italian Game: Giuoco Piano") == "Italian Game"
+    assert family_of("Sicilian Defense: Najdorf, English Attack") == "Sicilian Defense"
+    assert family_of("Queen's Gambit Accepted") == "Queen's Gambit Accepted"
+    assert family_of("") == "Unclassified"
+    assert family_of("  ") == "Unclassified"
+    # A name that is nothing but a colon still has to come back as something.
+    assert family_of(":") == ":"
+
+
+def test_variations_roll_up_into_one_family():
+    """Two branches of the same opening are one problem, not two small ones."""
+    rows = [
+        {"cost": "3.0", "flag": "underperforming", "eco": "C50",
+         "opening": "Italian Game: Giuoco Piano", "your_games": "10",
+         "your_score_pct": "40", "db_move_score_pct": "50",
+         "db_position_score_pct": "50", "lost_points": "1.0",
+         "eval_drop_pawns": "", "player_color": "white"},
+        {"cost": "2.0", "flag": "underperforming", "eco": "C50",
+         "opening": "Italian Game: Giuoco Pianissimo", "your_games": "6",
+         "your_score_pct": "44", "db_move_score_pct": "50",
+         "db_position_score_pct": "50", "lost_points": "0.5",
+         "eval_drop_pawns": "", "player_color": "white"},
+    ]
+    fams = summarise(rows, STATS)["by_family"]
+    assert [f["family"] for f in fams] == ["Italian Game"]
+    fam = fams[0]
+    assert fam["cost"] == 5.0 and fam["lost_points"] == 1.5
+    assert fam["leaks"] == 2 and fam["games"] == 16
+    assert [v["opening"] for v in fam["variations"]] == [
+        "Italian Game: Giuoco Piano", "Italian Game: Giuoco Pianissimo"]
+    assert fam["variations"][0]["cost"] == 3.0
+
+
+def test_families_are_ranked_by_cost_not_points_shed():
+    """The two orders genuinely differ, which is the whole reason to pick one.
+
+    Points shed is the raw figure; a family resting on one thin sample can shed
+    more of them than a well-evidenced one while being far less worth repairing.
+    """
+    rows = [
+        {"cost": "1.0", "flag": "thin", "eco": "B01", "opening": "Scandinavian Defense",
+         "your_games": "3", "your_score_pct": "0", "db_move_score_pct": "50",
+         "db_position_score_pct": "50", "lost_points": "9.0", "eval_drop_pawns": "",
+         "player_color": "black"},
+        {"cost": "8.0", "flag": "underperforming", "eco": "C50", "opening": "Italian Game",
+         "your_games": "30", "your_score_pct": "40", "db_move_score_pct": "50",
+         "db_position_score_pct": "50", "lost_points": "2.0", "eval_drop_pawns": "",
+         "player_color": "white"},
+    ]
+    s = summarise(rows, STATS)
+    assert [f["family"] for f in s["by_family"]] == ["Italian Game", "Scandinavian Defense"]
+    # by_opening still ranks the old way, so nothing reading it changes meaning
+    assert [o["opening"] for o in s["by_opening"]] == ["Scandinavian Defense", "Italian Game"]
 
 
 def test_the_explorer_payload_is_passed_through():

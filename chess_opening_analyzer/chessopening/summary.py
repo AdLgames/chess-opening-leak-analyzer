@@ -16,6 +16,20 @@ def _f(v: Any) -> float:
         return 0.0
 
 
+def family_of(name: str) -> str:
+    """The opening family a variation belongs to.
+
+    ECO names are "Family: Variation, Sub-variation", so the part before the
+    first colon is the thing a player would say they play. Without this roll-up
+    "Italian Game: Giuoco Piano" and "Italian Game: Giuoco Pianissimo" are two
+    unrelated rows, and a repertoire-wide problem reads as several small ones.
+    """
+    text = (name or "").strip()
+    if not text:
+        return "Unclassified"
+    return text.split(":", 1)[0].strip() or text
+
+
 def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, Any]:
     """Aggregate flagged rows by opening and count the flags.
 
@@ -46,6 +60,7 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
     ]
     openings.sort(key=lambda d: -d["lost_points"])
     profiles = stats.get("opening_profiles") or {}
+    families = _by_family(rows)
 
     return {
         "games": stats["games"],
@@ -68,6 +83,12 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         "blunders": sum(1 for r in rows if _f(r["eval_drop_pawns"]) >= 0.8),
         "flags": dict(flags),
         "by_opening": openings[:12],
+        # The same rows one level up: family, then the variations inside it.
+        # Ranked by cost rather than points shed, because points shed is the raw
+        # figure — a family whose whole case rests on one thin sample would
+        # otherwise outrank one seen thirty times, which is the thing the cost
+        # shrinkage exists to prevent at node level and did not at this one.
+        "by_family": families[:12],
         # everything the openings explorer needs: one profile per opening, the
         # run-wide spread of break points, and the traps this player walks into
         "explorer": {
@@ -80,3 +101,35 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         "black_leaks": sum(1 for r in rows if r["player_color"] == "black"),
         "top": rows[0] if rows else None,
     }
+
+
+def _by_family(rows: list[dict[str, str]]) -> list[dict[str, Any]]:
+    """Leaks rolled up per family, each carrying its own variations."""
+    fams: dict[str, dict[str, Any]] = {}
+    for r in rows:
+        name = r.get("opening") or r.get("eco") or "Unclassified"
+        fam = fams.setdefault(family_of(name), {
+            "family": family_of(name), "cost": 0.0, "lost_points": 0.0,
+            "leaks": 0, "games": 0, "_vars": {},
+        })
+        var = fam["_vars"].setdefault(name, {
+            "opening": name, "eco": r.get("eco") or "", "cost": 0.0,
+            "lost_points": 0.0, "leaks": 0, "games": 0,
+        })
+        for bucket in (fam, var):
+            bucket["cost"] += _f(r.get("cost"))
+            bucket["lost_points"] += _f(r.get("lost_points"))
+            bucket["leaks"] += 1
+            bucket["games"] += int(_f(r.get("your_games")))
+
+    out = []
+    for fam in fams.values():
+        variations = sorted(fam.pop("_vars").values(), key=lambda v: -v["cost"])
+        for v in variations:
+            v["cost"] = round(v["cost"], 2)
+            v["lost_points"] = round(v["lost_points"], 2)
+        out.append({**fam, "cost": round(fam["cost"], 2),
+                    "lost_points": round(fam["lost_points"], 2),
+                    "variations": variations})
+    out.sort(key=lambda d: -d["cost"])
+    return out

@@ -1173,3 +1173,49 @@ tr.is-decided { opacity: 0.62; }
   font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-faint);
 }
 .prep-head span:nth-child(3), .prep-head span:nth-child(4) { text-align: right; }
+
+/* ------------------------------------------------- which opening to repair */
+.fam-list, .fam-vars { list-style: none; margin: 0; padding: 0; }
+.fam-list > li + li { border-top: 1px solid var(--line); }
+.fam-list summary {
+  display: grid; grid-template-columns: minmax(0, 1fr) 6em 3.5em auto auto;
+  align-items: center; gap: 12px; padding: 9px 4px; cursor: pointer;
+  list-style: none; font-size: 13.5px;
+}
+.fam-list summary::-webkit-details-marker { display: none; }
+.fam-list details[data-leaf] summary { cursor: default; }
+.fam-list summary:hover { background: var(--surface-3); }
+.fam-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fam-bar { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+.fam-bar i { display: block; height: 100%; background: var(--accent-line, var(--border-strong)); }
+.fam-cost { text-align: right; font-size: 12.5px; }
+.fam-meta { white-space: nowrap; }
+.fam-pick {
+  font: inherit; font-size: 12px; color: var(--text-muted); background: transparent;
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 3px 9px; cursor: pointer;
+}
+.fam-pick:hover { color: var(--text); background: var(--surface-2); }
+.fam-vars { padding: 2px 0 8px 14px; }
+.fam-var {
+  display: grid; grid-template-columns: minmax(0, 1fr) 3.5em; gap: 12px; width: 100%;
+  font: inherit; font-size: 12.5px; color: var(--text-muted); text-align: left;
+  background: transparent; border: 0; border-radius: var(--r-sm); padding: 5px 8px; cursor: pointer;
+}
+.fam-var:hover { background: var(--surface-3); color: var(--text); }
+.fam-var span:last-child { text-align: right; }
+
+@media (max-width: 720px) {
+  .fam-list summary { grid-template-columns: minmax(0, 1fr) 3.5em auto; gap: 8px; }
+  .fam-bar, .fam-meta { display: none; }
+}
+.fam-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) 6em 3.5em auto auto;
+  align-items: center; gap: 12px; padding: 0 4px 6px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-faint);
+}
+.fam-head span:nth-child(3) { text-align: right; }
+@media (max-width: 720px) {
+  .fam-head { grid-template-columns: minmax(0, 1fr) 3.5em auto; }
+  .fam-head span:nth-child(2) { display: none; }
+  .fam-head span:nth-child(3) { text-align: right; }
+}

@@ -660,6 +660,7 @@ function applyReport(data, job, { cached = false } = {}) {
   setAppState('report');
   renderSummaryBand();
   renderChart();
+  renderFamilies();
   renderFilters();
   renderTable();
   window.Explorer.render(reportContext());
@@ -890,6 +891,59 @@ const prefersReducedMotion = () =>
   window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ------------------------------------------------------------------- table */
+/* The leak table is one row per decision, which is the right grain for fixing a
+   move and the wrong one for deciding what to work on. This is the same rows a
+   level up: the family, then the variations inside it, ranked by cost so a
+   well-evidenced problem outranks a thin one that happens to have shed more
+   points. Choosing a row drives the existing search filter rather than adding a
+   second, so the table below always explains itself. */
+function renderFamilies() {
+  const fams = (state.summary && state.summary.by_family) || [];
+  $('familyPanel').hidden = fams.length < 2;
+  if (fams.length < 2) return;
+  const worst = Math.max(...fams.map((f) => f.cost)) || 1;
+  const costLabel = (state.costMetric && state.costMetric.label) || 'Cost';
+  $('familyList').innerHTML = `
+    <div class="fam-head" aria-hidden="true">
+      <span>Opening</span><span></span><span>${esc(costLabel)}</span><span></span><span></span>
+    </div>
+    <ul class="fam-list">
+      ${fams.map((f) => `
+        <li>
+          <details ${f.variations.length > 1 ? '' : 'data-leaf="1"'}>
+            <summary>
+              <span class="fam-name">${esc(f.family)}</span>
+              <span class="fam-bar"><i style="width:${Math.max(3, (f.cost / worst) * 100)}%"></i></span>
+              <span class="fam-cost mono">${f.cost.toFixed(1)}</span>
+              <span class="fam-meta muted small">${f.leaks} leak${f.leaks === 1 ? '' : 's'}
+                · ${f.lost_points.toFixed(1)} shed</span>
+              <button class="fam-pick" data-q="${esc(f.family)}">Show</button>
+            </summary>
+            <ul class="fam-vars">
+              ${f.variations.map((v) => `
+                <li>
+                  <button class="fam-var" data-q="${esc(v.opening)}">
+                    <span>${esc(v.opening)}</span>
+                    <span class="mono">${v.cost.toFixed(1)}</span>
+                  </button>
+                </li>`).join('')}
+            </ul>
+          </details>
+        </li>`).join('')}
+    </ul>`;
+  $('familyList').querySelectorAll('[data-q]').forEach((b) => {
+    b.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      $('search').value = b.dataset.q;
+      state.filter.q = b.dataset.q;
+      state.showAll = false;
+      renderTable();
+      $('tablePanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+}
+
 function renderFilters() {
   const counts = {};
   state.rows.forEach((r) => V.flagKeys(r.flag).forEach((k) => (counts[k] = (counts[k] || 0) + 1)));
