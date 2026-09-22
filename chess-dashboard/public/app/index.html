@@ -127,7 +127,12 @@
               <span class="mono muted" id="progressElapsed">0.0s</span>
             </div>
             <div class="bar"><div class="bar-fill" id="barFill"></div></div>
-            <details class="log-wrap">
+            <div class="notice" id="runError" hidden>
+              <b>The run did not finish</b>
+              <span id="runErrorText"></span>
+              <button class="btn btn-ghost" id="runErrorBack" hidden>Back to the last report</button>
+            </div>
+            <details class="log-wrap" id="logWrap">
               <summary class="muted small">Show the log</summary>
               <pre class="log" id="log"></pre>
             </details>

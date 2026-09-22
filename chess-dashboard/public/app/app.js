@@ -509,6 +509,7 @@ async function startRun(mode) {
   $('log').textContent = 'Queued…';
   $('barFill').style.width = '8%';
   $('barFill').classList.remove('is-error');
+  $('runError').hidden = true;
 
   try {
     if (state.serverless) return await runSynchronous(mode);
@@ -581,8 +582,16 @@ function failRun(message) {
   $('log').textContent = message;
   $('barFill').style.width = '100%';
   $('barFill').classList.add('is-error');
-  // back to whichever screen the user can act on
-  setAppState(hasReport() ? 'report' : 'empty');
+
+  // Stay on the failure with the reason in plain sight. This used to jump
+  // straight back to whatever report was already loaded and say nothing, so a
+  // second run for a different player showed the first player's results and no
+  // error — indistinguishable from the app having ignored the request.
+  $('runErrorText').textContent = message;
+  $('runErrorBack').hidden = !hasReport();
+  $('runError').hidden = false;
+  if ($('logWrap')) $('logWrap').open = true;
+  setAppState('running');
   if (!hasReport()) showFetchProblem('The run did not finish', message, '');
 }
 
@@ -1341,6 +1350,12 @@ function wire() {
   $('runAgainBtn').addEventListener('click', () => {
     mountRunForm('dialogSlot');
     openDialog('runDialog');
+  });
+  // Only offered when there is something to go back to, so a failure never
+  // silently hands the previous player's report back as if it were this run's.
+  $('runErrorBack').addEventListener('click', () => {
+    $('runError').hidden = true;
+    setAppState('report');
   });
   $('runDialogClose').addEventListener('click', () => closeDialog('runDialog'));
   $('demoExit').addEventListener('click', () => {
