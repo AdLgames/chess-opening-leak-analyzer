@@ -71,6 +71,7 @@
           <a href="#dashboard" class="nav-item is-active" data-view="dashboard">Dashboard</a>
           <a href="#clinic" class="nav-item" data-view="clinic">Clinic</a>
           <a href="#repertoire" class="nav-item" data-view="repertoire">Repertoire</a>
+          <a href="#prep" class="nav-item" data-view="prep">Prep</a>
         </nav>
       </aside>
 
@@ -451,6 +452,49 @@
           </section>
         </section>
 
+        <!-- ==================================================== prep -->
+        <section class="view" id="viewPrep" hidden>
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Opening prep</h2>
+              <div class="segmented" role="tablist" aria-label="Which side you are preparing">
+                <button class="seg is-active" data-prep-colour="white" role="tab">As White</button>
+                <button class="seg" data-prep-colour="black" role="tab">As Black</button>
+              </div>
+            </div>
+            <p class="panel-note">
+              Walk the line you mean to play and pick your move at each turn. Lines you
+              have never gone wrong in are still lines you need to know, and the Clinic
+              will drill whatever you save here alongside the leaks from your games.
+            </p>
+
+            <div class="prep-layout">
+              <div class="prep-left">
+                <div class="board" id="prepBoard" aria-label="Prep position"></div>
+                <div class="prep-controls">
+                  <button class="btn btn-ghost" id="prepBack">Back a move</button>
+                  <button class="btn btn-ghost" id="prepReset">Start again</button>
+                </div>
+              </div>
+
+              <div class="prep-right">
+                <p class="prep-line" id="prepLine"></p>
+                <p class="prep-opening mono muted small" id="prepOpening"></p>
+                <p class="prep-turn" id="prepTurn"></p>
+                <div id="prepBook"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Saved lines <span class="count" id="prepCount">0</span></h2>
+            </div>
+            <div id="prepSaved"></div>
+          </section>
+        </section>
+
+
         <!-- ==================================================== footer -->
         <footer class="appfoot">
           <button class="status" id="statusBtn" type="button" aria-haspopup="dialog">
@@ -475,6 +519,10 @@
         <a href="#repertoire" class="tab-item" data-view="repertoire">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M17 7h2v13H8" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/></svg>
           <span>Repertoire</span>
+        </a>
+        <a href="#prep" class="tab-item" data-view="prep">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 4v16M6 8l6-4 6 4M6 8v8l6 4 6-4V8" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/></svg>
+          <span>Prep</span>
         </a>
       </nav>
     </div>
@@ -699,6 +747,7 @@
     <script src="./study.js"></script>
     <script src="./repertoire.js"></script>
     <script src="./explorer.js"></script>
+    <script src="./prep.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

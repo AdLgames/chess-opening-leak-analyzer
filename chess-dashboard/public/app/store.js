@@ -120,8 +120,47 @@
       push('repertoire', entry);
       return entry;
     },
+    /** Record a line you intend to play, with no leak row behind it.
+
+        `commit` needs a report row, which means the only lines that could ever
+        enter the repertoire were ones your own games had already gone wrong in.
+        Prep is the other half: the move you mean to play in a position, whether
+        or not you have ever failed there. Same key, same storage, same drill
+        schedule — `source` is what tells them apart afterwards. */
+    commitPrep({ fen, move, color, eco = '', opening = '', line = [], moveNumber = 0 }) {
+      if (!fen || !move) return null;
+      const entry = {
+        key: `${positionKey(fen)}|${move}`,
+        position: positionKey(fen),
+        fen,
+        color: color === 'black' ? 'black' : 'white',
+        eco,
+        opening,
+        line: Array.isArray(line) ? line : [],
+        played: '',
+        moveNumber: Number(moveNumber) || 0,
+        games: 0,
+        cost: 0,
+        flag: '',
+        status: 'committed',
+        answer: move,
+        source: 'prep',
+        decidedAt: Date.now(),
+      };
+      const rest = this.all().filter((e) => e.key !== entry.key);
+      rest.push(entry);
+      write('repertoire', rest);
+      push('repertoire', entry);
+      return entry;
+    },
     committed() {
       return this.all().filter((e) => e.status === 'committed');
+    },
+    /** Only the lines built as prep, newest first. */
+    prep() {
+      return this.all()
+        .filter((e) => e.source === 'prep' && e.status === 'committed')
+        .sort((a, b) => (b.decidedAt || 0) - (a.decidedAt || 0));
     },
   };
 
