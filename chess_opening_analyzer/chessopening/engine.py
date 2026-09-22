@@ -53,6 +53,17 @@ class Alternative:
     cp: int
 
 
+#: Where an evaluation stops telling you anything new about the result. Beyond a
+#: rook the game is decided, and the clamp keeps the exponential in range.
+PROB_CLAMP_CP = 1000
+
+
+def cp_to_prob(cp: int) -> float:
+    """Centipawns to expected result for the side to move, 0-1."""
+    clamped = max(-PROB_CLAMP_CP, min(PROB_CLAMP_CP, cp))
+    return 1.0 / (1.0 + 10 ** (-clamped / 400.0))
+
+
 @dataclass
 class PositionEval:
     """Engine verdict on one move played from `fen`."""
@@ -73,6 +84,18 @@ class PositionEval:
     @property
     def eval_drop_pawns(self) -> float:
         return round(self.eval_drop_cp / 100.0, 2)
+
+    @property
+    def win_prob_drop(self) -> float:
+        """How much of the expected result the move gave away, 0-1.
+
+        Centipawns are not linear in what they cost you. Losing a pawn from level
+        takes 64% to 50%; losing one at +6.0 takes 96.9% to 94.7%. Charging both
+        the same, as a raw pawn difference does, overstates the second by about
+        six times. This is the same logistic the rating world uses, so the number
+        means "share of the result handed over".
+        """
+        return round(cp_to_prob(self.best_cp) - cp_to_prob(self.played_cp), 4)
 
 
 class EngineAnalyzer:
