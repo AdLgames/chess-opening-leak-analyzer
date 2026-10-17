@@ -298,6 +298,7 @@
   function showLine(line, fen) {
     const san = String(line || '').trim().split(/\s+/).filter(Boolean);
     if (!window.Study || !san.length) return;
+    if (window.App) window.App.go('explore');
     window.Study.explore(san, fen);
     $('libBoard').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }

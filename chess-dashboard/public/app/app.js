@@ -1,12 +1,7 @@
-/* Opening Leak Lab — dashboard client.
-
-   The page has three states: `empty` asks for games and nothing else, `running`
-   collapses that to one line plus progress, and `report` is the finished thing.
-   Only one is ever in the document, which is what keeps the first screen to a
-   single decision.
-
-   Talks to a local FastAPI analyzer on :8000, or to a same-origin serverless API
-   when hosted (the backend reports `serverless: true` from /api/meta). */
+/* Opening Leak Lab — learning workspace and optional game-analysis tools.
+   The four-destination shell is always available. Analysis keeps its existing
+   empty/running/report states within a contextual screen. Talks to the local
+   FastAPI API on :8000 or the same-origin hosted API. */
 const PORT_PROXY = '__PORT_8000__';
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0'];
 // Three ways this page gets served:
@@ -28,19 +23,20 @@ const S = window.Store;
    not open with 400 rows. */
 const ROW_CAP = 25;
 
-/* Three destinations: what is wrong, how to fix it, and what you have built.
-   Macro and micro no longer share a page. */
+/* Four primary destinations; existing tools remain contextual routes. */
 const VIEWS = {
-  dashboard: { title: 'Dashboard', needsRun: false },
-  clinic: { title: 'Clinic', needsRun: true },
-  repertoire: { title: 'Repertoire', needsRun: false },
-  // Prep needs no run: building the lines you mean to play is the one thing here
-  // you can do before the analyser has ever seen a game of yours.
-  prep: { title: 'Prep', needsRun: false },
+  today: { title: 'Today', route: 'today', parent: 'today' },
+  explore: { title: 'Explore', route: 'explore', parent: 'explore' },
+  repertoire: { title: 'Repertoire', route: 'repertoire', parent: 'repertoire' },
+  progress: { title: 'Progress', route: 'progress', parent: 'progress' },
+  dashboard: { title: 'Game analysis', route: 'progress/games', parent: 'progress' },
+  clinic: { title: 'Practice & review', route: 'training', parent: 'today' },
+  prep: { title: 'Build your lines', route: 'repertoire/edit', parent: 'repertoire' },
 };
+let trainingOrigin = 'today';
 
 const state = {
-  view: 'dashboard',
+  view: 'today',
   clinicMode: 'study',
   app: 'empty',
   files: [],
@@ -104,34 +100,41 @@ function hasReport() {
 }
 
 function renderNav() {
-  const unlocked = hasReport() || S.repertoire.all().length > 0;
   document.querySelectorAll('.nav-item, .tab-item').forEach((a) => {
-    const view = a.dataset.view;
-    a.hidden = VIEWS[view].needsRun && !unlocked;
-    a.classList.toggle('is-active', view === state.view);
-    if (view === state.view) a.setAttribute('aria-current', 'page');
+    const active = a.dataset.view === VIEWS[state.view].parent;
+    a.classList.toggle('is-active', active);
+    if (active) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
 }
 
-function go(view) {
-  if (!VIEWS[view]) view = 'dashboard';
-  if (VIEWS[view].needsRun && !hasReport() && !S.repertoire.all().length) view = 'dashboard';
+function go(view, { replace = false, focus = true } = {}) {
+  view = Object.keys(VIEWS).find((key) => VIEWS[key].route === view) || view;
+  if (view === 'report') view = 'dashboard'; // old internal links
+  if (!VIEWS[view]) view = 'today';
+  if (view === 'clinic' && state.view !== 'clinic') trainingOrigin = state.view;
   state.view = view;
+  if (view !== 'explore') $('saveLineDialog').close();
   Object.keys(VIEWS).forEach((name) => {
     $(`view${name[0].toUpperCase()}${name.slice(1)}`).hidden = name !== view;
   });
-  if (location.hash !== `#${view}`) history.replaceState(null, '', `#${view}`);
+  const hash = `#${VIEWS[view].route}`;
+  if (location.hash !== hash) history[replace ? 'replaceState' : 'pushState'](null, '', hash);
   renderNav();
   renderViewHead();
-  if (view === 'clinic') renderClinic();
-  if (view === 'repertoire') {
-    window.Repertoire.renderRepertoire(reportContext());
+  if (view === 'clinic') {
+    $('trainingExit').textContent = `← Back to ${VIEWS[trainingOrigin].title}`;
+    renderClinic();
+  }
+  if (view === 'repertoire') window.Repertoire.renderRepertoire(reportContext());
+  if (view === 'progress') {
     window.Repertoire.renderProgress(reportContext());
     window.Explorer.render(reportContext());
   }
   if (view === 'prep' && window.Prep) window.Prep.render();
+  window.Workspace.render(view, reportContext());
   $('main').scrollTop = 0;
+  if (focus) $('viewTitle').focus({ preventScroll: true });
 }
 
 function reportContext() {
@@ -146,11 +149,15 @@ function renderViewHead() {
 
 function subtitle() {
   if (state.view === 'repertoire') {
-    return 'What you have committed, how it is moving, and every opening you play';
+    return 'Your choices, saved for the next time you play';
   }
+  if (state.view === 'today') return 'A little understanding, every day';
+  if (state.view === 'explore') return 'Discover an opening. Make it your own.';
+  if (state.view === 'progress') return 'A clear picture of what you have practised';
+  if (state.view === 'prep') return 'Build your repertoire, one response at a time';
   if (state.view === 'clinic') {
     const r = state.selected;
-    if (!r) return 'One leak at a time: the board, the cost, and the fix';
+    if (!r) return 'Explore your alternatives, one position at a time';
     return `${r.opening || r.eco || 'Unclassified'} · move ${r.move_number} as ${r.player_color}`;
   }
   if (state.app !== 'report' || !state.summary) return '';
@@ -483,6 +490,7 @@ function updateSpeedHint() {
 
 /* ----------------------------------------------------------------- the run */
 async function startRun(mode) {
+  go('dashboard');
   if (mode === 'upload' && !state.files.length) {
     $('dropzone').classList.add('is-over');
     setTimeout(() => $('dropzone').classList.remove('is-over'), 700);
@@ -529,6 +537,7 @@ async function startRun(mode) {
 /* The sample archive answers from a cached report, so the demo is one click and
    no wait. If the backend has no cache it falls back to a real run. */
 async function runDemo() {
+  go('dashboard');
   setBusy(true);
   setAppState('running');
   $('spinner').className = 'spinner';
@@ -1511,7 +1520,20 @@ function wire() {
       setDrawer(false);
     }),
   );
-  window.addEventListener('hashchange', () => go(location.hash.slice(1)));
+  window.addEventListener('hashchange', () => go(location.hash.slice(1), { replace: true }));
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link || link.matches('.nav-item, .tab-item') || event.defaultPrevented
+        || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const route = link.getAttribute('href').slice(1);
+    if (Object.values(VIEWS).some((v) => v.route === route)) {
+      event.preventDefault();
+      go(route);
+      link.closest('details.menu')?.removeAttribute('open');
+    }
+  });
+  $('trainingExit').addEventListener('click', () => go(trainingOrigin));
+  $('workspaceHelp').addEventListener('click', () => openDialog('dataDialog'));
 
   if (window.Study) {
     window.Study.onQueueChange((queue) => {
@@ -1529,6 +1551,7 @@ window.App = {
     go('clinic');
   },
   reportContext: () => reportContext(),
+  currentView: () => state.view,
   select: selectRow,
   /* The board panes report the position they are showing, so "Copy FEN" copies
      what is on the board rather than what the row started on. */
@@ -1548,14 +1571,15 @@ if (window.Prep) window.Prep.init();
 bootAccount();
 setAppState('empty');
 bootReport();           // a cached run boots straight into `report`
-go(location.hash.slice(1) || 'dashboard');
+go(location.hash.slice(1) || 'today', { replace: true, focus: false });
 // The session decides whether the run form is usable and what the local copy
 // holds, so the gate is drawn as soon as /api/auth/me answers — and again on
 // any later change, such as signing out from the account menu.
 if (window.Auth) {
-  window.Auth.onChange(renderAuthGate);
+  window.Auth.onChange(() => { renderAuthGate(); window.Workspace.render(state.view, reportContext()); });
   window.Auth.boot().then(() => {
     renderAuthGate();
+    window.Workspace.render(state.view, reportContext());
     if (window.Auth.signedIn() && !state.rows.length) bootReport();
   });
 }

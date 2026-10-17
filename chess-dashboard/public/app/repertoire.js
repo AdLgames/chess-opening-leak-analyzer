@@ -42,10 +42,10 @@
   }
 
   /* -------------------------------------------------------------- move tree */
-  function buildTree(entries) {
+  function buildTree(entries, { fullPath = false } = {}) {
     const root = { san: '', children: [], games: 0, status: '' };
     entries.forEach((entry) => {
-      const path = [...(entry.line || []), entry.answer].filter(Boolean);
+      const path = fullPath && entry.explorePath?.length ? entry.explorePath : [...(entry.line || []), entry.answer].filter(Boolean);
       let node = root;
       path.forEach((san, i) => {
         let child = node.children.find((c) => c.san === san);
@@ -150,7 +150,7 @@
     const cov = coverage(ctx);
     $('coverageCard').innerHTML = `
       <div class="coverage-figure">
-        <b class="mono">${cov.pct}%</b>
+        <b class="mono">${cov.total ? cov.pct + '%' : '—'}</b>
         <span>${esc(V.METRICS.coverage.label)}</span>
       </div>
       <p class="coverage-note" title="${esc(V.METRICS.coverage.definition)}">
@@ -165,9 +165,8 @@
       b.classList.toggle('is-active', b.dataset.color === colour),
     );
     $('repTree').innerHTML = committed.length
-      ? renderTree(buildTree(committed))
-      : `<p class="invite">Nothing committed as ${colour} yet. Open a leak in the report and
-           choose the move you would rather play — it lands here.</p>`;
+      ? renderTree(buildTree(committed.filter((e) => !e.startFen))) + (committed.some((e) => e.startFen) ? '<p class="muted small">Lines saved from a position appear in the cards above and export with their starting FEN.</p>' : '')
+      : `<p class="invite">No choices saved as ${colour} yet. Explore an opening or build a line to get started.</p>`;
 
     const decided = new Set(S.repertoire.all().map((e) => e.key));
     const holes = (ctx.rows || [])
@@ -190,8 +189,7 @@
             </li>`,
           )
           .join('')
-      : `<li class="invite">Every finding in the last report has an answer. Run again after a
-           few dozen more games to see what turns up next.</li>`;
+      : `<li class="invite">${ctx.summary ? "Every finding in the last report has an answer." : "Import games if you would like recommendations based on your play."}</li>`;
     $('repHoles').querySelectorAll('li[data-i]').forEach((li) => {
       li.addEventListener('click', () => {
         const row = holes[+li.dataset.i];
@@ -369,26 +367,29 @@
   function pgn(player) {
     const committed = S.repertoire.committed();
     if (!committed.length) return '';
-    const games = ['white', 'black']
-      .map((side) => {
-        const entries = committed.filter((e) => e.color === side);
-        if (!entries.length) return '';
-        const body = movetext(buildTree(entries).children, 0, true);
-        const who = player || 'Me';
-        return [
-          '[Event "Opening Leak Lab repertoire"]',
-          `[Site "opening-leak-lab"]`,
-          `[Date "${new Date().toISOString().slice(0, 10).replace(/-/g, '.')}"]`,
-          `[White "${side === 'white' ? who : '?'}"]`,
-          `[Black "${side === 'black' ? who : '?'}"]`,
-          '[Result "*"]',
-          `[Annotator "Opening Leak Lab"]`,
-          '',
-          `${body} *`,
-          '',
-        ].join('\n');
-      })
-      .filter(Boolean);
+    const groups = new Map();
+    committed.forEach((entry) => {
+      const key = `${entry.color}|${entry.startFen || ''}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(entry);
+    });
+    const games = [...groups.values()].map((entries) => {
+      const { color: side, startFen } = entries[0];
+      const fields = startFen ? startFen.split(' ') : [];
+      const ply = startFen ? ((parseInt(fields[5], 10) || 1) - 1) * 2 + (fields[1] === 'b' ? 1 : 0) : 0;
+      const body = movetext(buildTree(entries, { fullPath: true }).children, ply, true);
+      const who = String(player || 'Me').replace(/["\\]/g, '');
+      return [
+        '[Event "Opening Leak Lab repertoire"]',
+        '[Site "opening-leak-lab"]',
+        `[Date "${new Date().toISOString().slice(0, 10).replace(/-/g, '.')}"]`,
+        `[White "${side === 'white' ? who : '?'}"]`,
+        `[Black "${side === 'black' ? who : '?'}"]`,
+        '[Result "*"]',
+        ...(startFen ? ['[SetUp "1"]', `[FEN "${startFen}"]`] : []),
+        '', `${body} *`, '',
+      ].join('\n');
+    });
     return games.join('\n');
   }
 

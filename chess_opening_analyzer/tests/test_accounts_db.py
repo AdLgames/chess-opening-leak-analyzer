@@ -403,3 +403,23 @@ if __name__ == "__main__":
         if name.startswith("test_") and callable(fn):
             fn()
             print("ok", name)
+
+
+def test_explored_lines_keep_source_notes_and_move_order_through_sync():
+    auth, db, state, TestClient = LOADED
+    client, _uid = _client(auth, db, state, TestClient)
+    legacy = {"key": "legacy-choice", "status": "committed", "answer": "e4", "line": [],
+              "fen": "legacy-fen", "color": "white", "games": 12}
+    assert client.post('/api/state/repertoire', json={"entry": legacy}).status_code == 200
+    entry = {"key": "explored-choice", "status": "committed", "answer": "d5",
+             "line": ["e4", "c6", "d4"], "fen": "saved-position", "color": "black",
+             "source": "prep", "name": "My Caro-Kann", "notes": "Challenge the centre.",
+             "startFen": "", "explorePath": ["e4", "c6", "d4", "d5"]}
+    assert client.post('/api/state/repertoire', json={"entry": entry}).status_code == 200
+    restored = {e['key']: e for e in client.get('/api/state').json()['repertoire']}
+    for key, value in entry.items():
+        assert restored[entry['key']][key] == value
+    assert restored['legacy-choice']['games'] == 12
+    assert restored['legacy-choice']['answer'] == 'e4'
+    assert client.post('/api/state/import', json={"repertoire": [entry]}).status_code == 200
+    assert len(client.get('/api/state').json()['repertoire']) == 2
