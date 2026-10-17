@@ -167,6 +167,31 @@ def test_signing_in_adopts_what_the_browser_already_had():
     assert {r["id"] for r in st["runs"]} == {"r1", "old"}
 
 
+def test_learning_evidence_is_idempotent_and_round_trips_with_account_state():
+    auth, db, state, TestClient = LOADED  # noqa: N806
+    client, _uid = _client(auth, db, state, TestClient)
+    root = 'learning:v2:italian-v1:'
+    attempt = {'id':'session-a:0', 'card':'centre', 'outcome':'hinted', 'at':1792238400000}
+    checkpoint = {'id':'session-a', 'mode':'recall', 'chapter':'essentials', 'index':0, 'helped':True}
+    for _ in range(2):
+        assert client.post('/api/state/pref', json={'key':root+'attempt:session-a:0', 'value':attempt}).status_code == 200
+    # Conflicting delivery cannot upgrade a hinted attempt to independent recall.
+    client.post('/api/state/pref', json={'key':root+'attempt:session-a:0', 'value':{**attempt,'outcome':'independent'}})
+    client.post('/api/state/pref', json={'key':root+'checkpoint:session-a', 'value':checkpoint})
+    checkpoint['index'] = 1
+    client.post('/api/state/pref', json={'key':root+'checkpoint:session-a', 'value':checkpoint})
+    client.post('/api/state/import', json={'prefs':{
+        root+'attempt:session-a:0':{**attempt,'outcome':'independent'},
+        root+'enrol:centre':{'at':1792152000000},
+        root+'checkpoint:guest-session':{'id':'guest-session','mode':'learn','chapter':'two-knights','index':1},
+    }})
+    prefs = client.get('/api/state').json()['prefs']
+    assert prefs[root+'attempt:session-a:0'] == attempt
+    assert prefs[root+'checkpoint:session-a']['index'] == 1
+    assert prefs[root+'checkpoint:guest-session']['index'] == 1
+    assert prefs[root+'enrol:centre']['at'] == 1792152000000
+
+
 def _tree(key: str, *, games: list[int], score: float, book: float,
           opening: str = "Scandinavian Defence") -> dict:
     return {"key": key, "position": "epd", "fen": f"fen-{key}", "player_color": "white",

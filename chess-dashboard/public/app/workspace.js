@@ -22,7 +22,7 @@
     return `<span class="board-thumbnail" aria-hidden="true">${ranks.map((rank) => [...files].map((file) => `<span class="thumb-square ${(file.charCodeAt(0) - 97 + rank) % 2 ? 'dark' : 'light'}">${LB.pieceSvg(pieces[file + rank])}</span>`).join('')).join('')}</span>`;
   }
   function card(o) {
-    return `<button class="opening-card" data-opening="${o.id}">${thumbnail(o.fen, o.side)}<span class="opening-card-content"><span class="opening-card-top"><strong>${esc(o.name)}</strong><span class="opening-code">${o.eco}</span></span><span class="opening-card-description">${esc(o.idea)}</span><span class="opening-card-foot"><span>${o.side === 'white' ? 'White' : 'Black'} · ${1 + o.branches.length} lines</span><span>Study opening →</span></span></span></button>`;
+    return `<button class="opening-card" data-opening="${o.id}">${thumbnail(o.fen, o.side)}<span class="opening-card-content"><span class="opening-card-top"><strong>${esc(o.name)}</strong><span class="opening-code">${o.eco}</span></span><span class="opening-card-description">${esc(o.idea)}</span><span class="opening-card-foot"><span>${o.side === 'white' ? 'White' : 'Black'} · ${o.id === 'italian' ? '4 guided chapters' : `${1 + o.branches.length} lines`}</span><span>${o.id === 'italian' ? 'Learn & explore' : 'Study opening'} →</span></span></span></button>`;
   }
   function renderOpenings() {
     const q = $('libSearch').value.trim().toLowerCase();
@@ -46,6 +46,7 @@
     });
   }
   function renderGuide() {
+    window.Training?.overview(selected?.id || null);
     if (!selected) return;
     $('openingGuideTitle').textContent = selected.name;
     $('guideMeta').textContent = `${selected.eco} · ${selected.side === 'white' ? 'White' : 'Black'} · Opening study`;
@@ -63,6 +64,7 @@
   async function choose(id) {
     const opening = openings.find((o) => o.id === id);
     if (!opening) return;
+    await window.Training?.pause();
     selected = opening; selectedLine = 0;
     window.App.go('today');
     renderGuide(); setPanel('study');
@@ -73,6 +75,7 @@
   }
   function custom(title, note = '') {
     selected = null;
+    window.Training?.overview(null);
     $('openingGuideTitle').textContent = title;
     $('guideMeta').textContent = 'Position study';
     $('openingGuideText').textContent = note || 'Explore the position on the board. The Moves panel shows replies from the opening book.';
@@ -84,6 +87,7 @@
   }
   async function reopen(entry) {
     if (!entry) return;
+    await window.Training?.pause();
     window.App.go('today');
     custom(entry.name || entry.opening || 'Saved line', entry.notes);
     $('saveLineSide').value = entry.color;
@@ -135,6 +139,7 @@
   });
   $('guideReplay').addEventListener('click', () => { if (selected) window.Study.replay(lines()[selectedLine].line, selected.side); });
   window.addEventListener('chess:position', (event) => {
+    if (window.Training?.active()) return;
     const { line, turn, opening } = event.detail;
     if (selected && line.length && !lines().some((known) => {
       const overlap = Math.min(line.length, known.line.length);
@@ -144,10 +149,12 @@
   });
   renderOpenings(); renderGuide(); renderSaved(); setPanel('study');
   window.Workspace = {
-    choose, reopen, custom, setPanel,
+    choose, reopen, custom, setPanel, refreshGuide: renderGuide,
     render(view, ctx = {}) {
+      window.Training?.leave(view);
+      window.Training?.overview(selected?.id || null);
       if (view === 'today' || view === 'repertoire') renderSaved();
-      if (view === 'progress') renderProgress(ctx);
+      if (view === 'progress') { renderProgress(ctx); window.Training?.progress(); }
     },
   };
 }());

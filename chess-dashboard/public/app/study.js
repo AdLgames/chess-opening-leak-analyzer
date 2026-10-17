@@ -538,6 +538,7 @@
     startTurn() { return this.fromFen?.split(' ')[1] === 'b' ? 'black' : 'white'; },
     async play(move) {
       if (this.busy) return;
+      if (this.controller) return this.controller(move);
       await this.load(move, { moves: [...this.moves, move.uci], history: [...this.history, { san: move.san, uci: move.uci }], future: this.future[0]?.uci === move.uci ? this.future.slice(1) : [] });
     },
     async back() { if (this.history.length) await this.jump(this.history.length - 1); },
@@ -675,6 +676,23 @@
   }
 
   window.Study = {
+    training: {
+      begin(onMove) {
+        library.seq += 1;
+        library.busy = false;
+        library.controller = onMove;
+      },
+      present(pos, { enabled = true, arrows = [], lastMove = null } = {}) {
+        if (!library.controller || !library.board) return;
+        library.board.setOrientation('white');
+        library.board.setPosition(pos.fen, { legal: enabled ? pos.legal : [], arrows, lastMove });
+        $('libBoard').setAttribute('aria-busy', 'false');
+        $('libTurn').textContent = `${pos.turn === 'white' ? 'White' : 'Black'} to move`;
+        $('libName').textContent = 'Italian · White';
+        window.App?.setLibFen(pos.fen);
+      },
+      async end() { library.controller = null; await library.run(() => library.load()); },
+    },
     init(apiBase) {
       LB.setApiBase(apiBase);
       wire();
