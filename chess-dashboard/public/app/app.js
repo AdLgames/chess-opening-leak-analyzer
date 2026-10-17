@@ -139,7 +139,7 @@ function go(view, { replace = false, focus = true } = {}) {
 
 function reportContext() {
   // `tree` is everything you play; `rows` is the subset that leaks.
-  return { rows: state.rows, tree: state.tree, summary: state.summary, player: state.player };
+  return { rows: state.rows, tree: state.tree, summary: state.summary, player: state.player, demo: state.demo, source: state.source };
 }
 
 function renderViewHead() {
@@ -694,6 +694,7 @@ function applyReport(data, job, { cached = false } = {}) {
     });
     if (!state.demo) recordRun();
   }
+  window.dispatchEvent(new CustomEvent('chess:report', { detail: reportContext() }));
   renderNav();
   renderViewHead();
 }

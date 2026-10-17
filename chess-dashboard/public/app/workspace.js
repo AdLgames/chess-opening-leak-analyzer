@@ -22,7 +22,8 @@
     return `<span class="board-thumbnail" aria-hidden="true">${ranks.map((rank) => [...files].map((file) => `<span class="thumb-square ${(file.charCodeAt(0) - 97 + rank) % 2 ? 'dark' : 'light'}">${LB.pieceSvg(pieces[file + rank])}</span>`).join('')).join('')}</span>`;
   }
   function card(o) {
-    return `<button class="opening-card" data-opening="${o.id}">${thumbnail(o.fen, o.side)}<span class="opening-card-content"><span class="opening-card-top"><strong>${esc(o.name)}</strong><span class="opening-code">${o.eco}</span></span><span class="opening-card-description">${esc(o.idea)}</span><span class="opening-card-foot"><span>${o.side === 'white' ? 'White' : 'Black'} · ${o.id === 'italian' ? '4 guided chapters' : `${1 + o.branches.length} lines`}</span><span>${o.id === 'italian' ? 'Learn & explore' : 'Study opening'} →</span></span></span></button>`;
+    const course = window.OpeningCourses.find((c) => c.opening === o.id);
+    return `<button class="opening-card" data-opening="${o.id}">${thumbnail(o.fen, o.side)}<span class="opening-card-content"><span class="opening-card-top"><strong>${esc(o.name)}</strong><span class="opening-code">${o.eco}</span></span><span class="opening-card-description">${esc(o.idea)}</span><span class="opening-card-foot"><span>${o.side === 'white' ? 'White' : 'Black'} · ${course ? `${course.chapters.length} guided chapters` : `${1 + o.branches.length} lines`}</span><span>${course ? 'Learn & explore' : 'Study opening'} →</span></span></span></button>`;
   }
   function renderOpenings() {
     const q = $('libSearch').value.trim().toLowerCase();
@@ -148,11 +149,24 @@
     $('studyLineLabel').textContent = `${line.length ? `After ${line[line.length - 1]}` : 'Starting position'} · ${turn === 'white' ? 'White' : 'Black'} to move`;
   });
   renderOpenings(); renderGuide(); renderSaved(); setPanel('study');
+  function boardPalette() {
+    const value = S.prefs.get('boardPalette', 'green') === 'wood' ? 'wood' : 'green';
+    document.documentElement.dataset.board = value; $('boardPalette').value = value;
+  }
+  $('boardPalette').addEventListener('change', (event) => { S.prefs.set('boardPalette', event.target.value); boardPalette(); });
+  boardPalette();
   window.Workspace = {
     choose, reopen, custom, setPanel, refreshGuide: renderGuide,
+    async position(line, side, title) {
+      await window.Training.pause(); window.App.go('today'); custom(title);
+      $('saveLineSide').value = side; $('saveLineName').value = title;
+      await window.Study.explore(line, null, { orientation: side });
+    },
     render(view, ctx = {}) {
+      boardPalette();
       window.Training?.leave(view);
       window.Training?.overview(selected?.id || null);
+      window.Preparation?.render(view, ctx);
       if (view === 'today' || view === 'repertoire') renderSaved();
       if (view === 'progress') { renderProgress(ctx); window.Training?.progress(); }
     },

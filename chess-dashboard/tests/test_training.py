@@ -177,7 +177,7 @@ def test_course_can_pause_change_opening_and_resume_without_losing_exploration(p
     page.locator('[data-opening="caro"]').click()
     expect(page.locator('#openingGuideTitle')).to_contain_text('Caro-Kann')
     expect(page.locator('#libLine')).to_contain_text('d5')
-    expect(page.locator('#italianCourse')).to_be_hidden()
+    expect(page.locator('#italianCourse')).to_contain_text('CARO-KANN FOR BLACK')
     page.locator('#nav [data-view="explore"]').click()
     page.locator('[data-opening="italian"]').click()
     page.locator('[data-training="resume"]').click()

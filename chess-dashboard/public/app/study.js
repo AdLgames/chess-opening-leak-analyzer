@@ -678,20 +678,21 @@
   window.Study = {
     training: {
       begin(onMove) {
+        library.trainingOrientation = library.board?.orientation || 'white';
         library.seq += 1;
         library.busy = false;
         library.controller = onMove;
       },
-      present(pos, { enabled = true, arrows = [], lastMove = null } = {}) {
+      present(pos, { enabled = true, arrows = [], lastMove = null, orientation = 'white', title = 'Italian' } = {}) {
         if (!library.controller || !library.board) return;
-        library.board.setOrientation('white');
+        library.board.setOrientation(orientation);
         library.board.setPosition(pos.fen, { legal: enabled ? pos.legal : [], arrows, lastMove });
         $('libBoard').setAttribute('aria-busy', 'false');
         $('libTurn').textContent = `${pos.turn === 'white' ? 'White' : 'Black'} to move`;
-        $('libName').textContent = 'Italian · White';
+        $('libName').textContent = title;
         window.App?.setLibFen(pos.fen);
       },
-      async end() { library.controller = null; await library.run(() => library.load()); },
+      async end() { library.controller = null; library.board?.setOrientation(library.trainingOrientation || 'white'); await library.run(() => library.load()); },
     },
     init(apiBase) {
       LB.setApiBase(apiBase);

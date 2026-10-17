@@ -113,7 +113,8 @@
 <section class="view" id="viewProgress" hidden>
   <div class="library-heading"><div><h2>Progress</h2><p id="progressSummary">Save a line or practise a position to start keeping a record.</p></div></div>
   <div class="evidence-grid" id="progressEvidence"></div>
-  <section id="courseProgress" aria-label="Italian training record"></section>
+  <section id="courseProgress" aria-label="Opening training record"></section>
+  <section id="personalTraining" aria-label="Exercises from games"></section>
   <div id="progressSlot"></div>
   <details class="panel personal-details"><summary>Your opening patterns from games</summary><div id="personalSlot"></div></details>
   <div class="analysis-link"><span>See how your opening choices hold up in your games.</span><a href="#progress/games">Analyse games →</a></div>
@@ -352,6 +353,7 @@
         <section class="view" id="viewRepertoire" hidden>
   <div class="library-heading"><div><h2>Repertoire</h2><p>Your saved opening lines and notes.</p></div><a class="btn btn-ghost" href="#repertoire/edit">Build a line</a></div>
   <div id="repertoireCourse" class="repertoire-course" hidden></div>
+  <section id="preparationGaps" aria-label="Preparation gaps"></section>
   <div id="savedLineCards"></div>
   <details class="panel repertoire-details"><summary>Variation tree &amp; game findings</summary><div id="repertoireDetailSlot">          <div class="coverage" id="coverageCard"></div>
 
@@ -454,7 +456,8 @@
                   <button id="savedTab" role="tab" aria-controls="savedPane" aria-selected="false" data-panel="saved">Your lines</button>
                 </div>
                 <section id="studyPane" role="tabpanel" aria-labelledby="studyTab">
-                  <section id="italianCourse" aria-label="Italian course"></section>
+                  <section id="italianCourse" aria-label="Opening course"></section>
+                  <section id="todayFindings" hidden></section>
                   <p class="study-label" id="studyLineLabel">Opening position</p>
                   <p id="openingGuideText">Play on the board or choose an opening from the library.</p>
                   <h3 class="study-section-label">The plan</h3><p id="openingPlan">Develop your pieces, contest the centre and get your king to safety.</p>
@@ -468,6 +471,7 @@
                 <section id="savedPane" role="tabpanel" aria-labelledby="savedTab" hidden><h3 class="study-section-label">Saved responses</h3><div id="sidebarSaved"></div><a class="text-link" href="#repertoire">Open repertoire →</a></section>
                 <details class="board-tools"><summary>Board tools</summary>
                   <div class="board-tool-actions"><button class="btn btn-ghost" id="libReset">Reset board</button><a class="btn btn-ghost" id="libLichess" target="_blank" rel="noopener">Lichess analysis →</a><button class="btn btn-ghost" id="libCopyFen" type="button">Copy FEN</button></div>
+                  <label class="board-palette"><span>Board style</span><select id="boardPalette"><option value="green">Classic green</option><option value="wood">Warm wood</option></select></label>
                   <details class="position-tools"><summary>Enter moves or a position</summary><form id="explorePositionForm"><label class="field"><span>Moves in SAN or a FEN position</span><input id="explorePositionInput" placeholder="1. e4 e5 2. Nf3 Nc6" required /></label><button class="btn btn-ghost" type="submit">Show on board</button><p id="explorePositionError" role="alert" class="small"></p></form></details>
                   <details class="pane-block"><summary>Engine analysis</summary><button class="btn btn-ghost" id="libEngineBtn">Ask the engine</button><div id="libEngine"></div></details>
                 </details>
@@ -760,8 +764,12 @@
     <script src="./prep.js"></script>
     <script src="./opening-guides.js"></script>
     <script src="./italian-course.js"></script>
+    <script src="./opening-courses.js"></script>
+    <script src="./model-games.js"></script>
     <script src="./learning-store.js"></script>
+    <script src="./coach.js"></script>
     <script src="./workspace.js"></script>
+    <script src="./preparation.js"></script>
     <script src="./training.js"></script>
     <script src="./app.js"></script>
   </body>

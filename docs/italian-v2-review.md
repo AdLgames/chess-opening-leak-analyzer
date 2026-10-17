@@ -2,6 +2,9 @@
 
 17 October 2026 · First v2 increment · Review before expanding the curriculum
 
+The expanded draft is now documented in [Opening courses and coach: v2 review](opening-coach-v2-review.md).
+This page records the original Italian pilot and its validation.
+
 The Italian opening now has a complete learn → recall → play loop on the existing
 board. No account or game import is needed. Today, Explore, Repertoire and
 Progress remain the four destinations; the opening library and analysis tools

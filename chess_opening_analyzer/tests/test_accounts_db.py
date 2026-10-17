@@ -190,6 +190,12 @@ def test_learning_evidence_is_idempotent_and_round_trips_with_account_state():
     assert prefs[root+'checkpoint:session-a']['index'] == 1
     assert prefs[root+'checkpoint:guest-session']['index'] == 1
     assert prefs[root+'enrol:centre']['at'] == 1792152000000
+    # A game exercise is immutable evidence as well, in its own namespace.
+    key = 'learning:v2:personal-v1:exercise:position-a'
+    exercise = {'id':'position-a','side':'black','move':'c6','report':{'played':'e5','games':4}}
+    client.post('/api/state/pref',json={'key':key,'value':exercise})
+    client.post('/api/state/pref',json={'key':key,'value':{**exercise,'move':'d5'}})
+    assert client.get('/api/state').json()['prefs'][key] == exercise
 
 
 def _tree(key: str, *, games: list[int], score: float, book: float,

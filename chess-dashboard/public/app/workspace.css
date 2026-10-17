@@ -6,10 +6,11 @@
   --page: #f4f3f0; --raised: #ffffff; --surface-2: #eae9e6; --surface-3: #dedde1;
   --text: #23252c; --text-muted: #5d606b; --text-faint: #676a74;
   --line: #d8d7db; --line-strong: #b9b7c2; --primary: #6c52c8; --primary-hover: #5940af;
-  --rail: #1a1c23; --board-light: #ead9b8; --board-dark: #ad875f;
+  --rail: #1a1c23; --board-light: #9dbd85; --board-dark: #518468;
   --slate: #65509b; --r-sm: 4px; --r: 5px; --r-lg: 6px;
   --sidebar-w: 168px; --shadow: none;
 }
+:root[data-board='wood'] { --board-light: #ead9b8; --board-dark: #ad875f; }
 :root[data-theme='dark'] {
   --page: #111318; --raised: #191c23; --surface-2: #22262f; --surface-3: #2c303c;
   --text: #eeeef3; --text-muted: #b2b5c1; --text-faint: #a3a7b4;
@@ -225,7 +226,69 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
 .review-records { list-style: none; margin: 18px 0 0; padding: 0; }
 .review-records li { display: flex; justify-content: space-between; gap: 16px; padding-block: 12px; border-bottom: 1px solid var(--line); font-size: 12px; line-height: 1.7; }
 .review-records li span:last-child { color: var(--text-muted); text-align: right; }
+.coach-speech { display: grid; grid-template-columns: 60px minmax(0,1fr); align-items: start; gap: 12px; }
+.coach-portrait { width: 60px; height: 72px; object-fit: contain; }
+.coach-name { display: block; font-size: 11px; font-weight: 600; margin: 2px 0 7px; color: var(--text); }
+.coach-name > span { font-weight: 400; font-size: 10px; color: var(--text-muted); }
+.coach-speech p { margin: 0; font-size: 12px; color: var(--text); line-height: 1.8; }
+.coach-speech.portrait-hidden { grid-template-columns: minmax(0,1fr); }
+.portrait-hidden .coach-portrait { display: none; }
+.coach-toggle { border: 0; background: none; color: var(--text-muted); font-size: 10px; min-height: 44px; padding: 6px 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.coach-evidence, .model-source { color: var(--text-muted); font-size: 10px; line-height: 1.8; }
+.board-palette { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); }
+.board-palette select { min-height: 44px; border: 1px solid var(--line); background: var(--raised); color: var(--text); border-radius: 3px; padding-inline: 8px; }
+.is-training .library-side { border-radius: 0; border: 0; background: var(--raised); }
+.review-summary > strong { font-size: 15px; font-weight: 600; }
+.recall-meter { display: block; width: 100%; height: 7px; appearance: none; border: 0; margin: 14px 0 26px; background: var(--surface-3); }
+.recall-meter::-webkit-progress-bar { background: var(--surface-3); }
+.recall-meter::-webkit-progress-value { background: #e7b84b; }
+.recall-meter::-moz-progress-bar { background: #e7b84b; }
+.review-summary h4 { margin: 0 0 14px; font-size: 13px; font-weight: 500; }
+.review-summary ul { padding-left: 18px; margin: 0 0 20px; }
+.review-summary li { font-size: 12px; line-height: 1.9; color: var(--text-muted); margin-block: 9px; }
+.review-summary b { color: var(--text); font-weight: 500; }
+.review-complete > .training-top, .review-complete > .training-progress { display: none; }
+.model-game-list { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 16px; }
+.model-game-list h3, #todayFindings h3 { font-size: 12px; margin: 0 0 10px; font-weight: 500; }
+.model-game-link { display: grid; text-align: left; gap: 7px; width: 100%; padding: 12px 0; background: transparent; color: var(--text); border: 0; cursor: pointer; }
+.model-game-link strong { font-size: 12px; font-weight: 500; }
+.model-game-link span { font-size: 10px; line-height: 1.7; color: var(--text-muted); }
+.model-players { font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+.course-progress-section { border-bottom: 1px solid var(--line); padding-block: 4px 20px; }
+.course-progress-section summary, .saved-exercises > summary { cursor: pointer; min-height: 44px; font-size: 11px; color: var(--text-muted); padding-top: 12px; }
+.repertoire-course { display: block; padding: 0; }
+.repertoire-course-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.repertoire-course-row:last-child { border-bottom: 0; }
+.gap-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+.gap-controls label { display: grid; gap: 8px; flex: 1; min-width: 0; }
+.gap-controls label > span { font-size: 11px; color: var(--text-muted); }
+.gap-controls select { max-width: 100%; width: 100%; min-height: 44px; border: 1px solid var(--line); padding: 8px; border-radius: 4px; background: var(--raised); color: var(--text); }
+.gap-row, .finding-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding: 16px 0; }
+.gap-row > div, .finding-row > div { min-width: 0; }
+.gap-row strong, .finding-row strong { display: block; font-size: 12px; font-weight: 500; }
+.gap-row span, .gap-row small, .finding-row span { display: block; font-size: 10px; color: var(--text-muted); margin-top: 7px; line-height: 1.8; overflow-wrap: anywhere; }
+.gap-row > div:last-child { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
+.gap-summary { font-size: 12px; line-height: 1.8; margin-block: 20px; }
+#todayFindings { border-bottom: 1px solid var(--line); margin-bottom: 18px; padding-bottom: 14px; }
 @media (max-width: 650px) {
+  #viewToday:has(.is-training) .workbench-heading { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  #viewToday:has(.is-training) .workbench-heading > a { display: none; }
+  .coach-speech { grid-template-columns: 42px minmax(0,1fr); gap: 10px; }
+  .coach-portrait { width: 42px; height: 51px; }
+  .coach-speech p { font-size: 11px; line-height: 1.7; }
+  .coach-name { margin-top: 0; margin-bottom: 4px; font-size: 10px; }
+  .coach-name > span { font-size: 9px; }
+  .is-training .library-side { width: calc(100% + 24px); margin-left: -12px; background: var(--raised); border-top: 1px solid var(--line); }
+  .is-training #trainingPanel { padding: 16px 20px; }
+  .review-summary li { font-size: 13px; }
+  .review-complete .recall-meter { margin: 10px 0 20px; }
+  .review-complete .review-summary h4 { margin-bottom: 8px; }
+  .review-complete .review-summary li { font-size: 12px; line-height: 1.7; margin-block: 4px; }
+  .review-complete .review-summary ul { margin-bottom: 10px; }
+  .review-complete .review-summary > .course-note { display: none; }
+  .gap-row, .finding-row { align-items: start; flex-direction: column; gap: 10px; }
+  .gap-controls { align-items: stretch; flex-direction: column; }
+  .gap-controls select { font-size: 16px; }
   #viewToday:has(.is-training) .workbench-heading p { display: none; }
   #viewToday:has(.is-training) .workbench-heading .btn { min-height: 36px; }
   .is-training .library-side { margin-top: 0; }
