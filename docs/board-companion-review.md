@@ -39,11 +39,15 @@ preferences, separate from learning records.
 
 ## Checks
 
+- All **103 browser journeys** passed across the complete regression run and
+  focused reruns after correcting desktop board sizing.
+
 - 14 focused browser journeys passed: all three voices, keyboard activation,
   preview reactions, White/Black lessons, assisted practice, persistent quiet
   mode, hide/show behaviour, state preservation, reduced motion and layouts at
   360/390/768/1440px.
-- Mobile completion checks passed at 360×800 and 390×844.
+- Mobile completion checks passed at 360×800 and 390×844. The complete board
+  also fits within a 1000px-tall desktop viewport.
 - 15 axe WCAG A/AA scans passed across the public pages and light/dark lessons
   at 360/390/1440px. Automated scans are not full accessibility certification.
 - The complete application regression suite, hosted bundle assembly and

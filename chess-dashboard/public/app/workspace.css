@@ -385,3 +385,8 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
 .library-panel:has(#boardCompanion:not([hidden]):not(.is-quiet)) #trainingPanel .coach-speech { grid-template-columns:minmax(0,1fr); }
 .library-panel:has(#boardCompanion:not([hidden]):not(.is-quiet)) #trainingPanel .coach-portrait { display:none; }
 .library-panel:has(#boardCompanion:not([hidden]):not(.is-quiet)) #trainingPanel .coach-speech > div:before { top:-5px; left:18px; border-bottom:0; border-top:1px solid var(--line); }
+/* Budget for the character rail as well as the board on shorter desktop windows. */
+@media (min-width:1101px) {
+  .library-panel:has(#boardCompanion:not([hidden]):not(.is-quiet)) .library-body { grid-template-columns:minmax(0,min(760px,calc(100dvh - 330px))) minmax(270px,330px); }
+  .library-panel:has(#boardCompanion:not([hidden]).is-quiet) .library-body { grid-template-columns:minmax(0,min(760px,calc(100dvh - 270px))) minmax(270px,330px); }
+}
