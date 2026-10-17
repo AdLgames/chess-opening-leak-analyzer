@@ -166,6 +166,10 @@
       boardPalette();
       window.Coach.refresh();
       window.Training?.leave(view);
+      if (!window.Training?.active()) {
+        if (view === 'today') window.Coach.onBoard({ event: 'explore', key: 'explore', prompt: 'Pick an opening or play a move. Make yourself at home.' });
+        else window.Coach.hideBoard();
+      }
       window.Training?.overview(selected?.id || null);
       window.Preparation?.render(view, ctx);
       if (view === 'today' || view === 'repertoire') renderSaved();

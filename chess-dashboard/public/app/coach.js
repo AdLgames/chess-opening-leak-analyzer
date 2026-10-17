@@ -9,8 +9,15 @@
   function picker() {
     return `<label class="coach-choice">Guide <select id="trainingCoach">${Object.entries(profiles).map(([id, name]) => `<option value="${id}" ${id === current() ? 'selected' : ''}>${name}</option>`).join('')}</select></label>`;
   }
+  let companion = null;
+  function onBoard(state) {
+    companion ||= window.BoardCompanion.mount(document.getElementById('boardCompanion'), { prompt: document.getElementById('trainingBoardPrompt') });
+    companion.show(state);
+  }
+  function hideBoard() { companion?.hide(); }
   function refresh() {
     const id = current();
+    window.BoardCompanion.refresh();
     document.querySelectorAll('.coach-portrait').forEach((el) => { el.dataset.coach = id; });
     document.querySelectorAll('.coach-name').forEach((el) => { el.innerHTML = `${profiles[id]} <span>· Study coach</span>`; });
     if (document.getElementById('studyCoach')) document.getElementById('studyCoach').value = id;
@@ -47,5 +54,5 @@
       : `After ${move.san}, the engine finds ${reply.san}, ${consequence}.${Math.abs(best.cp) >= 9800 || Math.abs(response.cp) >= 9800 ? '' : ` Its evaluation falls by about ${(loss / 100).toFixed(1)} pawns compared with ${best.san}.`}`;
     return { text: comparison, moves: [move.uci, reply.uci], source: 'Stockfish · depth 12' };
   }
-  window.Coach = { bubble, explain, refresh, picker };
+  window.Coach = { bubble, explain, refresh, picker, onBoard, hideBoard };
 }());

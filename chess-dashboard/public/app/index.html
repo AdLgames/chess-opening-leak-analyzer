@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="../vendor/fonts.css" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./workspace.css" />
+    <link rel="stylesheet" href="../companion.css" />
 
     <!-- Vercel Web Analytics -->
     <script>
@@ -431,7 +432,7 @@
               <div class="board-col">
                 <div class="board-meta"><b id="libName">Starting position</b><span id="libTurn" aria-live="polite"></span></div>
                 <p id="trainingBoardPrompt" class="training-board-prompt" tabindex="-1" hidden></p>
-                <div class="board" id="libBoard" aria-label="Explorer board"></div>
+                <div class="board-stage"><div id="boardCompanion" hidden></div><div class="board" id="libBoard" aria-label="Explorer board"></div></div>
                 <div class="board-bar">
                   <button class="btn btn-ghost" id="libRestart" aria-label="First position" title="First position">⇤</button>
                   <button class="btn btn-ghost" id="libBack" aria-label="Previous move" title="Previous move">←</button>
@@ -761,6 +762,7 @@
     <script src="./opening-courses.js"></script>
     <script src="./model-games.js"></script>
     <script src="./learning-store.js"></script>
+    <script src="../companion.js"></script>
     <script src="./coach.js"></script>
     <script src="./workspace.js"></script>
     <script src="./preparation.js"></script>

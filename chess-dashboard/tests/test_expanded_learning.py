@@ -60,7 +60,7 @@ def test_authored_coach_explains_and_demonstrates_a_concrete_mistake_without_eng
     page.route('**/api/engine',lambda r:r.abort())
     play(page,chess.Move.from_uci('f3e5'))
     expect(page.locator('#trainingFeedback')).to_contain_text('defended by the knight on c6')
-    expect(page.locator('.coach-portrait')).to_be_visible()
+    expect(page.locator('#boardCompanion .companion-person')).to_be_visible()
     page.locator('[data-training="show-why"]').click()
     expect(page.locator('.coach-evidence')).to_have_text('Course continuation')
     page.locator('[data-training="demonstrate"]').click()

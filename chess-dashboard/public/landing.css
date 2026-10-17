@@ -1570,3 +1570,8 @@ button {
   flex-shrink: 0;
   margin-left: 3px;
 }
+.board-stage { position:relative; min-width:0; }
+.board-stage .preview-board { margin-top:0; }
+.demo-coaching .demo-coach { display:none; }
+.demo-coaching > div { position:relative; padding:13px 16px; border:1px solid #718b77; border-radius:3px 16px 16px; width:100%; background:#214638; }
+.demo-coaching > div:before { content:''; position:absolute; top:-6px; left:24px; width:10px; height:10px; background:#214638; border-left:1px solid #718b77; border-top:1px solid #718b77; transform:rotate(45deg); }

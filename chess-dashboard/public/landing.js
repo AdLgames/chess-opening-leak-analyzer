@@ -52,18 +52,22 @@
 
   let preview = window.LessonPreviews[0];
   let board;
+  let companion;
   let completed = false;
   if ($("previewBoard")) {
+    companion = window.BoardCompanion.mount($("previewCompanion"));
     board = new LB.Board($("previewBoard"), {
       onMove(move) {
         if (completed) return;
         if (move.uci !== preview.answer) {
+          companion.show({ event: "retry", key: preview.id });
           board.clearSelection();
           $("demoFeedback").textContent =
             `${move.san} is legal. This lesson is practising ${preview.move}. Try that move, or ask for a hint.`;
           return;
         }
         completed = true;
+        companion.show({ event: "solved", key: preview.id });
         board.setPosition(preview.after.fen, {
           lastMove: { from: move.from, to: move.to },
         });
@@ -79,6 +83,7 @@
         window.LessonPreviews.find((p) => p.id === id) ||
         window.LessonPreviews[0];
       completed = false;
+      companion.show({ event: "learn", key: preview.id });
       board.setOrientation(preview.side);
       board.setPosition(preview.position.fen, {
         legal: preview.position.legal,
@@ -117,6 +122,7 @@
       const move = preview.position.legal.find((m) => m.uci === preview.answer);
       board.setArrows([{ from: move.from, to: move.to, kind: "best" }]);
       $("demoFeedback").textContent = preview.hint;
+      companion.show({ event: "hinted", key: preview.id });
     });
     showPreview(preview.id);
   }
@@ -160,6 +166,7 @@
   );
   function refreshCoach(id, announce = false, persisted = true) {
     const profile = profiles[id];
+    window.BoardCompanion.refresh();
     document
       .querySelectorAll("[data-choose-coach]")
       .forEach((b) =>
