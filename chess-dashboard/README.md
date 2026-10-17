@@ -40,61 +40,47 @@ starts that run on arrival rather than asking for the username a second time.
 Each of those is read once and then cleared from the URL, so a reload does not
 repeat it.
 
-Both pages run the same type system — Instrument Serif for the display line,
-IBM Plex Sans for the interface, IBM Plex Mono wherever characters have to line
-up (notation, FENs, evals) — from one Google Fonts request that is byte-identical
-on both, so moving between them costs no extra download.
-
-Both pages run the brand palette. The front page uses its dark half — Deep Navy
-bands, Off-White type, Aged Brass for branding and the call to action — and the
-tool uses its light half; the board, the move that loses ground (Muted Crimson)
-and the one to play instead (Muted Gold) are the same colours on both.
+The app serves Inter and JetBrains Mono from the bundled vendor fonts. It uses a
+compact chess-workspace layout, a dark default theme and warm wooden boards.
+Existing light, dark and system appearance preferences are retained.
 
 ## What the tool does
 
-The page has three states and shows one at a time. Before a run it is a single
-decision: a username, "Analyse my games", and a sample archive one click away.
-While a run is in flight that collapses to one line and a progress bar. After it,
-the report appears — and a cached report boots straight back into it.
+The app opens on **Today**. No games or account are needed to explore openings
+or save choices on the current device. The four destinations are always available:
 
-Three destinations, each named the same in the nav and in its heading. Macro and
-micro no longer share a page:
+1. **Today** — the working study board, visible on entry. Play legal moves,
+   compare book replies, follow an opening line forwards/backwards or reopen a
+   saved response. The side panel switches between Study, Moves and Your lines.
+2. **Explore** — a searchable library of 20 opening guides, each with an actual
+   board preview, an opening plan and three playable lines (60 in total).
+   Additional named positions are searchable in the opening database. Selecting
+   a guide or database result opens it on Today’s board.
+3. **Repertoire** — saved choices and notes grouped by side. Open any line on the
+   study board. The existing variation tree and game findings remain under a
+   disclosure; **Build a line** opens the existing prep editor.
+4. **Progress** — saved responses, recorded practice and optional game evidence,
+   with existing run comparisons and drill schedules.
 
-1. **Dashboard** — what is wrong. The summary band (coverage, leaks, points shed,
-   games read, worst opening), one call to action naming how many leaks are still
-   open, the chart, and the leak list itself: cost with an inline bar, opening
-   over its line, your move with its flags, you vs book, games. Tapping a row is
-   how you enter the Clinic.
+Desktop uses a compact sidebar; phones use four labelled bottom-navigation
+items. Hash routes support direct links and browser Back/Forward. Old
+`#dashboard`, `#clinic` and `#prep` links still work, resolving to contextual
+`#progress/games`, `#training` and `#repertoire/edit` routes. Practice returns to
+its entry screen. Game analysis is reachable from Tools, Today and Progress.
 
-   The chart has two readings behind one toggle, both drawn as SVG in the page —
-   no chart library, so the panel cannot vanish with a CDN. *Points shed* is a
-   ranked bar per opening: one series, so one colour, with the value at every tip
-   and no gridlines to carry. *You vs book* is a dumbbell — your score and the
-   book's from the same positions, the connector between them being the gap —
-   with the book in a recessive slate so the subject reads and the reference
-   recedes. Both mark colours are steps of the brand hues chosen with
-   `scripts/validate_palette.js`: they clear colour-vision separation and 3:1
-   against each surface, and the muted brass is relieved by the value labels and
-   the table underneath. Hovering any row gives the numbers the chart does not
-   print.
-2. **Clinic** — how to fix it, one leak at a time. The board is the hero, with
-   your record against the book, the eval swing, the engine's alternatives and
-   the book moves beside it, and Commit / Not interested / Drill this as the
-   actions. A Study/Drill switch turns the same position into a flashcard, and
-   the arrows walk the queue in cost order.
-3. **Repertoire** — why, and what you have built. The committed tree per colour,
-   the holes left in it, coverage, progress between runs, a profile of every
-   opening you play with the traps that have caught you, and the book explorer.
+Existing analysis still supports account fetch, PGN upload, the sample report,
+engine tools, filters, study/drill modes and CSV/PGN/Lichess exports. Its empty,
+running and report states are contained within the game-analysis screen. The
+analysis/account authentication rules are unchanged; they do not gate Explore.
 
-On a phone those three are a fixed bar at the bottom rather than a drawer; the
-rail returns above 860px.
+Saved repertoire choices, drill records, runs and preferences retain their
+`leaklab:` localStorage keys and existing account API shape. A version-1 baseline
+backs up existing working data to `leaklab:backup:v0` without rewriting records.
+Explicit sign-out/deletion clears that backup with the working copy. New optional
+line metadata also survives account sync. Save feedback confirms device storage
+only, and reports a tab-only copy if persistence fails.
 
-Run options beyond colour and how many games to read live behind "Advanced
-settings", which stays shut until you open it and then remembers that. Engine and
-book provenance, the cost formula and the flag legend are a footer dialog.
-
-Exports: the repertoire as PGN (variations nested), the drill set as PGN with
-FENs, the leak table as CSV, and the repertoire as a Lichess import.
+See [milestone review and screenshots](../docs/foundation-milestone-review.md).
 
 ## API
 
@@ -114,30 +100,25 @@ and their eval cache live under `/tmp/leaklab-jobs/`.
 
 ## Theme
 
-One set of tokens at the top of `public/styles.css`, from the brand palette:
+`public/app/styles.css` retains shared component styles. `workspace.css` supplies
+workspace tokens and responsive layouts: neutral surfaces, restrained purple
+actions, warm wooden squares and compact sans-serif typography.
+SVG pieces scale with their squares. Existing explicit light/dark preferences
+and system-theme support remain available. Controls have visible focus states;
+board moves support keyboard and touch, with a button-based book-move alternative.
 
-| Token | Hex | Where it goes |
-| --- | --- | --- |
-| `--navy` | `#1B2430` | Ink for all type, the nav rail, primary buttons |
-| `--on-navy` | `#F8FAFC` | Type on navy — and, as `--page`, the page itself |
-| `--accent` | `#B8935A` | Aged Brass: cost bars, cost numbers, coverage, flag chips. Nothing else |
-| `--accent-text` | `#825F2F` | The readable weight of brass, for anything brass has to say in type |
-| `--board-light` / `--board-dark` | `#EAE3D2` / `#634E3F` | Ivory Bone and Dark Walnut squares |
-| `--highlight` | `#A8A354` | Muted Gold: the last move, and the engine's pick |
-| `--slate` | `#3E5265` | Slate Blue: legal moves, selection, hover, secondary borders |
-| `--danger` | `#C95246` | Muted Crimson: a king in check, a move that loses ground |
+## Browser tests
 
-A dark theme is the same tokens from the other side — Deep Navy grounds the page,
-Off-White becomes the ink — and follows the operating system unless the footer
-switch says otherwise, which is remembered. Severity has three weights rather
-than three new hues (`--sev-high` crimson, `--sev-mid` brass, `--sev-low` a
-neutral), and the flag chip beside a number always says the same thing in words,
-so colour is never the only cue.
+```bash
+pip install -r ../chess_opening_analyzer/requirements.txt fastapi uvicorn python-multipart pytest playwright
+python -m playwright install --with-deps chromium
+python -m pytest tests -q
+```
 
-The palette is specified for a dark deployment; run light, Deep Navy and Off-White
-swap roles — navy becomes the ink and keeps the nav rail, off-white becomes the page.
-Every colour that carries type has a `-text` sibling dark enough to clear 4.5:1 on the
-page, and the board's coordinates take the colour of the opposite square.
+The tests start an isolated local API/static server automatically. To use an
+existing Chromium install, set `LEAKLAB_CHROMIUM=/usr/bin/chromium`. CI runs these
+journeys alongside the existing Python suite. Browser tests use real chess/book
+endpoints; targeted network failures and account availability are simulated.
 
 ## Notes
 

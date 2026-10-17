@@ -166,7 +166,7 @@ def _upsert_repertoire(uid: str, entry: dict[str, Any]) -> None:
         raise HTTPException(400, "A repertoire entry needs a key")
     slim = {k: v for k, v in entry.items()
             if k in ("position", "fen", "color", "eco", "opening", "played", "moveNumber",
-                     "games", "cost", "flag")}
+                     "games", "cost", "flag", "source", "name", "notes", "startFen", "explorePath")}
     db.execute(
         "INSERT INTO repertoire_commits (user_id, leak_key, status, answer, line, entry)"
         " VALUES (%s, %s, %s, %s, %s, %s)"

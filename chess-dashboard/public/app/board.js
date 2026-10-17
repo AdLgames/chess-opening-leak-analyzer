@@ -218,12 +218,13 @@
           const showFile = row === 7;
           const showRank = col === 0;
           return (
+            (col === 0 ? '<div class="cb-row" role="row">' : '') +
             `<div class="cb-sq ${light ? 'is-light' : 'is-dark'}" data-square="${sq}"` +
             ` role="gridcell" tabindex="-1" aria-label="${sq[0]} ${sq[1]}, empty">` +
             '<span class="cb-piece"></span><span class="cb-dot"></span>' +
             (showRank ? `<span class="cb-coord cb-rank">${sq[1]}</span>` : '') +
             (showFile ? `<span class="cb-coord cb-file">${sq[0]}</span>` : '') +
-            '</div>'
+            '</div>' + (col === 7 ? '</div>' : '')
           );
         })
         .join('');
@@ -473,7 +474,7 @@
         const pct = (n) => Math.round((100 * n) / total);
         return (
           `<tr data-uci="${m.uci}" class="${hit ? `is-${hit.kind}` : ''}">` +
-          `<td class="book-move">${esc(m.san)}${hit ? `<i class="tag tag-${hit.kind}">${esc(hit.label || hit.kind)}</i>` : ''}</td>` +
+          `<td class="book-move">${onPlay ? `<button class="book-play" type="button" aria-label="Play ${esc(m.san)}">${esc(m.san)}</button>` : esc(m.san)}${hit ? `<i class="tag tag-${hit.kind}">${esc(hit.label || hit.kind)}</i>` : ''}</td>` +
           `<td class="num">${m.games.toLocaleString()}</td>` +
           `<td class="num">${m.share.toFixed(1)}%</td>` +
           `<td class="num">${m.score === null ? '—' : m.score.toFixed(1) + '%'}</td>` +
@@ -521,6 +522,7 @@
 
   window.LeakBoard = {
     Board,
+    pieceSvg,
     setApiBase,
     position,
     engine,

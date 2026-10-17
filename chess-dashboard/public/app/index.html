@@ -4,19 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#F8FAFC" />
-    <title>Lichess &amp; Chess.com PGN Analyzer | Opening Leak Lab</title>
+    <title>Your chess workspace | Opening Leak Lab</title>
     <meta
       name="description"
       content="Connect a Chess.com or Lichess account, or upload a PGN. Every opening decision you repeat, checked against an opening book and a bundled Stockfish."
     />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231B2430'/%3E%3Cpath d='M9 23h14M11 20l1.5-7M21 20l-1.5-7M12.5 13h7M16 13V8' stroke='%23B8935A' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap"
-      rel="stylesheet"
-    />
+    <link rel="stylesheet" href="../vendor/fonts.css" />
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./workspace.css" />
 
     <!-- Vercel Web Analytics -->
     <script>
@@ -48,6 +44,7 @@
     <meta name="twitter:image" content="https://chessleaklab.co.uk/og.png" />
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
     <div class="scrim" id="scrim" hidden></div>
     <div class="app" id="app" data-state="empty">
       <!-- ------------------------------------------------------------ sidebar -->
@@ -67,12 +64,11 @@
           <span class="brand-text"><strong>Opening Leak Lab</strong></span>
         </a>
 
-        <nav class="nav" id="nav" aria-label="Sections">
-          <a href="#dashboard" class="nav-item is-active" data-view="dashboard">Dashboard</a>
-          <a href="#clinic" class="nav-item" data-view="clinic">Clinic</a>
-          <a href="#repertoire" class="nav-item" data-view="repertoire">Repertoire</a>
-          <a href="#prep" class="nav-item" data-view="prep">Prep</a>
-        </nav>
+        <nav class="nav" id="nav" aria-label="Main navigation"><a href="#today" class="nav-item" data-view="today"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v15H4zM8 3v4M16 3v4M4 10h16M8 14h3v3H8z"/></svg><span>Today</span></a>
+<a href="#explore" class="nav-item" data-view="explore"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m16 8-2 6-6 2 2-6z"/></svg><span>Explore</span></a>
+<a href="#repertoire" class="nav-item" data-view="repertoire"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4zM13 7a3 3 0 0 1 3-3h4v14h-3a4 4 0 0 0-4 3"/></svg><span>Repertoire</span></a>
+<a href="#progress" class="nav-item" data-view="progress"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16M8 15l4-5 4 2 4-7"/></svg><span>Progress</span></a></nav>
+
       </aside>
 
       <!-- ------------------------------------------------------------- header -->
@@ -81,9 +77,10 @@
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
         </button>
         <div class="header-title">
-          <h1 id="viewTitle">Report</h1>
+          <h1 id="viewTitle" tabindex="-1">Today</h1>
           <p id="viewSub"></p>
         </div>
+        <details class="menu workspace-tools"><summary class="btn btn-ghost">Tools</summary><div class="menu-body"><a class="menu-item" href="#progress/games">Analyse games</a><a class="menu-item" href="#repertoire/edit">Build your lines</a><button class="menu-item" type="button" id="workspaceHelp">Help &amp; data</button></div></details>
         <div class="header-actions" id="headerActions" hidden>
           <details class="menu" id="exportMenu">
             <summary class="btn btn-ghost">Export</summary>
@@ -102,7 +99,24 @@
       </header>
 
       <!-- --------------------------------------------------------------- main -->
-      <main class="main" id="main">
+      <main class="main" id="main" tabindex="-1">
+<section class="view" id="viewToday" hidden>
+  <div class="workbench-heading"><div><h2 id="openingGuideTitle">Opening board</h2><p id="guideMeta">Play a move or choose an opening.</p></div><a class="btn btn-ghost" href="#explore">Change opening <span aria-hidden="true">→</span></a></div>
+  <div id="todayBoardSlot"></div>
+</section>
+<section class="view" id="viewExplore" hidden>
+  <div class="library-heading"><div><h2>Opening library</h2><p id="catalogCount">20 openings · 60 lines to explore</p></div><a class="btn btn-ghost" href="#today">Back to board →</a></div>
+  <div class="catalog-toolbar"><label class="catalog-search"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><span class="sr-only">Search openings by name, moves or ECO code</span><input id="libSearch" type="search" placeholder="Search openings, moves or ECO code" autocomplete="off" /></label><div class="segmented" id="openingSide" aria-label="Opening side"><button class="seg is-active" data-side="all" aria-pressed="true">All</button><button class="seg" data-side="white" aria-pressed="false">White</button><button class="seg" data-side="black" aria-pressed="false">Black</button></div></div>
+  <div class="opening-cards" id="exploreOpenings"></div>
+  <div class="database-search"><h3 id="databaseSearchTitle" hidden>From the opening database</h3><ol class="opening-list" id="libResults" aria-live="polite"></ol></div>
+</section>
+<section class="view" id="viewProgress" hidden>
+  <div class="library-heading"><div><h2>Progress</h2><p id="progressSummary">Save a line or practise a position to start keeping a record.</p></div></div>
+  <div class="evidence-grid" id="progressEvidence"></div>
+  <div id="progressSlot"></div>
+  <details class="panel personal-details"><summary>Your opening patterns from games</summary><div id="personalSlot"></div></details>
+  <div class="analysis-link"><span>See how your opening choices hold up in your games.</span><a href="#progress/games">Analyse games →</a></div>
+</section>
         <!-- ================================================ dashboard -->
         <section class="view" id="viewDashboard">
           <div class="gate" id="gate">
@@ -211,7 +225,7 @@
 
         <!-- =================================================== clinic -->
         <!-- one leak at a time: the board, what it costs, and the fix -->
-        <section class="view" id="viewClinic" hidden>
+        <section class="view" id="viewClinic" hidden><div class="section-heading"><button class="btn btn-ghost" id="trainingExit">← Back to Today</button><span class="tag">Practice &amp; review</span></div>
           <!-- which leak is on the table, and how you want to work on it -->
           <div class="clinic-head" id="clinicHead" hidden>
             <div class="clinic-which">
@@ -225,7 +239,7 @@
             </div>
           </div>
           <p class="invite" id="clinicEmpty" hidden>
-            Nothing to work on yet. Run a report and the leaks it finds land here, one at a time.
+            Save a move in Explore or analyse your games to find a position to practise.
           </p>
             <section class="panel fix-panel" id="fixPanel">
               <div class="panel-head">
@@ -335,7 +349,9 @@
         <!-- =============================================== repertoire -->
         <!-- the why: what you have committed, how it is moving, and the book -->
         <section class="view" id="viewRepertoire" hidden>
-          <div class="coverage" id="coverageCard"></div>
+  <div class="library-heading"><div><h2>Repertoire</h2><p>Your saved opening lines and notes.</p></div><a class="btn btn-ghost" href="#repertoire/edit">Build a line</a></div>
+  <div id="savedLineCards"></div>
+  <details class="panel repertoire-details"><summary>Variation tree &amp; game findings</summary><div id="repertoireDetailSlot">          <div class="coverage" id="coverageCard"></div>
 
           <section class="panel">
             <div class="panel-head">
@@ -371,6 +387,7 @@
             <ol class="holes" id="repHoles"></ol>
           </section>
 
+</div></details>
           <section class="panel" id="progressPanel">
             <div class="panel-head"><h2>Progress</h2>
               <span class="hint">What has changed between runs</span></div>
@@ -412,42 +429,44 @@
             <section class="panel" id="trapPanel" hidden></section>
           </div>
 
-          <section class="panel library-panel">
+          <section class="library-panel" aria-label="Opening study board">
             <div class="library-body">
               <div class="board-col">
-                <div class="board-meta">
-                  <b id="libName">Starting position</b>
-                  <span class="mono muted" id="libTurn"></span>
-                </div>
+                <div class="board-meta"><b id="libName">Starting position</b><span id="libTurn" aria-live="polite"></span></div>
                 <div class="board" id="libBoard" aria-label="Explorer board"></div>
-                <p class="board-status" id="libStats"></p>
-                <div class="move-strip mono" id="libLine"></div>
                 <div class="board-bar">
-                  <button class="btn btn-ghost" id="libBack">Back one move</button>
-                  <button class="btn btn-ghost" id="libReset">Start position</button>
-                  <button class="btn btn-ghost" id="libFlip">Flip</button>
-                  <a class="btn btn-ghost" id="libLichess" target="_blank" rel="noopener">Open on Lichess</a>
-                  <button class="btn btn-ghost" id="libCopyFen" type="button">Copy FEN</button>
+                  <button class="btn btn-ghost" id="libRestart" aria-label="First position" title="First position">⇤</button>
+                  <button class="btn btn-ghost" id="libBack" aria-label="Previous move" title="Previous move">←</button>
+                  <button class="btn btn-ghost" id="libForward" aria-label="Next move" title="Next move" disabled>→</button>
+                  <button class="btn btn-ghost" id="libFlip" aria-label="Flip board">Flip</button>
+                  <button class="btn btn-primary" id="openSaveLine" disabled>Save line</button>
                 </div>
+                <div class="move-strip mono" id="libLine" aria-live="polite"></div>
+                <p id="exploreError" class="notice" role="alert" hidden></p><button class="btn btn-ghost" id="exploreRetry" hidden>Retry loading the board</button>
               </div>
-              <div class="library-side">
-                <label class="field">
-                  <span>Find any opening<i>by name or ECO code</i></span>
-                  <input id="libSearch" type="search" placeholder="e.g. Sicilian, Nimzo, C50" autocomplete="off" />
-                </label>
-                <ol class="opening-list" id="libResults"></ol>
-                <div class="pane-block">
-                  <h4>Book moves from here</h4>
-                  <div id="libBook"></div>
+              <aside class="library-side" aria-label="Opening study tools">
+                <div class="study-tabs" role="tablist" aria-label="Study panel">
+                  <button id="studyTab" role="tab" aria-controls="studyPane" aria-selected="true" data-panel="study" class="is-active">Study</button>
+                  <button id="movesTab" role="tab" aria-controls="movesPane" aria-selected="false" data-panel="moves">Moves</button>
+                  <button id="savedTab" role="tab" aria-controls="savedPane" aria-selected="false" data-panel="saved">Your lines</button>
                 </div>
-                <div class="pane-block">
-                  <div class="pane-head">
-                    <h4>Engine</h4>
-                    <button class="btn btn-ghost" id="libEngineBtn">Ask the engine</button>
-                  </div>
-                  <div id="libEngine"></div>
-                </div>
-              </div>
+                <section id="studyPane" role="tabpanel" aria-labelledby="studyTab">
+                  <p class="study-label" id="studyLineLabel">Opening position</p>
+                  <p id="openingGuideText">Play on the board or choose an opening from the library.</p>
+                  <h3 class="study-section-label">The plan</h3><p id="openingPlan">Develop your pieces, contest the centre and get your king to safety.</p>
+                  <div class="line-heading"><h3>Lines to explore</h3><span id="guideLineCount"></span></div>
+                  <div id="guideLines"></div>
+                  <button class="btn btn-primary" id="guideReplay">Walk through line</button>
+                  <p class="study-credit">Opening study notes · <a href="#explore">Browse the library</a></p>
+                </section>
+                <section id="movesPane" role="tabpanel" aria-labelledby="movesTab" hidden><h3 class="study-section-label">Common replies</h3><div id="libBook"></div><p class="board-status" id="libStats"></p><p class="small muted">Results come from the bundled opening book. Frequency and score describe games played, not the best move.</p></section>
+                <section id="savedPane" role="tabpanel" aria-labelledby="savedTab" hidden><h3 class="study-section-label">Saved responses</h3><div id="sidebarSaved"></div><a class="text-link" href="#repertoire">Open repertoire →</a></section>
+                <details class="board-tools"><summary>Board tools</summary>
+                  <div class="board-tool-actions"><button class="btn btn-ghost" id="libReset">Reset board</button><a class="btn btn-ghost" id="libLichess" target="_blank" rel="noopener">Lichess analysis →</a><button class="btn btn-ghost" id="libCopyFen" type="button">Copy FEN</button></div>
+                  <details class="position-tools"><summary>Enter moves or a position</summary><form id="explorePositionForm"><label class="field"><span>Moves in SAN or a FEN position</span><input id="explorePositionInput" placeholder="1. e4 e5 2. Nf3 Nc6" required /></label><button class="btn btn-ghost" type="submit">Show on board</button><p id="explorePositionError" role="alert" class="small"></p></form></details>
+                  <details class="pane-block"><summary>Engine analysis</summary><button class="btn btn-ghost" id="libEngineBtn">Ask the engine</button><div id="libEngine"></div></details>
+                </details>
+              </aside>
             </div>
           </section>
         </section>
@@ -456,16 +475,15 @@
         <section class="view" id="viewPrep" hidden>
           <section class="panel">
             <div class="panel-head">
-              <h2>Opening prep</h2>
+              <h2>Build your lines</h2>
               <div class="segmented" role="tablist" aria-label="Which side you are preparing">
                 <button class="seg is-active" data-prep-colour="white" role="tab">As White</button>
                 <button class="seg" data-prep-colour="black" role="tab">As Black</button>
               </div>
             </div>
             <p class="panel-note">
-              Walk the line you mean to play and pick your move at each turn. Lines you
-              have never gone wrong in are still lines you need to know, and the Clinic
-              will drill whatever you save here alongside the leaks from your games.
+              Pick a side, walk a line and save the responses you want to play. Your choices appear in Repertoire.
+              On your turn, choosing a move saves it; on the other side’s turn, it only explores.
             </p>
 
             <div class="prep-layout">
@@ -507,31 +525,18 @@
           <button class="foot-link" id="themeBtn" type="button" aria-pressed="false">Dark</button>
         </footer>
       </main>
-      <nav class="tabbar" id="tabbar" aria-label="Sections">
-        <a href="#dashboard" class="tab-item is-active" data-view="dashboard">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z" fill="currentColor"/></svg>
-          <span>Dashboard</span>
-        </a>
-        <a href="#clinic" class="tab-item" data-view="clinic">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3v6M9 21h6M8 9h8l1 7a5 5 0 0 1-10 0z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>Clinic</span>
-        </a>
-        <a href="#repertoire" class="tab-item" data-view="repertoire">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M17 7h2v13H8" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/></svg>
-          <span>Repertoire</span>
-        </a>
-        <a href="#prep" class="tab-item" data-view="prep">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 4v16M6 8l6-4 6 4M6 8v8l6 4 6-4V8" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/></svg>
-          <span>Prep</span>
-        </a>
-      </nav>
+      <nav class="tabbar" id="tabbar" aria-label="Main navigation"><a href="#today" class="tab-item" data-view="today"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v15H4zM8 3v4M16 3v4M4 10h16M8 14h3v3H8z"/></svg><span>Today</span></a>
+<a href="#explore" class="tab-item" data-view="explore"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m16 8-2 6-6 2 2-6z"/></svg><span>Explore</span></a>
+<a href="#repertoire" class="tab-item" data-view="repertoire"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4zM13 7a3 3 0 0 1 3-3h4v14h-3a4 4 0 0 0-4 3"/></svg><span>Repertoire</span></a>
+<a href="#progress" class="tab-item" data-view="progress"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16M8 15l4-5 4 2 4-7"/></svg><span>Progress</span></a></nav>
     </div>
 
     <!-- the input form lives here and is moved into the empty screen or this dialog,
          so there is exactly one of every control -->
+    <dialog class="dialog dialog-narrow" id="saveLineDialog" aria-labelledby="saveLineTitle"><div class="dialog-head"><h2 id="saveLineTitle">Save your line</h2><button class="btn btn-ghost" id="saveLineClose" aria-label="Close save line">Close</button></div>                <div class="save-line"><p class="small muted">Keep this move order and your latest response for the side you choose. Existing lines stay in your repertoire.</p><label class="field"><span>Play as</span><select id="saveLineSide"><option value="white">White</option><option value="black">Black</option></select></label><label class="field"><span>Line name</span><input id="saveLineName" maxlength="120" placeholder="e.g. My Italian Game" /></label><label class="field"><span>Your note <i>optional</i></span><textarea id="saveLineNote" rows="2" maxlength="2000" placeholder="What do you want to remember?"></textarea></label><button class="btn btn-primary" id="saveExplorerLine" disabled>Save to repertoire</button><p id="saveLineStatus" class="small muted" role="status"></p></div></dialog>
     <dialog class="dialog" id="runDialog">
       <div class="dialog-head">
-        <h2>Run again</h2>
+        <h2>Analyse your games</h2>
         <button class="icon-btn is-visible" id="runDialogClose" aria-label="Close">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
         </button>
@@ -748,6 +753,8 @@
     <script src="./repertoire.js"></script>
     <script src="./explorer.js"></script>
     <script src="./prep.js"></script>
+    <script src="./opening-guides.js"></script>
+    <script src="./workspace.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

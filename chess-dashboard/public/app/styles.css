@@ -780,7 +780,8 @@ tr.is-decided { opacity: 0.62; }
   user-select: none;
   touch-action: manipulation;
 }
-.cb-squares { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); height: 100%; width: 100%; }
+.cb-squares { display: grid; grid-template-columns: 1fr; grid-template-rows: repeat(8, 1fr); height: 100%; width: 100%; }
+.cb-row { display: grid; grid-template-columns: repeat(8, 1fr); min-height: 0; }
 .cb-sq {
   position: relative;
   display: flex;

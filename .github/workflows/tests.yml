@@ -36,8 +36,9 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r chess_opening_analyzer/requirements.txt pytest \
-            pg8000 fastapi httpx
+        run: |
+          pip install -r chess_opening_analyzer/requirements.txt pytest \
+            pg8000 fastapi httpx uvicorn python-multipart playwright
 
       - name: Install Stockfish
         run: python chess_opening_analyzer/tools/install_stockfish.py
@@ -45,8 +46,17 @@ jobs:
       - name: Verify the engine
         run: python chess_opening_analyzer/tools/install_stockfish.py --check
 
+      - name: Assemble hosted bundle
+        run: python vercel/prepare.py
+
       - name: Run tests
         run: cd chess_opening_analyzer && python -m pytest tests -q
+
+      - name: Install browser
+        run: python -m playwright install --with-deps chromium
+
+      - name: Browser release journeys
+        run: python -m pytest chess-dashboard/tests -q
 
       - name: End-to-end CLI run
         run: |

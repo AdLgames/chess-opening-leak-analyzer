@@ -33,7 +33,7 @@
   }
 
   function read(key, fallback) {
-    const raw = store() ? store().getItem(PREFIX + key) : memory.get(key);
+    const raw = memory.has(key) ? memory.get(key) : (store() ? store().getItem(PREFIX + key) : null);
     if (raw == null) return fallback;
     try {
       return JSON.parse(raw);
@@ -48,6 +48,7 @@
     if (!store()) return false;
     try {
       store().setItem(PREFIX + key, raw);
+      memory.delete(key); // persisted storage remains authoritative across tabs
       return true;
     } catch (err) {
       return false; // quota: the in-memory copy still serves this page view
@@ -127,8 +128,9 @@
         Prep is the other half: the move you mean to play in a position, whether
         or not you have ever failed there. Same key, same storage, same drill
         schedule — `source` is what tells them apart afterwards. */
-    commitPrep({ fen, move, color, eco = '', opening = '', line = [], moveNumber = 0 }) {
+    commitPrep({ fen, move, color, eco = '', opening = '', line = [], moveNumber = 0, name, notes, startFen, explorePath }) {
       if (!fen || !move) return null;
+      const existing = this.byKey(`${positionKey(fen)}|${move}`) || {};
       const entry = {
         key: `${positionKey(fen)}|${move}`,
         position: positionKey(fen),
@@ -137,14 +139,18 @@
         eco,
         opening,
         line: Array.isArray(line) ? line : [],
-        played: '',
+        played: existing.played || '',
         moveNumber: Number(moveNumber) || 0,
-        games: 0,
-        cost: 0,
-        flag: '',
+        games: existing.games || 0,
+        cost: existing.cost || 0,
+        flag: existing.flag || '',
         status: 'committed',
         answer: move,
         source: 'prep',
+        name: name ?? existing.name ?? '',
+        notes: notes ?? existing.notes ?? '',
+        startFen: startFen ?? existing.startFen ?? '',
+        explorePath: explorePath ?? existing.explorePath ?? [],
         decidedAt: Date.now(),
       };
       const rest = this.all().filter((e) => e.key !== entry.key);
@@ -276,11 +282,29 @@
 
   /** Drop everything this browser is holding — used on sign-out and on delete. */
   function forget() {
+    write('backup:v0', null);
     ['repertoire', 'runs', 'drills', 'report'].forEach((k) => write(k, k === 'drills' ? {} : (k === 'report' ? null : [])));
   }
 
+  // Version 1 retains the established record shape and stable keys. Back up old
+  // work before marking the baseline; never transform or clear the user's data.
+  function migrate() {
+    if (read('schemaVersion', 0) >= 1) return;
+    const prior = snapshot();
+    const hasWork = prior.repertoire.length || prior.runs.length || Object.keys(prior.drills).length;
+    if (hasWork && !read('backup:v0', null)) {
+      if (!write('backup:v0', { version: 0, at: Date.now(), ...prior })) return;
+    }
+    write('schemaVersion', 1);
+  }
+  migrate();
+
   window.Store = {
     repertoire,
+    savedLocally: (entry) => {
+      try { return !!store() && JSON.parse(store().getItem(PREFIX + 'repertoire') || '[]').some((e) => e.key === entry.key && JSON.stringify(e) === JSON.stringify(entry)); }
+      catch (err) { return false; }
+    },
     runs,
     drills,
     lastReport,
