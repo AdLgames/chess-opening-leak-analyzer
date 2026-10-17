@@ -154,7 +154,7 @@
     document.documentElement.dataset.board = value; $('boardPalette').value = value;
   }
   $('boardPalette').addEventListener('change', (event) => { S.prefs.set('boardPalette', event.target.value); boardPalette(); });
-  boardPalette();
+  boardPalette(); window.Coach.refresh();
   window.Workspace = {
     choose, reopen, custom, setPanel, refreshGuide: renderGuide,
     async position(line, side, title) {
@@ -164,6 +164,7 @@
     },
     render(view, ctx = {}) {
       boardPalette();
+      window.Coach.refresh();
       window.Training?.leave(view);
       window.Training?.overview(selected?.id || null);
       window.Preparation?.render(view, ctx);

@@ -1,367 +1,515 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#1B2430" />
-    <title>Chess Opening Analyzer: Fix the Mistakes You Repeat</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#173D32" />
+    <title>Make your next move make sense | Opening Leak Lab</title>
     <meta
       name="description"
-      content="Stop losing rating in the opening. Leak Lab checks your Chess.com or Lichess games against an opening book and Stockfish, and names the move to change."
+      content="Learn chess openings on the board, with illustrated guides, useful practice and a repertoire that stays with you."
     />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231B2430'/%3E%3Cpath d='M9 23h14M11 20l1.5-7M21 20l-1.5-7M12.5 13h7M16 13V8' stroke='%23B8935A' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="./landing.css" />
-
-    <!-- Vercel Web Analytics -->
-    <script>
-      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-    </script>
-    <script defer src="/_vercel/insights/script.js"></script>
-
     <link rel="canonical" href="https://chessleaklab.co.uk/" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Opening Leak Lab" />
-    <meta property="og:url" content="https://chessleaklab.co.uk/" />
-    <meta property="og:title" content="Chess Opening Analyzer: Fix the Mistakes You Repeat" />
+    <meta
+      property="og:title"
+      content="Make your next move make sense | Opening Leak Lab"
+    />
     <meta
       property="og:description"
-      content="Quiet opening moves you repeat every week, checked against an opening book and a bundled Stockfish — with the exact move to change."
+      content="Learn chess openings on the board, with illustrated guides, useful practice and a repertoire that stays with you."
     />
-    <meta property="og:image" content="https://chessleaklab.co.uk/og.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="A leak table over a chessboard: the openings costing the most points." />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Chess Opening Analyzer: Fix the Mistakes You Repeat" />
+    <meta property="og:type" content="website" />
     <meta
-      name="twitter:description"
-      content="Quiet opening moves you repeat every week, checked against a book and an engine — with the exact move to change."
+      property="og:image"
+      content="https://chessleaklab.co.uk/assets/brand/social.png"
     />
-    <meta name="twitter:image" content="https://chessleaklab.co.uk/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/assets/brand/mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/vendor/fonts.css" />
+    <link rel="stylesheet" href="/landing.css" />
   </head>
   <body>
-    <header class="site-head">
-      <a class="wordmark" href="/">
-        <span class="wordmark-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-        <span>Opening Leak Lab</span>
-      </a>
-      <nav class="site-nav" aria-label="Sections">
-        <a href="#how">How it works</a>
-        <a href="#report">Sample report</a>
-        <a href="#why">Book + engine</a>
-        <a href="/openings/">Openings</a>
-        <a class="nav-cta" href="#start">Run my report</a>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-head shell">
+      <a class="wordmark" href="/" aria-label="Opening Leak Lab home"
+        ><img src="/assets/brand/mark.svg" width="42" height="42" alt="" /><span
+          >Opening<span class="brand-second">Leak Lab</span></span
+        ></a
+      ><button
+        class="nav-toggle"
+        id="navToggle"
+        aria-expanded="false"
+        aria-controls="publicNav"
+      >
+        Menu <span aria-hidden="true">☰</span>
+      </button>
+      <nav id="publicNav" aria-label="Main navigation">
+        <a href="/learn/">Learn openings</a
+        ><a href="/coaches/">Meet your guides</a
+        ><a href="/openings/">Opening database</a
+        ><a class="nav-open" href="/app/"
+          >Open workspace
+          <span aria-hidden="true"
+            ><svg
+              class="arrow-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              aria-hidden="true"
+            >
+              <path d="M6 18 18 6M6 6h12v12" /></svg></span
+        ></a>
       </nav>
     </header>
-
-    <!-- ------------------------------------------------------------- hero -->
-    <section class="hero">
-      <div class="hero-copy">
-        <p class="hero-badge"><i aria-hidden="true"></i>Lichess book + Stockfish</p>
-        <h1>You are losing the same game<br /><em>over and over.</em></h1>
-        <p class="hero-lead">
-          Not blunders in time trouble — quiet opening moves you repeat every week. Leak Lab reads
-          your games, checks every repeated decision against the book and the engine, and shows you
-          the exact move to change.
-        </p>
-
-        <form class="start" id="start" action="/app/" method="get">
-          <div class="start-field">
-            <span class="platform" id="platform" role="group" aria-label="Where you play">
-              <button type="button" data-provider="lichess" aria-pressed="true">lichess.org/</button>
-              <i aria-hidden="true">·</i>
-              <button type="button" data-provider="chesscom" aria-pressed="false">chess.com/</button>
-            </span>
-            <label class="sr-only" for="user">Your username</label>
-            <input id="user" name="user" type="text" placeholder="your username"
-                   autocomplete="username" autocapitalize="none" spellcheck="false" />
-            <button class="start-go" type="submit">Find my leaks</button>
-          </div>
-        </form>
-        <p class="start-note" id="startNote">
-          Free · runs on your recent games · sign in to keep your progress ·
-          <a href="/app/?demo=1">see it on a sample archive</a>
-        </p>
-      </div>
-
-      <div class="hero-proof">
-        <div class="proof-card">
-          <p class="proof-head">
-            <span>Two Knights · after 5.exd5</span>
-            <span>&minus;1.9 in 14 games</span>
+    <main id="main">
+      <section class="hero shell">
+        <div class="hero-copy">
+          <span class="eyebrow"
+            ><span class="tiny-star" aria-hidden="true">✳</span> GOOD OPENINGS
+            START WITH AN IDEA</span
+          >
+          <h1>
+            Make your<br />next move<br />
+            <em>make sense.</em>
+          </h1>
+          <p class="hero-lead">
+            Less guessing. More “I get it.” Learn the ideas, play the moves, and
+            build an opening repertoire that feels like yours.
           </p>
-          <div class="board" role="img"
-               aria-label="Two Knights Defence after 5.exd5. d5 is marked as the move played, a5 as the book's answer.">
-            <div class="light b">♜</div>
-            <div class="dark"></div>
-            <div class="light b">♝</div>
-            <div class="dark b">♛</div>
-            <div class="light b">♚</div>
-            <div class="dark b">♝</div>
-            <div class="light"></div>
-            <div class="dark b">♜</div>
-            <div class="dark b">♟</div>
-            <div class="light b">♟</div>
-            <div class="dark b">♟</div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="light b">♟</div>
-            <div class="dark b">♟</div>
-            <div class="light b">♟</div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="light b">♞</div>
-            <div class="dark"></div>
-            <div class="light"></div>
-            <div class="dark b">♞</div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="good"></div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="leak w">♟</div>
-            <div class="dark b">♟</div>
-            <div class="light"></div>
-            <div class="dark w">♞</div>
-            <div class="light"></div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="light w">♝</div>
-            <div class="dark"></div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="dark"></div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="light"></div>
-            <div class="light w">♟</div>
-            <div class="dark w">♟</div>
-            <div class="light w">♟</div>
-            <div class="dark w">♟</div>
-            <div class="light"></div>
-            <div class="dark w">♟</div>
-            <div class="light w">♟</div>
-            <div class="dark w">♟</div>
-            <div class="dark w">♜</div>
-            <div class="light w">♞</div>
-            <div class="dark w">♝</div>
-            <div class="light w">♛</div>
-            <div class="dark w">♚</div>
-            <div class="light"></div>
-            <div class="dark"></div>
-            <div class="light w">♜</div>
+          <div class="hero-actions">
+            <a class="button primary" href="/app/#explore"
+              >Find my opening
+              <span aria-hidden="true"
+                ><svg
+                  class="arrow-icon"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  aria-hidden="true"
+                >
+                  <path d="M6 18 18 6M6 6h12v12" /></svg></span></a
+            ><a class="quiet-link" href="#try">Try a move first ↓</a>
           </div>
-          <p class="proof-key">
-            <span><i class="leak" aria-hidden="true"></i>5…Nxd5 — your move, 71% of the time</span>
-            <span><i class="good" aria-hidden="true"></i>5…Na5 — the book's answer</span>
-          </p>
-        </div>
-        <p class="proof-caption">
-          One leak, of the kind a report turns up. The knight recapture looks natural and loses just
-          under two pawns of value every time it is played.
-        </p>
-      </div>
-    </section>
-
-    <!-- -------------------------------------------------------- how it works -->
-    <section class="light-section" id="how">
-      <div class="shell">
-        <h2>Three steps, about ninety seconds</h2>
-        <p class="section-lead" style="margin-bottom: clamp(36px, 4vw, 56px)">
-          You give it a username. It does the reading, the counting and the second-guessing for you.
-        </p>
-
-        <div class="steps">
-          <div class="step">
-            <span class="eyebrow">Step 01</span>
-            <div class="step-art art-bars" aria-hidden="true">
-              <i style="height:34%"></i><i style="height:62%"></i><i style="height:48%"></i>
-              <i class="on" style="height:88%"></i><i style="height:56%"></i>
-              <i style="height:74%"></i><i style="height:41%"></i>
-            </div>
+          <p class="hero-note">Start freely. No account. No game import.</p>
+          <div class="hello">
+            <span class="coach-art" data-coach="maya" aria-hidden="true"></span>
             <div>
-              <h3>Your games come in</h3>
-              <p>Pull your recent games by username, or drop in a PGN. Openings get grouped so
-                repeated decisions stand out.</p>
+              <span class="hand-note">Your move. I’m here to help.</span>
+              <p>
+                Meet Maya, one of your illustrated study guides.<br /><a
+                  href="/coaches/"
+                  >Find your kind of company →</a
+                >
+              </p>
             </div>
           </div>
-
-          <div class="step">
-            <span class="eyebrow">Step 02</span>
-            <div class="step-art art-scale" aria-hidden="true">
-              <span class="track"></span>
-              <span class="pin"></span>
-              <span class="lo">book move</span>
-              <span class="hi">your move</span>
-            </div>
+        </div>
+        <div class="demo-stage" id="try">
+          <div class="board-top">
+            <span><i class="live-dot"></i> A little lesson. Right here.</span
+            ><span id="demoSide">White to move</span>
+          </div>
+          <div class="demo-tabs" role="group" aria-label="Try an opening">
+            <button data-preview="italian" aria-pressed="true">Italian</button
+            ><button data-preview="caro" aria-pressed="false">Caro-Kann</button
+            ><button data-preview="queens" aria-pressed="false">
+              Queen’s Gambit
+            </button>
+          </div>
+          <div
+            id="previewBoard"
+            class="preview-board"
+            aria-label="Interactive opening lesson"
+          ></div>
+          <div class="demo-coaching">
+            <span
+              class="coach-art demo-coach"
+              data-coach="maya"
+              aria-hidden="true"
+            ></span>
             <div>
-              <h3>Every decision gets checked twice</h3>
-              <p>Once against a Lichess-derived opening book, once against a bundled Stockfish.
-                Agreement matters more than either alone.</p>
-            </div>
-          </div>
-
-          <div class="step">
-            <span class="eyebrow">Step 03</span>
-            <div class="step-art art-grid" aria-hidden="true">
-              <i class="dark"></i><i></i><i class="dark"></i><i></i>
-              <i></i><i class="piece">♞</i><i></i><i class="dark"></i>
-            </div>
-            <div>
-              <h3>You drill the fix</h3>
-              <p>Each leak becomes a position you play out against the engine until the better move
-                is the one your hand reaches for.</p>
+              <span class="eyebrow" id="demoCoachName"
+                >Maya · Your study guide</span
+              >
+              <h2 id="demoPrompt">Bring your bishop into the game.</h2>
+              <p id="demoFeedback" role="status" aria-live="polite">
+                Tap the bishop on f1, then c4. You’re playing White.
+              </p>
+              <div class="demo-actions">
+                <button id="demoHint" class="text-button">
+                  A little hint
+                  <svg
+                    class="arrow-icon"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 18 18 6M6 6h12v12" />
+                  </svg></button
+                ><button id="demoReset" class="text-button">
+                  Start again ↺</button
+                ><a id="demoContinue" href="/app/?opening=italian#today" hidden
+                  >Keep learning →</a
+                >
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- ------------------------------------------------------- sample report -->
-    <section id="report">
-      <div class="shell" style="padding-block: clamp(56px, 7vw, 104px)">
-        <div class="report-head">
-          <div>
-            <span class="eyebrow">Sample report</span>
-            <h2>Where the points actually go</h2>
-          </div>
-          <p>An example report: a club player at 1540, 183 games read. Five leaks account for most
-            of the damage.</p>
-        </div>
-
-        <div class="report-grid">
-          <div class="leak-table">
-            <div class="leak-row leak-head">
-              <span>Cost</span><span>Opening</span><span>Your move</span><span>You vs book</span><span>Games</span>
-            </div>
-            <div class="leak-row">
-              <span class="leak-cost">&minus;1.9</span>
-              <span class="leak-name">Two Knights Defence <i>C57</i></span>
-              <span class="leak-move">5…Nxd5</span>
-              <span><span class="leak-bar"><i style="width:78%"></i></span></span>
-              <span class="leak-games">14</span>
-            </div>
-            <div class="leak-row">
-              <span class="leak-cost">&minus;1.2</span>
-              <span class="leak-name">French, Advance <i>C02</i></span>
-              <span class="leak-move">6.Be3</span>
-              <span><span class="leak-bar"><i style="width:54%"></i></span></span>
-              <span class="leak-games">21</span>
-            </div>
-            <div class="leak-row">
-              <span class="leak-cost">&minus;0.8</span>
-              <span class="leak-name">Queen&rsquo;s Gambit Declined <i>D37</i></span>
-              <span class="leak-move">7…b6</span>
-              <span><span class="leak-bar"><i style="width:41%"></i></span></span>
-              <span class="leak-games">9</span>
-            </div>
-            <div class="leak-row">
-              <span class="leak-cost">&minus;0.6</span>
-              <span class="leak-name">Sicilian, Alapin <i>B22</i></span>
-              <span class="leak-move">4.Nf3</span>
-              <span><span class="leak-bar"><i style="width:33%"></i></span></span>
-              <span class="leak-games">17</span>
-            </div>
-            <div class="leak-row">
-              <span class="leak-cost">&minus;0.4</span>
-              <span class="leak-name">Caro-Kann, Exchange <i>B13</i></span>
-              <span class="leak-move">5…Nf6</span>
-              <span><span class="leak-bar"><i style="width:22%"></i></span></span>
-              <span class="leak-games">12</span>
-            </div>
-          </div>
-
-          <div class="report-card">
-            <span class="cap">Points shed, by move number</span>
-            <div class="phase-bars" aria-hidden="true">
-              <i style="height:12%"></i><i style="height:18%"></i><i style="height:26%"></i>
-              <i class="warm" style="height:44%"></i><i class="hot" style="height:71%"></i>
-              <i class="hot" style="height:100%"></i><i class="warm" style="height:58%"></i>
-              <i style="height:31%"></i>
-            </div>
-            <p class="phase-scale"><span>move 1</span><span>move 16</span></p>
-            <p>Most of the damage lands between moves 5 and 9 — before either side has finished
-              developing.</p>
-          </div>
-
-          <div class="report-card">
-            <span class="cap">Holes in the repertoire</span>
-            <div class="holes">
-              <div><span>1.e4 c5 2.c3 Nf6</span><span>23 games</span></div>
-              <div><span>1.d4 d5 2.c4 e6 3.Nc3 c5</span><span>11 games</span></div>
-              <div><span>1.e4 e5 2.Nf3 d6</span><span>8 games</span></div>
-            </div>
-            <p>Positions you keep reaching with nothing committed. These are the cheapest points on
-              the board to win back.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ------------------------------------------------------- book + engine -->
-    <section class="light-section" id="why">
-      <div class="shell why">
-        <div>
-          <span class="eyebrow">Book + engine</span>
-          <h2>An engine alone would just tell you everything is fine</h2>
-          <p>Stockfish will happily call your move playable. The book knows that at your level,
-            nobody scores with it. Leak Lab only flags a move when both agree something is wrong —
-            the evaluation drifts and the practical results follow it down.</p>
-          <p>That is why the list is five lines long instead of fifty. Fixing a repeated opening
-            move is worth more than memorising a new one.</p>
-        </div>
-        <div class="verdicts">
-          <div class="verdict">
-            <p class="verdict-head"><span>5…Nxd5</span><span>your move</span></p>
-            <div class="verdict-row"><b>Engine</b>
-              <span class="meter"><i style="width:74%"></i></span><em>&minus;1.9</em></div>
-            <div class="verdict-row"><b>Book score</b>
-              <span class="meter"><i style="width:38%"></i></span><em>38%</em></div>
-          </div>
-          <div class="verdict">
-            <p class="verdict-head"><span>5…Na5</span><span class="good">book&rsquo;s answer</span></p>
-            <div class="verdict-row"><b>Engine</b>
-              <span class="meter"><i class="good" style="width:26%"></i></span><em>&minus;0.3</em></div>
-            <div class="verdict-row"><b>Book score</b>
-              <span class="meter"><i class="good" style="width:54%"></i></span><em>54%</em></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ------------------------------------------------------------- close -->
-    <section>
-      <div class="shell close">
-        <h2>Find out what your openings are costing you</h2>
-        <p>Ninety seconds, your username, and a list short enough to actually fix.</p>
-        <div class="close-actions">
-          <a class="btn-solid" href="#start">Run my report</a>
-          <a class="btn-hollow" href="/app/?demo=1">See a sample first</a>
-        </div>
-      </div>
-      <div class="site-foot">
+      </section>
+      <div class="ribbon">
         <div class="shell">
-          <span>Opening Leak Lab</span>
-          <span>
-            Book from database.lichess.org (CC0) · Stockfish GPLv3 ·
-            <a href="/app/#privacy" id="privacyLink">what happens to your games</a>
-          </span>
+          <span>Learn the <em>why.</em></span
+          ><i aria-hidden="true">✳</i><span>Play the <em>move.</em></span
+          ><i aria-hidden="true">✳</i><span>Make it <em>yours.</em></span>
         </div>
       </div>
-    </section>
-
-    <script src="./landing.js"></script>
+      <section class="courses-section cream">
+        <div class="shell">
+          <div class="section-head">
+            <div>
+              <span class="eyebrow">A GOOD PLACE TO BEGIN</span>
+              <h2>Three openings.<br />Plenty to get your teeth into.</h2>
+            </div>
+            <p>
+              Real plans, common replies and the moments that catch people out.
+              Pick a side. We’ll take it one move at a time.
+            </p>
+          </div>
+          <div class="course-list">
+            <article class="course-row" data-course-side="white">
+              <div
+                class="course-thumb"
+                data-thumb="italian"
+                role="img"
+                aria-label="Italian Game opening position"
+              ></div>
+              <div class="course-copy">
+                <div class="course-kicker">
+                  <span>01 / PLAY AS WHITE</span
+                  ><span class="course-level">Guided course</span>
+                </div>
+                <h3>Italian Game</h3>
+                <p>Open the centre. Let your pieces breathe.</p>
+                <div class="course-bottom">
+                  <span data-course-count="italian"
+                    >7 chapters · 26 positions</span
+                  ><a class="inline-link" href="/app/?opening=italian#today"
+                    >Open course
+                    <span aria-hidden="true"
+                      ><svg
+                        class="arrow-icon"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 18 18 6M6 6h12v12" /></svg></span
+                  ></a>
+                </div>
+              </div>
+            </article>
+            <article class="course-row" data-course-side="black">
+              <div
+                class="course-thumb"
+                data-thumb="caro"
+                role="img"
+                aria-label="Caro-Kann Defence opening position"
+              ></div>
+              <div class="course-copy">
+                <div class="course-kicker">
+                  <span>02 / PLAY AS BLACK</span
+                  ><span class="course-level">Guided course</span>
+                </div>
+                <h3>Caro-Kann Defence</h3>
+                <p>A steady structure. A clear plan to fight back.</p>
+                <div class="course-bottom">
+                  <span data-course-count="caro">5 chapters · 15 positions</span
+                  ><a class="inline-link" href="/app/?opening=caro#today"
+                    >Open course
+                    <span aria-hidden="true"
+                      ><svg
+                        class="arrow-icon"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 18 18 6M6 6h12v12" /></svg></span
+                  ></a>
+                </div>
+              </div>
+            </article>
+            <article class="course-row" data-course-side="black">
+              <div
+                class="course-thumb"
+                data-thumb="queens"
+                role="img"
+                aria-label="Queen’s Gambit Declined opening position"
+              ></div>
+              <div class="course-copy">
+                <div class="course-kicker">
+                  <span>03 / PLAY AS BLACK</span
+                  ><span class="course-level">Guided course</span>
+                </div>
+                <h3>Queen’s Gambit Declined</h3>
+                <p>Meet 1.d4 with a centre you can trust.</p>
+                <div class="course-bottom">
+                  <span data-course-count="queens"
+                    >5 chapters · 18 positions</span
+                  ><a class="inline-link" href="/app/?opening=queens#today"
+                    >Open course
+                    <span aria-hidden="true"
+                      ><svg
+                        class="arrow-icon"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 18 18 6M6 6h12v12" /></svg></span
+                  ></a>
+                </div>
+              </div>
+            </article>
+          </div>
+          <a class="quiet-link" href="/learn/"
+            >Take a closer look at the courses →</a
+          >
+        </div>
+      </section>
+      <section class="the-human-bit shell">
+        <div class="cast-scene">
+          <img
+            src="/assets/brand/coaches.webp"
+            width="1942"
+            height="809"
+            loading="lazy"
+            alt="Maya holding a knight, Theo inviting you to play, and Inez thinking through a move."
+          /><span class="scene-note">A little company at the board.</span>
+        </div>
+        <div>
+          <span class="eyebrow">BIG IDEAS. FRIENDLY FACES.</span>
+          <h2>A wrong move<br />is a place to start.</h2>
+          <p>
+            Get a useful clue, see the reply on the board and have another go.
+            Maya, Theo and Inez bring a familiar face to your study sessions.
+          </p>
+          <p class="muted">
+            Original illustrated guides. Explanations come from the lessons and
+            clearly labelled Stockfish analysis.
+          </p>
+          <a class="button outline" href="/coaches/"
+            >Meet your guides
+            <svg
+              class="arrow-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              aria-hidden="true"
+            >
+              <path d="M6 18 18 6M6 6h12v12" /></svg
+          ></a>
+        </div>
+      </section>
+      <section class="practice-section cream">
+        <div class="shell practice-layout">
+          <div>
+            <span class="eyebrow">FROM “I KNOW IT” TO “I CAN PLAY IT”</span>
+            <h2>Learn it.<br />Sleep on it.<br /><em>Play it again.</em></h2>
+            <p>
+              Save the responses you want to play. Come back for scheduled
+              recall. Then try the position against Stockfish.
+            </p>
+            <a class="inline-link" href="/app/#repertoire"
+              >Build your repertoire
+              <svg
+                class="arrow-icon"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                aria-hidden="true"
+              >
+                <path d="M6 18 18 6M6 6h12v12" /></svg
+            ></a>
+          </div>
+          <ol class="practice-steps">
+            <li>
+              <span>01</span>
+              <div>
+                <h3>Find the idea</h3>
+                <p>A short explanation, a clear plan and a move to try.</p>
+              </div>
+            </li>
+            <li>
+              <span>02</span>
+              <div>
+                <h3>Make it stick</h3>
+                <p>
+                  Review your positions without hints. Your next review is
+                  scheduled from your answers.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span>03</span>
+              <div>
+                <h3>Take it to the board</h3>
+                <p>
+                  Play five moves against Stockfish from a position you’ve
+                  studied.
+                </p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+      <section class="import-section shell" id="analyse">
+        <div>
+          <span class="eyebrow">ALREADY HAVE GAMES?</span>
+          <h2>Let your games<br />choose the next lesson.</h2>
+          <p>
+            Find opening decisions you keep repeating, then turn a useful
+            finding into something to practise.
+          </p>
+          <a class="quiet-link" href="/app/?demo=1"
+            >Explore a sample report →</a
+          >
+        </div>
+        <form id="start" class="import-form">
+          <p class="form-legend">Where do you play?</p>
+          <div
+            id="platform"
+            class="segmented"
+            role="group"
+            aria-label="Where you play"
+          >
+            <button type="button" data-provider="lichess" aria-pressed="true">
+              Lichess</button
+            ><button
+              type="button"
+              data-provider="chesscom"
+              aria-pressed="false"
+            >
+              Chess.com
+            </button>
+          </div>
+          <label for="user" class="sr-only">Your chess username</label>
+          <div class="username-field">
+            <input
+              id="user"
+              name="user"
+              autocomplete="username"
+              autocapitalize="none"
+              spellcheck="false"
+              placeholder="Your chess username"
+              required
+            /><button type="submit" class="button primary">
+              Find my patterns
+              <svg
+                class="arrow-icon"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                aria-hidden="true"
+              >
+                <path d="M6 18 18 6M6 6h12v12" />
+              </svg>
+            </button>
+          </div>
+          <p id="startNote">Recent games · sign in to keep analysis progress</p>
+          <a href="/app/#progress/games">Or upload a PGN →</a>
+        </form>
+      </section>
+      <section class="closing shell">
+        <div>
+          <span class="eyebrow">YOUR NEXT MOVE</span>
+          <h2>Come for an opening.<br />Stay for the understanding.</h2>
+          <a class="button primary" href="/app/#explore"
+            >Find your first opening
+            <span aria-hidden="true"
+              ><svg
+                class="arrow-icon"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                aria-hidden="true"
+              >
+                <path d="M6 18 18 6M6 6h12v12" /></svg></span
+          ></a>
+          <p>No account or game import needed to begin.</p>
+        </div>
+        <span
+          class="coach-art closing-coach"
+          data-coach="theo"
+          aria-hidden="true"
+        ></span>
+      </section>
+    </main>
+    <footer class="site-foot shell">
+      <a class="wordmark" href="/"
+        ><img src="/assets/brand/mark.svg" width="32" height="32" alt="" /><span
+          >Opening Leak Lab</span
+        ></a
+      >
+      <p>A little understanding. A better next move.</p>
+      <nav aria-label="Footer">
+        <a href="/app/?privacy=1">Privacy &amp; your data</a
+        ><a href="/assets/brand/wordmark.svg" download>Download logo</a
+        ><a href="/app/"
+          >Your workspace
+          <svg
+            class="arrow-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            aria-hidden="true"
+          >
+            <path d="M6 18 18 6M6 6h12v12" /></svg
+        ></a>
+      </nav>
+      <small
+        >Opening book from Lichess (CC0) · Analysis powered by Stockfish
+        (GPLv3)</small
+      >
+    </footer>
+    <script src="/app/store.js"></script>
+    <script src="/app/board.js"></script>
+    <script src="/app/opening-courses.js"></script>
+    <script src="/lesson-previews.js"></script>
+    <script src="/landing.js"></script>
   </body>
 </html>

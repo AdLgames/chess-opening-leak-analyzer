@@ -1,12 +1,27 @@
-/* Maya is an original illustrated guide. No invented biography or chess title.
+/* Maya, Theo and Inez are original illustrated guides. No invented chess titles.
    Authored feedback and engine feedback carry distinct, inspectable evidence. */
 (function () {
   'use strict';
   const LB = window.LeakBoard;
   const names = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
+  const profiles = { maya: 'Maya', theo: 'Theo', inez: 'Inez' };
+  function current() { const id = window.Store.prefs.get('studyCoach', 'maya'); return profiles[id] ? id : 'maya'; }
+  function picker() {
+    return `<label class="coach-choice">Guide <select id="trainingCoach">${Object.entries(profiles).map(([id, name]) => `<option value="${id}" ${id === current() ? 'selected' : ''}>${name}</option>`).join('')}</select></label>`;
+  }
+  function refresh() {
+    const id = current();
+    document.querySelectorAll('.coach-portrait').forEach((el) => { el.dataset.coach = id; });
+    document.querySelectorAll('.coach-name').forEach((el) => { el.innerHTML = `${profiles[id]} <span>· Study coach</span>`; });
+    if (document.getElementById('studyCoach')) document.getElementById('studyCoach').value = id;
+    if (document.getElementById('trainingCoach')) document.getElementById('trainingCoach').value = id;
+  }
+  document.addEventListener('change', (event) => {
+    if (['studyCoach', 'trainingCoach'].includes(event.target.id) && profiles[event.target.value]) { window.Store.prefs.set('studyCoach', event.target.value); refresh(); }
+  });
   function bubble(text, mood = 'calm') {
     const hidden = window.Store.prefs.get('coachPortraitHidden', false);
-    return `<div class="coach-speech ${hidden ? 'portrait-hidden' : ''}" data-mood="${mood}"><img class="coach-portrait" src="./assets/coach-maya.svg" width="68" height="80" alt="" /><div><span class="coach-name">Maya <span>· Study coach</span></span><p>${LB.esc(text)}</p></div></div>`;
+    return `<div class="coach-speech ${hidden ? 'portrait-hidden' : ''}" data-mood="${mood}"><span class="coach-portrait" data-coach="${current()}" aria-hidden="true"></span><div><span class="coach-name">${profiles[current()]} <span>· Study coach</span></span><p>${LB.esc(text)}</p></div></div>`;
   }
   async function explain(pos, move, card) {
     const authored = card?.mistakes?.[move.san];
@@ -32,5 +47,5 @@
       : `After ${move.san}, the engine finds ${reply.san}, ${consequence}.${Math.abs(best.cp) >= 9800 || Math.abs(response.cp) >= 9800 ? '' : ` Its evaluation falls by about ${(loss / 100).toFixed(1)} pawns compared with ${best.san}.`}`;
     return { text: comparison, moves: [move.uci, reply.uci], source: 'Stockfish · depth 12' };
   }
-  window.Coach = { bubble, explain };
+  window.Coach = { bubble, explain, refresh, picker };
 }());

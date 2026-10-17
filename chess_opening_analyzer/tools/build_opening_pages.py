@@ -331,7 +331,8 @@ def index_page(openings: list[Opening]) -> str:
 
 def sitemap(openings: list[Opening]) -> str:
     urls = [(f"{SITE}/", "weekly", "1.0"), (f"{SITE}/app/", "weekly", "0.8"),
-            (f"{SITE}/openings/", "weekly", "0.7")]
+            (f"{SITE}/openings/", "weekly", "0.7"),
+            (f"{SITE}/learn/", "weekly", "0.8"), (f"{SITE}/coaches/", "monthly", "0.6")]
     urls += [(f"{SITE}/openings/{o.slug}/", "monthly", "0.6") for o in openings]
     body = "".join(
         f"  <url>\n    <loc>{loc}</loc>\n    <changefreq>{freq}</changefreq>\n"
@@ -378,7 +379,7 @@ def main() -> int:
     print(f"{len(openings)} opening pages -> {root}")
     print(f"  {named} have a reply that measurably underperforms; "
           f"{len(openings) - named} report no outlier")
-    print(f"  sitemap lists {len(openings) + 3} URLs")
+    print(f"  sitemap lists {len(openings) + 5} URLs")
     return 0
 
 
