@@ -516,7 +516,7 @@
         wireStrip($('libLine'), timeline, (i) => this.run(() => this.jump(i)));
         $('libForward').disabled = !this.future.length;
         $('libRestart').disabled = !this.history.length;
-        window.dispatchEvent(new CustomEvent('chess:position', { detail: { line: this.history.map((m) => m.san), turn: pos.turn } }));
+        window.dispatchEvent(new CustomEvent('chess:position', { detail: { line: this.history.map((m) => m.san), turn: pos.turn, opening: pos.opening } }));
         $('libBack').disabled = this.moves.length === 0;
         LB.renderBook($('libBook'), pos.book, {
           onPlay: (uci) => { const move = this.pos.legal.find((m) => m.uci === uci); if (move) this.run(() => this.play(move)); },

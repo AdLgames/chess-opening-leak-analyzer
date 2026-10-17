@@ -135,7 +135,11 @@
   });
   $('guideReplay').addEventListener('click', () => { if (selected) window.Study.replay(lines()[selectedLine].line, selected.side); });
   window.addEventListener('chess:position', (event) => {
-    const { line, turn } = event.detail;
+    const { line, turn, opening } = event.detail;
+    if (selected && line.length && !lines().some((known) => {
+      const overlap = Math.min(line.length, known.line.length);
+      return line.slice(0, overlap).every((move, index) => move === known.line[index]);
+    })) custom(opening?.name || 'Your continuation', 'Explore replies in Moves, or save this continuation to your repertoire.');
     $('studyLineLabel').textContent = `${line.length ? `After ${line[line.length - 1]}` : 'Starting position'} · ${turn === 'white' ? 'White' : 'Black'} to move`;
   });
   renderOpenings(); renderGuide(); renderSaved(); setPanel('study');

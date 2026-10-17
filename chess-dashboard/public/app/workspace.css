@@ -73,7 +73,7 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
 .move-strip .ply { border: 0; background: none; color: var(--text-muted); padding: 4px 6px; min-height: 32px; }
 .move-strip .ply:hover { background: var(--surface-2); }
 .move-strip .ply.is-current { background: var(--surface-3); color: var(--text); }
-.move-strip .ply.is-future { opacity: .65; }
+.move-strip .ply.is-future { color: var(--text-faint); border-bottom: 1px dotted var(--line-strong); }
 .library-side { min-width: 0; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--line); background: var(--raised); border-radius: 4px; margin-top: 28px; max-height: calc(100dvh - 156px); overflow-y: auto; }
 .study-tabs { display: flex; border-bottom: 1px solid var(--line); }
 .study-tabs button { flex: 1; min-height: 44px; padding: 10px 4px; border: 0; background: transparent; color: var(--text-muted); font-size: 12px; cursor: pointer; }

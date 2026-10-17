@@ -296,6 +296,7 @@ def test_replay_back_forward_and_branching_keep_the_actual_line(page, app_url):
     page.get_by_role('button', name='Play c5', exact=True).click()
     expect(page.locator('#libForward')).to_be_disabled()
     expect(page.locator('#libLine')).to_contain_text('c5')
+    expect(page.locator('#openingGuideTitle')).to_contain_text('Sicilian')
     assert page.locator('#libLine .is-future').count() == 0
     save(page, name='My Sicilian position', side='black')
     entry = page.evaluate('Store.repertoire.committed()[0]')
