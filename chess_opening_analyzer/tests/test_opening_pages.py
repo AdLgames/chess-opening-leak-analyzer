@@ -128,4 +128,4 @@ def test_the_sitemap_lists_every_page_once(tmp_path, monkeypatch):
     locs = re.findall(r"<loc>(.*?)</loc>", xml)
     assert len(locs) == len(set(locs))
     assert f"{gen.SITE}/openings/{found[0].slug}/" in locs
-    assert f"{gen.SITE}/" in locs and f"{gen.SITE}/app/" in locs
+    assert f"{gen.SITE}/" in locs and f"{gen.SITE}/app/" not in locs

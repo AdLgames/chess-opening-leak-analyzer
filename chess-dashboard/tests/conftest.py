@@ -25,6 +25,9 @@ def app_url():
     # A release run performs many sessions in minutes. Rate-limit policy has its
     # own unit tests; isolated browser journeys must not exhaust the hourly budget.
     env = {**os.environ, 'LEAKLAB_READS_PER_MINUTE': '10000', 'LEAKLAB_ANALYZE_PER_HOUR': '10000', 'PYTHONPATH': str(ROOT / 'chess-dashboard')}
+    # Serve the same generated public content as the hosted build.
+    subprocess.run([sys.executable, str(ROOT / 'chess_opening_analyzer/tools/build_public_site.py')], cwd=ROOT, env=env, check=True, capture_output=True)
+    subprocess.run([sys.executable, str(ROOT / 'chess_opening_analyzer/tools/build_opening_pages.py')], cwd=ROOT, env=env, check=True, capture_output=True)
     command = (
         'from api_server import app; '
         'from fastapi.staticfiles import StaticFiles; '

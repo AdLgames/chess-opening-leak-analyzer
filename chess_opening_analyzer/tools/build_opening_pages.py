@@ -23,6 +23,7 @@ import html
 import os
 import re
 import sqlite3
+from public_site import head, header, footer, crumbs, PUBLIC_PATHS
 from dataclasses import dataclass, field
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -167,23 +168,33 @@ def sentence(o: Opening) -> str:
     side = "White" if o.mover == "white" else "Black"
     worst = o.worst
     if not worst:
-        return (f"{side} scores {pct(o.score)} here across {o.games:,} club games, and no "
+        return (f"{side} scores {pct(o.score)} here across {o.games:,} sampled games, and no "
                 "common reply does noticeably worse than the rest.")
     gap = o.score - worst.score
-    return (f"{side} scores {pct(o.score)} here across {o.games:,} club games — but the "
+    return (f"{side} scores {pct(o.score)} here across {o.games:,} sampled games — but the "
             f"{pct(worst.share)} who answer {worst.san} score {pct(worst.score)}, "
             f"{100 * gap:.0f} points worse.")
+
+
+def course_link(o: Opening) -> str:
+    name = o.name.lower()
+    courses = [("italian", "italian-game", "Italian Game"), ("caro-kann", "caro-kann", "Caro–Kann"), ("queen's gambit declined", "queens-gambit-declined", "Queen’s Gambit Declined")]
+    for match, slug, label in courses:
+        if match in name:
+            return f'<aside class="database-course-link">Want the plans behind the moves? <a href="/learn/{slug}/">Explore the {label} course →</a></aside>'
+    return '<aside class="database-course-link">Start with an explained position: <a href="/guides/">read our opening guides →</a></aside>'
 
 
 def page(o: Opening, siblings: list[Opening]) -> str:
     side = "White" if o.mover == "white" else "Black"
     lead = sentence(o)
+    breadcrumb, breadcrumb_schema = crumbs([("Opening database", "/openings/"), (o.name, "/openings/"+o.slug+"/")])
     # Google shows about sixty characters. The name has to survive; the framing
     # is what gets dropped when it does not fit.
     stem = f"{o.name} ({o.eco})"
-    title = f"{stem}: what club players get wrong"
+    title = f"{stem}: moves & results"
     if len(title) > 60:
-        title = f"{stem}: common mistakes"
+        title = f"{stem}: results"
     if len(title) > 60:
         title = stem[:60].rstrip(" ,:-")
     meta = lead if len(lead) <= 155 else lead[:152].rsplit(" ", 1)[0] + "…"
@@ -194,7 +205,7 @@ def page(o: Opening, siblings: list[Opening]) -> str:
           <td class="num">{r.games:,}</td>
           <td class="num">{pct(r.share)}</td>
           <td class="num">{pct(r.score)}</td>
-          <td>{'below the line' if r.under else 'holds up'}</td>
+          <td>{'below average' if r.under else 'within 3 points or above'}</td>
         </tr>\n"""
         for r in o.replies[:12])
 
@@ -204,37 +215,12 @@ def page(o: Opening, siblings: list[Opening]) -> str:
 
     return f"""<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#F8FAFC" />
-    <title>{esc(title)}</title>
-    <meta name="description" content="{esc(meta)}" />
-    <link rel="canonical" href="{SITE}/openings/{o.slug}/" />
-    <link rel="stylesheet" href="/landing.css" />
-    <meta property="og:type" content="article" />
-    <meta property="og:site_name" content="Opening Leak Lab" />
-    <meta property="og:title" content="{esc(title)}" />
-    <meta property="og:description" content="{esc(meta)}" />
-    <meta property="og:url" content="{SITE}/openings/{o.slug}/" />
-  </head>
+  {head(title, meta, '/openings/' + o.slug + '/', extra_schema=[breadcrumb_schema])}
   <body>
-    <header class="site-head">
-      <a class="wordmark" href="/">
-        <span class="wordmark-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-        <span>Opening Leak Lab</span>
-      </a>
-      <nav class="site-nav" aria-label="Sections">
-        <a href="/openings/">All openings</a>
-        <a class="nav-cta" href="/app/">Run my report</a>
-      </nav>
-    </header>
+    {header('/openings/')}
 
-    <main class="doc-body shell">
-      <nav class="crumbs" aria-label="Breadcrumb">
-        <a href="/">Home</a> › <a href="/openings/">Openings</a> ›
-        <span>{esc(o.name)}</span>
-      </nav>
+    <main id="main" class="doc-body shell">
+      {breadcrumb}
 
       <h1>{esc(o.name)}</h1>
       <p class="doc-eco"><span class="eco">{esc(o.eco)}</span>
@@ -242,20 +228,23 @@ def page(o: Opening, siblings: list[Opening]) -> str:
       <p class="doc-lead">{esc(lead)}</p>
 
       <h2>What {side} actually plays here</h2>
-      <p>Across {o.games:,} games from a Lichess-derived book of club play,
+      <p>Across {o.games:,} games from a Lichess-derived opening book,
         {side} scores {pct(o.score)} in this position. These are the replies
         people choose, and how each one works out.</p>
-      <table class="doc-table">
+      <div class="doc-table-wrap"><table class="doc-table">
+        <caption class="sr-only">Observed results for replies from this position</caption>
         <thead><tr><th>Reply</th><th class="num">Games</th><th class="num">Share</th>
-          <th class="num">{side} scores</th><th>Verdict</th></tr></thead>
+          <th class="num">{side} scores</th><th>Sample comparison</th></tr></thead>
         <tbody>
 {rows}        </tbody>
-      </table>
-      <p class="muted small">"Below the line" means the reply scores at least three
+      </table></div>
+      <p class="muted small">"Below average" means the reply scores at least three
         points worse than the position does overall. Replies played fewer than
-        {MIN_REPLY_GAMES} times are left out: the sample is too small to read.</p>
+        {MIN_REPLY_GAMES} times are left out. Score means wins plus half the draws. These pooled observations
+        are not engine evaluations: player strength, opponents and later mistakes affect results.</p>
+      {course_link(o)}
 
-      <h2>Is this costing you anything?</h2>
+      <h2>Compare with your own games</h2>
       <p>A table of averages cannot tell you whether <em>you</em> go wrong here — only
         your own games can. Opening Leak Lab reads your Chess.com or Lichess archive,
         finds the decisions you repeat, and checks each one against this book and a
@@ -265,21 +254,16 @@ def page(o: Opening, siblings: list[Opening]) -> str:
       {f'<h2>Related openings</h2><ul class="doc-links">{related}</ul>' if related else ''}
     </main>
 
-    <footer class="site-foot">
-      <div class="shell">
-        <span>Opening statistics from a Lichess-derived book of club games (CC0).</span>
-        <span><a href="/">Opening Leak Lab</a> · <a href="/app/">Run a report</a></span>
-      </div>
-    </footer>
+    {footer()}
   </body>
 </html>
 """
 
 
 def index_page(openings: list[Opening]) -> str:
-    title = "Chess openings by the numbers | Opening Leak Lab"
-    meta = (f"How {len(openings)} openings actually score in club play, and which "
-            "popular replies quietly do worse than the main line.")
+    title = "Chess opening statistics: moves & results | Opening Leak Lab"
+    meta = (f"Explore {len(openings)} well-sampled chess opening positions: common replies, "
+            "game counts and observed results. Understand the data before choosing a line.")
     groups: dict[str, list[Opening]] = {}
     for o in openings:
         groups.setdefault(o.eco[0], []).append(o)
@@ -293,46 +277,24 @@ def index_page(openings: list[Opening]) -> str:
 
     return f"""<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#F8FAFC" />
-    <title>{esc(title)}</title>
-    <meta name="description" content="{esc(meta)}" />
-    <link rel="canonical" href="{SITE}/openings/" />
-    <link rel="stylesheet" href="/landing.css" />
-  </head>
+  {head(title, meta, '/openings/')}
   <body>
-    <header class="site-head">
-      <a class="wordmark" href="/">
-        <span class="wordmark-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-        <span>Opening Leak Lab</span>
-      </a>
-      <nav class="site-nav" aria-label="Sections">
-        <a class="nav-cta" href="/app/">Run my report</a>
-      </nav>
-    </header>
-    <main class="doc-body shell">
-      <h1>Openings by the numbers</h1>
+    {header('/openings/')}
+    <main id="main" class="doc-body shell">
+      <h1>Chess openings,<br />by the numbers.</h1>
       <p class="doc-lead">{esc(meta)} Only positions with at least
-        {MIN_GAMES:,} games behind them are listed — below that the numbers are noise.</p>
+        {MIN_GAMES:,} games behind them are listed — smaller samples are excluded. Results describe this book, not every player or time control.</p>
       {blocks}
     </main>
-    <footer class="site-foot">
-      <div class="shell">
-        <span>Opening statistics from a Lichess-derived book of club games (CC0).</span>
-        <span><a href="/">Opening Leak Lab</a> · <a href="/app/">Run a report</a></span>
-      </div>
-    </footer>
+    {footer()}
   </body>
 </html>
 """
 
 
 def sitemap(openings: list[Opening]) -> str:
-    urls = [(f"{SITE}/", "weekly", "1.0"), (f"{SITE}/app/", "weekly", "0.8"),
-            (f"{SITE}/openings/", "weekly", "0.7"),
-            (f"{SITE}/learn/", "weekly", "0.8"), (f"{SITE}/coaches/", "monthly", "0.6")]
+    urls = [(SITE + path, "weekly", "1.0" if path == "/" else "0.7") for path in PUBLIC_PATHS]
+    urls.append((SITE + "/openings/", "weekly", "0.7"))
     urls += [(f"{SITE}/openings/{o.slug}/", "monthly", "0.6") for o in openings]
     body = "".join(
         f"  <url>\n    <loc>{loc}</loc>\n    <changefreq>{freq}</changefreq>\n"
@@ -377,9 +339,9 @@ def main() -> int:
 
     named = sum(1 for o in openings if o.worst)
     print(f"{len(openings)} opening pages -> {root}")
-    print(f"  {named} have a reply that measurably underperforms; "
+    print(f"  {named} have a reply at least 3 percentage points below the position average; "
           f"{len(openings) - named} report no outlier")
-    print(f"  sitemap lists {len(openings) + 5} URLs")
+    print(f"  sitemap lists {len(openings) + len(PUBLIC_PATHS) + 1} URLs")
     return 0
 
 

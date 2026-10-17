@@ -223,8 +223,8 @@
             `<div class="cb-sq ${light ? 'is-light' : 'is-dark'}" data-square="${sq}"` +
             ` role="gridcell" tabindex="-1" aria-label="${sq[0]} ${sq[1]}, empty">` +
             '<span class="cb-piece"></span><span class="cb-dot"></span>' +
-            (showRank ? `<span class="cb-coord cb-rank">${sq[1]}</span>` : '') +
-            (showFile ? `<span class="cb-coord cb-file">${sq[0]}</span>` : '') +
+            (showFile ? `<span class="cb-coord cb-file" aria-hidden="true">${sq[0]}</span> ` : '') +
+            (showRank ? `<span class="cb-coord cb-rank" aria-hidden="true">${sq[1]}</span>` : '') +
             '</div>' + (col === 7 ? '</div>' : '')
           );
         })
