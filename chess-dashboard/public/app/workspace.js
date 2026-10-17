@@ -166,6 +166,7 @@
       boardPalette();
       window.Coach.refresh();
       window.Training?.leave(view);
+      window.DailySession?.render();
       if (!window.Training?.active()) {
         if (view === 'today') window.Coach.onBoard({ event: 'explore', key: 'explore', prompt: 'Pick an opening or play a move. Make yourself at home.' });
         else window.Coach.hideBoard();

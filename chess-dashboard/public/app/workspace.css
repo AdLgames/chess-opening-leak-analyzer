@@ -390,3 +390,58 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
   .library-panel:has(#boardCompanion:not([hidden]):not(.is-quiet)) .library-body { grid-template-columns:minmax(0,min(760px,calc(100dvh - 330px))) minmax(270px,330px); }
   .library-panel:has(#boardCompanion:not([hidden]).is-quiet) .library-body { grid-template-columns:minmax(0,min(760px,calc(100dvh - 270px))) minmax(270px,330px); }
 }
+/* One clear, honest invitation to the daily learning loop. */
+.daily-invite { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:16px 0 18px; margin-bottom:16px; border-bottom:1px solid var(--line); }
+.daily-eyebrow { font-size:9px; letter-spacing:.13em; color:var(--text-muted); }
+.daily-invite h2 { font-size:18px; letter-spacing:-.35px; margin:4px 0 6px; font-weight:500; }
+.daily-invite p { font-size:10px; color:var(--text-muted); margin:0; }
+.daily-invite-actions { display:flex; align-items:end; gap:10px; }
+.daily-invite-actions label { display:grid; gap:5px; font-size:9px; color:var(--text-muted); }
+.daily-invite select { min-height:38px; padding:6px; border:1px solid var(--line); color:var(--text); background:var(--raised); border-radius:4px; font-size:11px; max-width:160px; }
+.daily-invite .btn { min-height:42px; white-space:nowrap; font-size:11px; }
+.daily-last,.daily-end { border:0; padding:7px 0; background:none; color:var(--text-muted); text-decoration:underline; text-underline-offset:3px; font:10px var(--sans); cursor:pointer; }
+.daily-recap ul { padding-left:18px; font-size:12px; line-height:1.8; margin:18px 0; }
+.daily-recap p { font-size:11px; line-height:1.7; margin:10px 0; color:var(--text-muted); }
+.daily-recap > .btn { width:100%; margin-top:12px; }
+.daily-complete .coach-speech { grid-template-columns:minmax(0,1fr); }
+.daily-complete .coach-portrait { display:none; }
+.visual-legend { font-size:10px; color:var(--text-muted); line-height:1.7; margin-top:14px; }
+.cb-circle { fill:none; stroke-width:.6; stroke:#dab66a; opacity:.95; }
+.cb-circle.cb-best { stroke:#e6ba4b; }
+.cb-circle.cb-book { stroke:#67c7e5; }
+@media(min-width:1101px) {
+  .has-daily-invite .library-panel:has(#boardCompanion:not([hidden]):not(.is-quiet)) .library-body { grid-template-columns:minmax(0,min(760px,calc(100dvh - 390px))) minmax(270px,330px); }
+}
+@media(max-width:860px) {
+  .daily-invite { align-items:stretch; flex-direction:column; gap:12px; padding-top:0; }
+  .daily-invite h2 { font-size:17px; }
+  .daily-invite-actions { flex-wrap:wrap; gap:8px; }
+  .daily-invite-actions label { flex:1; }
+  .daily-invite select { max-width:100%; width:100%; font-size:12px; }
+  .daily-invite-actions > .btn { width:100%; }
+  .daily-recap ul { font-size:11px; margin-block:12px; }
+}
+.cb-circle-outline { stroke:#17352b; stroke-width:1.05; fill:none; }
+.cb-arrow-outline { stroke:#17352b; stroke-width:2.3; fill:none; stroke-linejoin:round; stroke-linecap:round; }
+.cb-head { stroke:#17352b; stroke-width:.25; paint-order:stroke fill; }
+.daily-invite { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px 20px; padding:8px 0 12px; margin-bottom:10px; }
+#dailyStatus { grid-column:1/-1; }
+#dailyStatus:empty { display:none; }
+@media(max-width:860px) { .daily-invite { display:flex; } }
+#trainingPanel > .visual-legend { font-size:10px; line-height:1.4; margin:8px 0; }
+#trainingPanel > .visual-legend { margin:4px 0; }
+.visual-actions { margin-top:8px; }
+@media(max-width:860px) { .daily-invite select { font-size:16px; } }
+.daily-meta { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.daily-meta .daily-last { padding:0; min-height:24px; font-size:9px; }
+.daily-settings { max-width:240px; position:relative; }
+.daily-settings > summary { font-size:10px; color:var(--text-muted); cursor:pointer; list-style:none; line-height:1.6; }
+.daily-settings > summary > span { text-decoration:underline; text-underline-offset:3px; margin-left:5px; }
+.daily-settings > div { display:flex; gap:10px; padding:12px; background:var(--raised); border:1px solid var(--line); border-radius:5px; position:absolute; right:0; top:100%; z-index:10; box-shadow:0 10px 30px #0002; }
+@media(max-width:860px) {
+  .daily-invite-actions { flex-wrap:nowrap; align-items:center; }
+  .daily-invite-actions > .btn { width:auto; flex:none; font-size:10px; padding-inline:10px; }
+  .daily-settings { flex:1; min-width:0; }
+  .daily-settings > div { width:calc(100vw - 40px); right:auto; left:0; }
+  .daily-settings label { min-width:0; }
+}

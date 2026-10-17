@@ -683,10 +683,10 @@
         library.busy = false;
         library.controller = onMove;
       },
-      present(pos, { enabled = true, arrows = [], lastMove = null, orientation = 'white', title = 'Italian' } = {}) {
+      present(pos, { enabled = true, arrows = [], circles = [], lastMove = null, orientation = 'white', title = 'Italian' } = {}) {
         if (!library.controller || !library.board) return;
         library.board.setOrientation(orientation);
-        library.board.setPosition(pos.fen, { legal: enabled ? pos.legal : [], arrows, lastMove });
+        library.board.setPosition(pos.fen, { legal: enabled ? pos.legal : [], arrows, circles, lastMove });
         $('libBoard').setAttribute('aria-busy', 'false');
         $('libTurn').textContent = `${pos.turn === 'white' ? 'White' : 'Black'} to move`;
         $('libName').textContent = title;
