@@ -249,8 +249,14 @@ async def put_pref(request: Request) -> dict[str, Any]:
     key = str(body.get("key") or "")
     if not key:
         raise HTTPException(400, "A preference needs a key")
+    # Learning evidence has a stable ID. Retries and concurrent delivery must
+    # not replace a recorded attempt, enrolment or completed practical session.
+    parts = key.split(":")
+    immutable = key.startswith("learning:v2:") and len(parts) > 3 and parts[3] in (
+        "attempt", "enrol", "chapter", "practical", "exercise")
+    conflict = " DO NOTHING" if immutable else " DO UPDATE SET value = EXCLUDED.value"
     db.execute("INSERT INTO user_prefs (user_id, key, value) VALUES (%s, %s, %s)"
-               " ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value",
+               " ON CONFLICT (user_id, key)" + conflict,
                (user["id"], key, json.dumps(body.get("value"))))
     return {"ok": True}
 

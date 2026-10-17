@@ -100,27 +100,21 @@ DEMO_LOCK = threading.Lock()  # one demo build at a time, however many tabs ask
 MAX_UPLOAD_BYTES = 40 * 1024 * 1024
 ENGINE_CACHE = os.path.join(os.path.expanduser("~"), ".cache", "leaklab", "board_evals.json")
 
-# one shared read-only handle for the board panes; SQLite reads are thread safe here
-_BOARD_DB: LocalOpeningDatabase | None = None
-_BOARD_DB_LOCK = threading.Lock()
+# Each worker owns its SQLite handle. Sharing a connection between simultaneous
+# position/search requests can corrupt its statement cache on Python 3.12.
+_BOARD_DB = threading.local()
 
 
 def board_db() -> LocalOpeningDatabase | None:
-    global _BOARD_DB  # noqa: PLW0603 - deliberate module-level singleton
-    if _BOARD_DB is None and os.path.exists(DEFAULT_DB):
-        with _BOARD_DB_LOCK:
-            if _BOARD_DB is None:
-                try:
-                    _BOARD_DB = LocalOpeningDatabase(DEFAULT_DB)
-                except sqlite3.DatabaseError:
-                    # An unpulled Git LFS pointer. The board still draws and the engine
-                    # still runs; only the book panel has nothing to say, which the page
-                    # already handles. A 500 here would take the whole board down.
-                    return None
-                _BOARD_DB.con.close()
-                _BOARD_DB.con = sqlite3.connect(DEFAULT_DB, check_same_thread=False)
-                _BOARD_DB.con.row_factory = sqlite3.Row
-    return _BOARD_DB
+    db = getattr(_BOARD_DB, "book", None)
+    if db is None and os.path.exists(DEFAULT_DB):
+        try:
+            db = LocalOpeningDatabase(DEFAULT_DB)
+        except sqlite3.DatabaseError:
+            # An unpulled Git LFS pointer leaves the board usable without a book.
+            return None
+        _BOARD_DB.book = db
+    return db
 
 
 # --------------------------------------------------------------------------- meta

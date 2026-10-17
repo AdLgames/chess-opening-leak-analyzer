@@ -144,20 +144,16 @@ LIMITS = {
 
 # board evaluations are cached in /tmp, the only writable path on the function
 BOARD_CACHE = os.path.join(WORK_ROOT, "board_evals.json")
-_BOARD_DB: LocalOpeningDatabase | None = None
+_BOARD_DB = threading.local()
 
 
 def board_db() -> LocalOpeningDatabase | None:
-    """One shared read-only book handle for the board panes, safe across threads."""
-    global _BOARD_DB  # noqa: PLW0603 - deliberate module-level singleton
-    if _BOARD_DB is None and os.path.exists(DEFAULT_DB):
-        import sqlite3
-
-        _BOARD_DB = LocalOpeningDatabase(DEFAULT_DB)
-        _BOARD_DB.con.close()
-        _BOARD_DB.con = sqlite3.connect(DEFAULT_DB, check_same_thread=False)
-        _BOARD_DB.con.row_factory = sqlite3.Row
-    return _BOARD_DB
+    """Reuse a book within each worker, never a SQLite connection across threads."""
+    db = getattr(_BOARD_DB, "book", None)
+    if db is None and os.path.exists(DEFAULT_DB):
+        db = LocalOpeningDatabase(DEFAULT_DB)
+        _BOARD_DB.book = db
+    return db
 
 app = FastAPI(title="Opening Leak Lab API (serverless)")
 # Sessions are cookie-borne, so the API is same-origin only: a wildcard CORS

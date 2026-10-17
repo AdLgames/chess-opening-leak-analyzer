@@ -242,12 +242,22 @@
   };
 
   const prefs = {
+    all() {
+      const keys = new Set(memory.keys());
+      const raw = store();
+      if (raw) for (let i = 0; i < raw.length; i += 1) {
+        const key = raw.key(i) || '';
+        if (key.startsWith(`${PREFIX}pref:`)) keys.add(key.slice(PREFIX.length));
+      }
+      return Object.fromEntries([...keys].filter((k) => k.startsWith('pref:')).map((k) => [k.slice(5), read(k, null)]));
+    },
     get(key, fallback) {
       return read(`pref:${key}`, fallback);
     },
     set(key, value) {
-      write(`pref:${key}`, value);
+      const persisted = write(`pref:${key}`, value);
       push('pref', { key, value });
+      return persisted;
     },
   };
 
@@ -255,22 +265,16 @@
   /** Everything worth carrying to another device, in the shape /api/state takes. */
   function snapshot() {
     const drillMap = drills.all();
-    const prefMap = {};
-    const raw = store();
-    if (raw) {
-      for (let i = 0; i < raw.length; i += 1) {
-        const k = raw.key(i) || '';
-        if (k.startsWith(`${PREFIX}pref:`)) {
-          prefMap[k.slice(PREFIX.length + 5)] = read(k.slice(PREFIX.length), null);
-        }
-      }
-    }
+    const prefMap = prefs.all();
     return { repertoire: repertoire.all(), runs: runs.all(), drills: drillMap, prefs: prefMap };
   }
 
   /** Replace the local working copy with what the server holds for this account. */
   function adopt(remote) {
     if (!remote) return;
+    // Learning records belong to the signed-in account. Auth imports guest
+    // records before adoption; absent records must not leak from another user.
+    Object.keys(prefs.all()).filter((k) => k.startsWith('learning:v2:')).forEach((k) => write(`pref:${k}`, null));
     if (Array.isArray(remote.repertoire)) write('repertoire', remote.repertoire);
     if (Array.isArray(remote.runs)) write('runs', remote.runs);
     if (remote.drills && typeof remote.drills === 'object') write('drills', remote.drills);
@@ -282,6 +286,7 @@
 
   /** Drop everything this browser is holding — used on sign-out and on delete. */
   function forget() {
+    Object.keys(prefs.all()).filter((k) => k.startsWith('learning:v2:')).forEach((k) => write(`pref:${k}`, null));
     write('backup:v0', null);
     ['repertoire', 'runs', 'drills', 'report'].forEach((k) => write(k, k === 'drills' ? {} : (k === 'report' ? null : [])));
   }

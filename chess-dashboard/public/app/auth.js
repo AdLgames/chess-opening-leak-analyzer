@@ -143,20 +143,29 @@
   };
 
   function connect() {
+    const learningWrites = new Map();
     S.connect((kind, payload) => {
       const send = SINKS[kind];
-      if (send) send(payload).catch(() => {});
+      if (!send) return;
+      if (kind === 'pref' && payload.key.startsWith('learning:v2:')) {
+        // Never let a slower older checkpoint arrive after a newer answer.
+        const key = payload.key;
+        const request = (learningWrites.get(key) || Promise.resolve()).then(() => send(payload)).catch(() => {});
+        learningWrites.set(key, request);
+        request.finally(() => { if (learningWrites.get(key) === request) learningWrites.delete(key); });
+      } else send(payload).catch(() => {});
     });
   }
 
   /* ------------------------------------------------------------ session boot */
   async function pull() {
-    const remote = await api('/api/state');
+    let remote = await api('/api/state');
     const local = S.snapshot();
+    const learning = Object.fromEntries(Object.entries(local.prefs).filter(([k, v]) => k.startsWith('learning:v2:') && v));
     const empty = !remote.runs.length && !remote.repertoire.length
       && !Object.keys(remote.drills).length;
     const haveLocal = local.runs.length || local.repertoire.length
-      || Object.keys(local.drills).length;
+      || Object.keys(local.drills).length || Object.keys(learning).length;
     // People used this app before it had accounts. Signing in must look like
     // picking their work up, not like starting over, so a first sign-in adopts
     // whatever the browser was already holding.
@@ -166,6 +175,13 @@
         body: JSON.stringify(local),
       }));
     } else {
+      // Immutable learning events use independent keys, so a guest's completed
+      // work can join an existing account without replacing its history.
+      const missing = Object.fromEntries(Object.entries(learning).filter(([k]) => !remote.prefs?.[k]));
+      if (Object.keys(missing).length) remote = await api('/api/state/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefs: missing }),
+      });
       S.adopt(remote);
     }
     state.progress = remote.progress || null;
