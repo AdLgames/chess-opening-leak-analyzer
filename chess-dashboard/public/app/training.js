@@ -54,7 +54,7 @@
         <div class="course-review">${button('review', summary.due.length ? `Review ${summary.due.length} due →` : summary.schedules.length ? 'Practise learned moves →' : 'Start first lesson →', true)}
         <label class="course-length"><span>Session</span><select id="courseMinutes" aria-label="Practice session length">${[5,10,15].map((n) => `<option value="${n}" ${window.Store.prefs.get('italianSessionMinutes', 5) === n ? 'selected' : ''}>${n} min</option>`).join('')}</select></label></div>
         ${summary.schedules.length && !summary.due.length ? `<p class="course-note">${dueText(Math.min(...summary.schedules.map((s) => s.due)))} · Early practice is optional.</p>` : ''}
-        <div class="model-game-list"><h3>See the plans in a game</h3>${window.ModelGames.filter((g) => g.course === C.id).map((g) => `<button class="model-game-link" data-model-game="${g.id}"><strong>${esc(g.title)}</strong><span>${esc(g.players)} · ${esc(g.event)}</span><span>Replay with Maya →</span></button>`).join('')}</div>`;
+        <div class="model-game-list"><h3>See the plans in a game</h3>${window.ModelGames.filter((g) => g.course === C.id).map((g) => `<button class="model-game-link" data-model-game="${g.id}"><strong>${esc(g.title)}</strong><span>${esc(g.players)} · ${esc(g.event)}</span><span>Replay with your guide →</span></button>`).join('')}</div>`;
     }
     const enrolled = catalog().filter((c) => window.LearningStore.forCourse(c.id).summary(c.cards).schedules.length);
     $('repertoireCourse').hidden = !enrolled.length;
@@ -112,6 +112,16 @@
       ${session.explanation ? `<p class="coach-evidence">${esc(session.explanation.source)}</p>` : ''}
       ${failure ? `<p class="notice" role="alert">${esc(failure)}</p>${button('retry', 'Retry position', true)}` : ''}
       <div class="training-actions">${controls}</div><p class="training-storage">${L.durable() ? 'Progress saved on this device.' : 'Progress is kept in this tab only. Device storage is unavailable; keep this tab open.'}</p><div class="coach-options">${window.Coach.picker()}<button class="coach-toggle" data-training="toggle-coach">${window.Store.prefs.get('coachPortraitHidden', false) ? 'Show' : 'Hide'} coach portrait</button></div>`;
+    if (done) window.Coach.hideBoard();
+    else window.Coach.onBoard({
+      event: failure ? 'error' : session.demonstration || session.explanation ? 'explain'
+        : session.solved ? session.helped || session.misses ? 'assisted' : 'solved'
+          : session.mode === 'play' ? 'practical' : session.helped ? 'hinted'
+            : session.lastWrong ? 'retry' : session.mode,
+      prompt: $('trainingBoardPrompt').textContent,
+      key: `${session.id}:${session.index}:${session.demonstration ? 'demo' : ''}`,
+      seed: session.index,
+    });
     $('trainingPanel').querySelectorAll('button').forEach((b) => {
       const action = b.dataset.training;
       b.disabled = !['pause', 'done'].includes(action) && (busy || saving || (failure && action !== 'retry'));
@@ -189,7 +199,7 @@
   }
   function pause() {
     if (!active) return closing;
-    active = false; generation += 1; busy = false;
+    active = false; generation += 1; busy = false; window.Coach.hideBoard();
     save();
     document.querySelector('.library-panel').classList.remove('is-training');
     $('trainingPanel').hidden = true; $('trainingBoardPrompt').hidden = true;
@@ -198,6 +208,7 @@
     closing = window.Study.training.end().then(() => { if (!active) {
       if (returnHeading) { $('openingGuideTitle').textContent = returnHeading.title; $('guideMeta').textContent = returnHeading.meta; }
       window.Workspace.refreshGuide(); overview();
+      if (window.App.currentView() === 'today') window.Coach.onBoard({ event: 'explore', key: 'explore', prompt: 'Pick an opening or play a move. Make yourself at home.' });
     } });
     return closing;
   }
@@ -355,6 +366,7 @@
       <div class="training-actions">${button('game-back','← Previous')}${button('game-next','Next move →',true)}${button('game-key','Next key idea')}${button('pause','Pause & exit')}</div>
       <a class="model-source" href="${esc(game.source)}" target="_blank" rel="noopener">${esc(game.sourceLabel)} ↗</a>`;
     $('trainingPanel').querySelectorAll('button').forEach((b) => { b.disabled = b.dataset.training !== 'pause' && busy; });
+    window.Coach.onBoard({ event: failure ? 'error' : 'model', prompt: $('trainingBoardPrompt').textContent, key: `${session.id}:${session.index}`, seed: session.index });
     $('trainingPanel').querySelector('[data-training="game-back"]').disabled ||= session.index === 0;
     $('trainingPanel').querySelector('[data-training="game-next"]').disabled ||= session.index === game.moves.length;
     $('trainingPanel').querySelector('[data-training="game-key"]').disabled ||= session.index === game.moves.length;

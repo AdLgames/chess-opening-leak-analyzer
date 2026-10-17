@@ -27,6 +27,7 @@
     <link rel="icon" href="/assets/brand/mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/vendor/fonts.css" />
     <link rel="stylesheet" href="/landing.css" />
+    <link rel="stylesheet" href="/companion.css" />
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
@@ -122,11 +123,14 @@
               Queen’s Gambit
             </button>
           </div>
-          <div
-            id="previewBoard"
-            class="preview-board"
-            aria-label="Interactive opening lesson"
-          ></div>
+          <div class="board-stage">
+            <div id="previewCompanion" hidden></div>
+            <div
+              id="previewBoard"
+              class="preview-board"
+              aria-label="Interactive opening lesson"
+            ></div>
+          </div>
           <div class="demo-coaching">
             <span
               class="coach-art demo-coach"
@@ -510,6 +514,7 @@
     <script src="/app/board.js"></script>
     <script src="/app/opening-courses.js"></script>
     <script src="/lesson-previews.js"></script>
+    <script src="/companion.js"></script>
     <script src="/landing.js"></script>
   </body>
 </html>

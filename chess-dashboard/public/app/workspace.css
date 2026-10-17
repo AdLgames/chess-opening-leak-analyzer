@@ -376,3 +376,17 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
 .coach-choice { display:flex; align-items:center; gap:7px; font-size:10px; color:var(--text-muted); }
 .coach-choice select { color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:4px; font:inherit; padding:5px 3px; }
 .coach-options .coach-toggle { margin-top:0; }
+/* Authored explanation bubbles echo the small companion beside the board. */
+.coach-speech > div { position:relative; padding:10px 12px; border:1px solid var(--line); border-radius:13px 13px 13px 3px; background:var(--surface); }
+.coach-speech:not(.portrait-hidden) > div:before { content:''; position:absolute; left:-5px; top:18px; width:8px; height:8px; background:var(--surface); border-left:1px solid var(--line); border-bottom:1px solid var(--line); transform:rotate(45deg); }
+.board-stage { position:relative; min-width:0; }
+.board-stage > .board { margin-top:0; }
+@media(max-width:860px) { .coach-speech > div { padding:7px 9px; } }
+.library-panel:has(#boardCompanion:not([hidden]):not(.is-quiet)) #trainingPanel .coach-speech { grid-template-columns:minmax(0,1fr); }
+.library-panel:has(#boardCompanion:not([hidden]):not(.is-quiet)) #trainingPanel .coach-portrait { display:none; }
+.library-panel:has(#boardCompanion:not([hidden]):not(.is-quiet)) #trainingPanel .coach-speech > div:before { top:-5px; left:18px; border-bottom:0; border-top:1px solid var(--line); }
+/* Budget for the character rail as well as the board on shorter desktop windows. */
+@media (min-width:1101px) {
+  .library-panel:has(#boardCompanion:not([hidden]):not(.is-quiet)) .library-body { grid-template-columns:minmax(0,min(760px,calc(100dvh - 330px))) minmax(270px,330px); }
+  .library-panel:has(#boardCompanion:not([hidden]).is-quiet) .library-body { grid-template-columns:minmax(0,min(760px,calc(100dvh - 270px))) minmax(270px,330px); }
+}
