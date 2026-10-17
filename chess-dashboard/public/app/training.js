@@ -103,7 +103,7 @@
         if (token !== generation || !active) return;
         const expected = next.legal.find((m) => m.san === c.move);
         present(next, { arrows: session.helped && expected ? [{ from: expected.from, to: expected.to, kind: 'best' }] : [] });
-        if (session.solved && !feedback) feedback = `${c.move}. ${c.why}`;
+        if (session.solved && !feedback) feedback = c.why;
       }
     } catch (err) { if (token === generation && active) showError(err); }
     finally { if (token === generation && active) { busy = false; render(); } }
@@ -187,7 +187,7 @@
       if (token !== generation || !active) return;
       const result = outcome();
       resolved(result, move.san);
-      feedback = `${move.san}. ${c.why}${session.mode === 'recall' ? result === 'independent' ? ' Answered without help.' : ' Recorded as assisted practice, not independent recall.' : ''}`;
+      feedback = `${c.why}${session.mode === 'recall' ? result === 'independent' ? ' Answered without help.' : ' Recorded as assisted practice, not independent recall.' : ''}`;
       present(next, { lastMove: move });
     } catch (err) { if (token === generation && active) showError(err); }
     finally { if (token === generation && active) { busy = false; render(); } }
@@ -206,7 +206,7 @@
       const next = await LB.position(null, null, [...card().line, card().move]);
       if (token !== generation || !active) return;
       resolved(session.misses ? 'missed' : 'revealed', card().move);
-      feedback = `${card().move}. ${card().why} Answer shown; this does not count as independent recall.`;
+      feedback = `${card().why} Answer shown; this does not count as independent recall.`;
       present(next);
     } catch (err) { if (token === generation && active) showError(err); }
     finally { if (token === generation && active) { busy = false; render(); } }
