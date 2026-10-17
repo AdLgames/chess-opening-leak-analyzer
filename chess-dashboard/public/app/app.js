@@ -114,7 +114,7 @@ function go(view, { replace = false, focus = true } = {}) {
   if (!VIEWS[view]) view = 'today';
   if (view === 'clinic' && state.view !== 'clinic') trainingOrigin = state.view;
   state.view = view;
-  if (view !== 'explore') $('saveLineDialog').close();
+  if (view !== 'today') $('saveLineDialog').close();
   Object.keys(VIEWS).forEach((name) => {
     $(`view${name[0].toUpperCase()}${name.slice(1)}`).hidden = name !== view;
   });
@@ -151,9 +151,9 @@ function subtitle() {
   if (state.view === 'repertoire') {
     return 'Your choices, saved for the next time you play';
   }
-  if (state.view === 'today') return 'A little understanding, every day';
-  if (state.view === 'explore') return 'Discover an opening. Make it your own.';
-  if (state.view === 'progress') return 'A clear picture of what you have practised';
+  if (state.view === 'today') return 'Study board';
+  if (state.view === 'explore') return 'Openings and common continuations';
+  if (state.view === 'progress') return 'Practice and game history';
   if (state.view === 'prep') return 'Build your repertoire, one response at a time';
   if (state.view === 'clinic') {
     const r = state.selected;
@@ -1213,7 +1213,7 @@ function applyTheme(choice) {
 }
 
 function restoreTheme() {
-  applyTheme(S.prefs.get('theme', 'system'));
+  applyTheme(S.prefs.get('theme', 'dark'));
   $('themeBtn').addEventListener('click', () => {
     const dark = document.documentElement.getAttribute('data-theme') === 'dark'
       || (!document.documentElement.hasAttribute('data-theme')

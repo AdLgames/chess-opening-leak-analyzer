@@ -473,7 +473,7 @@
 
   /* ----------------------------------------------------------------- library */
   const library = {
-    board: null, fromFen: null, moves: [], history: [], pos: null,
+    board: null, fromFen: null, moves: [], history: [], future: [], pos: null,
     seq: 0, searchSeq: 0, busy: false,
     async init() {
       if (!this.board) this.board = new LB.Board($('libBoard'), { onMove: (m) => this.run(() => this.play(m)) });
@@ -490,7 +490,7 @@
     },
     async load(lastMove = null, candidate = {}) {
       const seq = ++this.seq;
-      const next = { fromFen: this.fromFen, moves: this.moves, history: this.history, ...candidate };
+      const next = { fromFen: this.fromFen, moves: this.moves, history: this.history, future: this.future, ...candidate };
       this.busy = true;
       $('libBoard').setAttribute('aria-busy', 'true');
       $('saveExplorerLine').disabled = true;
@@ -507,8 +507,16 @@
         $('libStats').textContent = pos.book?.total
           ? `${pos.book.total.toLocaleString()} book games · ${pos.turn} scores ${pos.book.score == null ? '—' : pos.book.score.toFixed(1) + '%'}. Observed results, not a move recommendation.`
           : 'Outside the book. You can still play legal moves and save your line.';
-        $('libLine').innerHTML = moveStrip(this.history, this.startNumber(), this.startTurn());
-        wireStrip($('libLine'), this.history, (i) => this.run(() => this.jump(i)));
+        const timeline = [...this.history, ...this.future];
+        $('libLine').innerHTML = timeline.length ? moveStrip(timeline, this.startNumber(), this.startTurn()) : '<span class="muted">Select a piece to see its legal moves.</span>';
+        $('libLine').querySelectorAll('.ply').forEach((button) => {
+          button.classList.toggle('is-future', Number(button.dataset.i) > this.history.length);
+          button.classList.toggle('is-current', Number(button.dataset.i) === this.history.length);
+        });
+        wireStrip($('libLine'), timeline, (i) => this.run(() => this.jump(i)));
+        $('libForward').disabled = !this.future.length;
+        $('libRestart').disabled = !this.history.length;
+        window.dispatchEvent(new CustomEvent('chess:position', { detail: { line: this.history.map((m) => m.san), turn: pos.turn } }));
         $('libBack').disabled = this.moves.length === 0;
         LB.renderBook($('libBook'), pos.book, {
           onPlay: (uci) => { const move = this.pos.legal.find((m) => m.uci === uci); if (move) this.run(() => this.play(move)); },
@@ -530,14 +538,19 @@
     startTurn() { return this.fromFen?.split(' ')[1] === 'b' ? 'black' : 'white'; },
     async play(move) {
       if (this.busy) return;
-      await this.load(move, { moves: [...this.moves, move.uci], history: [...this.history, { san: move.san, uci: move.uci }] });
+      await this.load(move, { moves: [...this.moves, move.uci], history: [...this.history, { san: move.san, uci: move.uci }], future: this.future[0]?.uci === move.uci ? this.future.slice(1) : [] });
     },
-    async back() { if (!this.busy) await this.load(null, { moves: this.moves.slice(0, -1), history: this.history.slice(0, -1) }); },
-    async jump(i) { if (!this.busy) await this.load(null, { moves: this.moves.slice(0, i), history: this.history.slice(0, i) }); },
+    async back() { if (this.history.length) await this.jump(this.history.length - 1); },
+    async forward() { if (this.future.length) await this.jump(this.history.length + 1); },
+    async jump(i) {
+      if (this.busy) return;
+      const timeline = [...this.history, ...this.future];
+      const prefix = timeline.slice(0, i);
+      await this.load(null, { moves: prefix.map((h) => h.uci), history: prefix, future: timeline.slice(i) });
+    },
     async reset() {
-      await this.load(null, { fromFen: null, moves: [], history: [] });
-      $('openingGuideTitle').textContent = 'Follow your curiosity.';
-      $('openingGuideText').textContent = 'Tap a piece, then a highlighted square. Or choose a move from the book.';
+      await this.load(null, { fromFen: null, moves: [], history: [], future: [] });
+      window.Workspace?.custom('Opening board');
       $('saveLineName').value = ''; $('saveLineNote').value = '';
     },
     async openLine(san, fen) {
@@ -557,7 +570,7 @@
           history.push({ san: move.san, uci: move.uci }); moves.push(move.uci);
         }
         if (seq !== this.seq) return;
-        await this.load(null, { fromFen: fen || null, moves, history });
+        await this.load(null, { fromFen: fen || null, moves, history, future: [] });
       } finally { if (seq === this.seq) this.busy = false; }
     },
     async search(q) {
@@ -572,8 +585,8 @@
         target.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => this.run(async () => {
           const hit = results[+button.dataset.i];
           await this.openLine([], hit.fen);
-          $('openingGuideTitle').textContent = hit.name;
-          $('openingGuideText').textContent = 'A named database position. Explore the replies below; authored lessons are separate from the opening book.';
+          window.App.go('today');
+          window.Workspace.custom(hit.name, 'A position from the opening database. Compare replies in Moves, or try a continuation on the board.');
           $('saveLineName').value = hit.name;
           $('saveLineNote').value = '';
         })));
@@ -631,6 +644,8 @@
     $('drillFlip').addEventListener('click', () => drill.board && drill.board.flip());
 
     $('libBack').addEventListener('click', () => library.run(() => library.back()));
+    $('libForward').addEventListener('click', () => library.run(() => library.forward()));
+    $('libRestart').addEventListener('click', () => library.run(() => library.jump(0)));
     $('libReset').addEventListener('click', () => library.run(() => library.reset()));
     $('libFlip').addEventListener('click', () => library.board && library.board.flip());
     $('libEngineBtn').addEventListener('click', () => library.run(() => library.askEngine()));
@@ -648,8 +663,7 @@
       try {
         if (value.includes('/')) await library.openLine([], value);
         else await library.openLine(value.replace(/\d+\.(?:\.\.)?/g, ' ').trim().split(/\s+/).filter(Boolean), null);
-        $('openingGuideTitle').textContent = 'Your position';
-        $('openingGuideText').textContent = 'Explore legal replies and save the choices you want to play.';
+        window.Workspace.custom('Your position');
       } catch (err) { $('explorePositionError').textContent = `Could not open that position: ${err.message}`; }
     });
     let timer = null;
@@ -697,6 +711,11 @@
         } else library.error(err);
       }
     },
+    replay: (san, orientation) => library.run(async () => {
+      library.board?.setOrientation(orientation);
+      await library.openLine(san, null);
+      await library.jump(0);
+    }),
     /** The move currently on the board in the fix panel. */
     currentAnswer: () => review.currentAnswer(),
     currentRow: () => review.row || null,

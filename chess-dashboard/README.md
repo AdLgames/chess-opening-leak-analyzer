@@ -40,32 +40,27 @@ starts that run on arrival rather than asking for the username a second time.
 Each of those is read once and then cleared from the URL, so a reload does not
 repeat it.
 
-Both pages run the same type system — Instrument Serif for the display line,
-IBM Plex Sans for the interface, IBM Plex Mono wherever characters have to line
-up (notation, FENs, evals) — from one Google Fonts request that is byte-identical
-on both, so moving between them costs no extra download.
-
-Both pages run the brand palette. The front page uses its dark half — Deep Navy
-bands, Off-White type, Aged Brass for branding and the call to action — and the
-tool uses its light half; the board, the move that loses ground (Muted Crimson)
-and the one to play instead (Muted Gold) are the same colours on both.
+The app serves Inter and JetBrains Mono from the bundled vendor fonts. It uses a
+compact chess-workspace layout, a dark default theme and warm wooden boards.
+Existing light, dark and system appearance preferences are retained.
 
 ## What the tool does
 
 The app opens on **Today**. No games or account are needed to explore openings
 or save choices on the current device. The four destinations are always available:
 
-1. **Today** — a starting point for new visitors, or a way back to the latest
-   saved line. Existing personal game findings can lead into position review.
-2. **Explore** — Italian, Caro-Kann and Queen’s Gambit starting points, a legal-move
-   board, named-opening/ECO search, SAN/FEN entry and book results. Save a line with
-   a side, name and note; its actual move order is retained. These are opening
-   guides and database exploration, not a reviewed lesson programme.
-3. **Repertoire** — saved choices grouped by side. Open any card on the Explore
-   board. The existing variation tree and personal game findings are available
-   under a disclosure, and **Build a line** opens the existing prep editor.
-4. **Progress** — preparation, recorded practice and optional game evidence shown
-   separately. Existing run comparisons and drill schedules remain available.
+1. **Today** — the working study board, visible on entry. Play legal moves,
+   compare book replies, follow an opening line forwards/backwards or reopen a
+   saved response. The side panel switches between Study, Moves and Your lines.
+2. **Explore** — a searchable library of 20 opening guides, each with an actual
+   board preview, an opening plan and three playable lines (60 in total).
+   Additional named positions are searchable in the opening database. Selecting
+   a guide or database result opens it on Today’s board.
+3. **Repertoire** — saved choices and notes grouped by side. Open any line on the
+   study board. The existing variation tree and game findings remain under a
+   disclosure; **Build a line** opens the existing prep editor.
+4. **Progress** — saved responses, recorded practice and optional game evidence,
+   with existing run comparisons and drill schedules.
 
 Desktop uses a compact sidebar; phones use four labelled bottom-navigation
 items. Hash routes support direct links and browser Back/Forward. Old
@@ -106,8 +101,8 @@ and their eval cache live under `/tmp/leaklab-jobs/`.
 ## Theme
 
 `public/app/styles.css` retains shared component styles. `workspace.css` supplies
-foundation tokens and responsive layouts: warm off-white surfaces, deep green
-actions, cream/green squares, display serif headings and legible interface type.
+workspace tokens and responsive layouts: neutral surfaces, restrained purple
+actions, warm wooden squares and compact sans-serif typography.
 SVG pieces scale with their squares. Existing explicit light/dark preferences
 and system-theme support remain available. Controls have visible focus states;
 board moves support keyboard and touch, with a button-based book-move alternative.

@@ -1,84 +1,83 @@
-# Foundation milestone: review guide
+# Board-centred chess workspace: review guide
 
-17 October 2026 · Four-destination interface · Ready for review
+17 October 2026 · Draft PR #30 · Interface milestone
 
-This implements the first interface milestone from `chess-learning-build-plan.md`:
-Today, Explore, Repertoire and Progress, with opening exploration before importing
-games. The existing vanilla JavaScript/Python stack and stable saved-data keys are
-retained. No production deployment or next-phase learning programme is included.
+The board is the main workspace. Today opens directly onto a large playable board
+with a compact study panel, without an import, sign-in gate or introductory hero.
+Explore is an opening library with real position previews and playable lines.
+The four destinations, existing analysis tools and saved-data formats are retained.
 
 ## Review the experience
 
-1. Open `/app/` in a clean browser. Today offers exploration with no import or sign-in.
-2. Choose Explore → Italian Game. Play a book move or tap a piece and a legal
-   destination. Step back, choose an alternative, flip the board and inspect the
-   move order. Keyboard users can use the board grid or the book-move buttons.
-3. Press **Save line**, choose a side, enter a name/note and save. Follow **See it
-   in Repertoire**, reload and reopen the card. Both the side and explored move
-   order should survive. The saved choice is the last move played by the selected
-   side; the full path remains available for reopening and PGN export.
-4. Open Progress. Preparation, practice and game evidence stay separate. A new
-   visitor sees useful explanations rather than invented mastery or review counts.
-5. Use Tools → Analyse games → sample archive. Existing report filters, charts,
-   position review, drills and exports remain accessible. Exit review to its origin.
-6. Repeat at 360px, tablet and desktop widths. Use Back/Forward, reload a direct
-   link and try SAN/FEN entry. The four labelled phone tabs remain available.
+1. Open `/app/`. The study board is immediately visible and playable. Use taps,
+   keyboard square navigation, or **Moves** → a book-reply button.
+2. Choose **Walk through line**. Use the arrows to move forward and back through
+   the opening. Try a different legal move; it creates a new continuation instead
+   of silently retaining the old future moves. The actual move order is saved.
+3. Open Explore. Browse 20 opening guides and their board previews. Filter by
+   side or search by name, moves or ECO. Select a guide to open its starting
+   position; its Study panel contains the plan and two further continuations.
+4. Choose a continuation, inspect the replies in Moves and save a named line with
+   a note. It appears in **Your lines** and Repertoire. Reload and reopen it.
+5. Try a named database search result or enter a SAN line/FEN under Board tools.
+   Position-based lines retain the FEN when exported as PGN.
+6. Use Tools → Analyse games → sample archive. Existing report filters, charts,
+   position review, drills, exports and return navigation remain available.
+7. Repeat on a phone. The board and its controls appear before the study text;
+   the four labelled bottom-navigation items remain available.
 
 ## Screenshots
 
-| Today, desktop | Explore, desktop |
+| Study board, desktop | Opening library, desktop |
 | --- | --- |
-| ![Today with an opening invitation and board](review/today-desktop.png) | ![Explore with playable board and common replies](review/explore-desktop.png) |
+| ![Large playable board and compact study panel](review/today-desktop.png) | ![Opening library with real position previews](review/explore-desktop.png) |
 
-| Explore, phone | Repertoire, phone |
+| Study board, phone | Saved repertoire, phone |
 | --- | --- |
-| ![Phone board with move controls and Save line](review/explore-mobile.png) | ![Saved named line and note on a phone](review/repertoire-mobile.png) |
+| ![Board above controls and study text on a phone](review/explore-mobile.png) | ![Saved line and note with position preview](review/repertoire-mobile.png) |
 
-## Existing behaviour audited
+## Opening content
 
-| Area | Finding and treatment |
-| --- | --- |
-| Navigation | Dashboard/Clinic/Repertoire/Prep were top-level; history replaced every entry. Four primary destinations now use real history, preserving old hashes as aliases. |
-| General exploration | `/api/position` and `/api/openings` already worked independently. The library was nested in Repertoire. It now lives in Explore and has recoverable request failures. |
-| Personal findings | `summary.explorer` depends on a report. It remains a separate optional game-evidence section on Progress. |
-| Preparation | Existing prep editor saves positional choices via `commitPrep`; it remains available under Repertoire → Build a line. |
-| Local data | Repertoire, drills, runs, report and preferences retain their keys. Versioning establishes a compatible baseline, with a backup of existing repertoire/drills/runs/preferences. The report remains untouched. |
-| Account data | Existing JSON entry storage supports additive metadata. Its whitelist previously discarded `source`; it now retains source, name, notes, starting FEN and explored path. No database migration is needed. |
-| Persistence errors | Failed writes previously left an unreadable in-memory fallback when storage existed. Failed writes now remain readable in this tab and are never labelled saved to device. |
-| Analysis | Local async jobs, hosted synchronous analysis, import, account gate, demo, charts, CSV, PGN and Lichess exports are retained. |
-| Board | Reused legal moves, tap selection, promotion and keyboard control. Added valid grid rows, accessible book buttons, larger SVG pieces and legible coordinates. |
+The library contains 20 original study guides: Italian, Ruy Lopez, Scotch, Vienna,
+London, Queen’s Gambit, English, Réti, Caro-Kann, Sicilian, Najdorf, Dragon, Kan,
+French, Scandinavian, Pirc, Queen’s Gambit Declined, Slav, Nimzo-Indian and King’s
+Indian. Each has a starting line, two named continuations, an explanation and a
+plan. All 60 move sequences and the 20 catalogue previews are legally validated.
+
+These are opening references, not accredited courses or graded lessons. No
+instructor endorsements, fabricated course counts or made-up learning results
+are displayed. Frequency/results continue to come from the real opening book;
+additional named database positions remain available through search.
+
+## Preservation and architecture
+
+- One board instance stays alive across navigation. Existing Python legal-move
+  and opening-book APIs remain the source of chess legality and statistics.
+- Saved repertoire choices, drills, runs, report and preferences retain their
+  `leaklab:` keys and account API shapes. The versioned baseline backup is retained.
+- Names, notes, side, starting FEN and actual explored path survive save/reopen,
+  account sync and revisiting the same choice in the existing prep editor.
+- Save feedback confirms device persistence only. Storage failures keep a tab
+  copy and display an accurate message; failed board requests retain the line.
+- Explicit appearance preferences are respected; new visitors get the dark
+  workspace. Fonts are served locally. SVG boards and keyboard semantics are shared.
+- Legacy hashes, analysis, prep, engine tools, exports and authentication rules
+  remain available. Analysis authentication never gates opening exploration.
 
 ## Validation
 
-- **202 Python tests passed**, including the assembled hosted bundle and real
-  PostgreSQL account/state tests. One upstream Starlette/httpx deprecation warning.
-- **15 Chromium browser journeys passed**, using the real local chess and book
-  APIs. Includes no-games exploration, White/Black save and reopen, notes,
-  standard/FEN PGN parsing, legacy state backup, account-gated analysis with guest
-  Explore access, browser history, keyboard moves, phone touch and promotion,
-  failed requests, storage quota failure, sample analysis and CSV download. The
-  existing prep editor also retains names and notes when revisiting a saved choice.
-- Layouts checked at **360×800, 390×844, 768×1024 and 1440×1000**, with no
-  horizontal document/main overflow. The Today action is visible on the 360px phone.
-- Axe WCAG 2 A/AA and 2.1 AA scans of all four main screens at desktop and 360px
-  reported no violations after repairing the inherited board grid structure.
-  This is automated coverage, not a human screen-reader usability study.
-- `vercel/prepare.py` assembled the deployable bundle, including all new assets.
-  JavaScript syntax and `git diff --check` passed.
+- **204 Python tests passed**, including real PostgreSQL state tests, the hosted
+  bundle and legality checks for every advertised study line and board preview.
+- **18 Chromium browser journeys passed**, including guest play, White/Black
+  saved lines, notes, legal PGN/FEN exports, migration/backup, storage quota failure,
+  request recovery, named database search, variation selection, line replay,
+  forward/back branching, keyboard tabs, phone touch/promotion and existing analysis.
+- Layouts checked at 360×800, 390×844, 768×1024 and 1440×1000. The playable board
+  is visible on entry, with no horizontal document/main overflow.
+- Axe WCAG 2 A/AA and 2.1 AA scans of all four destinations reported no violations
+  at desktop and 360px widths. Automated scans do not replace human usability review.
+- Hosted bundle assembly, JavaScript syntax checks and diff whitespace checks passed.
 
-The book inspected locally is 19.3 MB, with 155 generated opening-family pages.
-Statistics remain observations from that book; guides do not invent game examples
-or imply that a popular move is necessarily best. No unsupported dataset filters
-or full-game archive are presented.
-
-## Scope boundary for the next review
-
-This milestone provides exploration and saved positional choices. It does not
-claim to deliver reviewed chapters, a guided lesson session, independent recall,
-a daily training queue, scope-based preparedness, XP or weekly goals. Existing
-engine-graded drills remain secondary tools and their historical results are
-labelled as practice, not independent recall. Account merge/conflict behaviour is
-unchanged; durable sync still requires the existing configured account backend.
-
-The next phase should begin only after this interface is reviewed. Human chess
-content review and representative-user testing remain part of the build plan.
+The milestone remains a reviewable interface and opening-study foundation. Formal
+lesson grading, a review scheduler, preparedness scoring and rewards remain outside
+this change. No production merge is included.

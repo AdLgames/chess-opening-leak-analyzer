@@ -522,6 +522,7 @@
 
   window.LeakBoard = {
     Board,
+    pieceSvg,
     setApiBase,
     position,
     engine,

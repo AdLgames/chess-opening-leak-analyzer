@@ -10,12 +10,7 @@
       content="Connect a Chess.com or Lichess account, or upload a PGN. Every opening decision you repeat, checked against an opening book and a bundled Stockfish."
     />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231B2430'/%3E%3Cpath d='M9 23h14M11 20l1.5-7M21 20l-1.5-7M12.5 13h7M16 13V8' stroke='%23B8935A' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap"
-      rel="stylesheet"
-    />
+    <link rel="stylesheet" href="../vendor/fonts.css" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./workspace.css" />
 
@@ -73,7 +68,7 @@
 <a href="#explore" class="nav-item" data-view="explore"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m16 8-2 6-6 2 2-6z"/></svg><span>Explore</span></a>
 <a href="#repertoire" class="nav-item" data-view="repertoire"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4zM13 7a3 3 0 0 1 3-3h4v14h-3a4 4 0 0 0-4 3"/></svg><span>Repertoire</span></a>
 <a href="#progress" class="nav-item" data-view="progress"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16M8 15l4-5 4 2 4-7"/></svg><span>Progress</span></a></nav>
-        <div class="rail-note"><span>YOUR CHESS WORKSPACE</span><p>A little understanding.<br>A stronger next move.</p></div>
+
       </aside>
 
       <!-- ------------------------------------------------------------- header -->
@@ -106,27 +101,21 @@
       <!-- --------------------------------------------------------------- main -->
       <main class="main" id="main" tabindex="-1">
 <section class="view" id="viewToday" hidden>
-  <div class="welcome"><p class="eyebrow">A LITTLE CHESS, EVERY DAY</p><h2>Make your next move<br><em>with understanding.</em></h2><p>Build an opening repertoire that feels like yours.</p></div>
-  <section class="today-hero">
-    <div class="today-invitation"><span class="eyebrow">YOUR NEXT STEP</span><h3 id="todayNext">Find your opening.</h3><p id="todayDescription">Start with a position, discover the ideas and save the moves you want to play. Your games can come later.</p><button class="btn btn-primary btn-large" id="todayStart">Explore openings <span aria-hidden="true">→</span></button><p class="small muted" id="todayFootnote">No import or account needed.</p></div>
-    <div class="today-board-wrap" role="img" aria-label="The Italian Game: a place to begin"><div class="board" id="todayBoard" aria-hidden="true" inert></div><span class="board-caption">THE ITALIAN GAME · A PLACE TO BEGIN</span></div>
-  </section>
-  <div class="section-heading"><h3 id="continueTitle">A good place to start</h3><a href="#explore">Explore all openings →</a></div><div class="opening-cards" id="todayOpenings"></div>
-  <aside class="quiet-card"><div><h3>Let your games guide you</h3><p>Already have games? Discover which opening decisions deserve a closer look.</p></div><a class="btn btn-ghost" href="#progress/games">Import or connect games</a></aside>
+  <div class="workbench-heading"><div><h2 id="openingGuideTitle">Opening board</h2><p id="guideMeta">Play a move or choose an opening.</p></div><a class="btn btn-ghost" href="#explore">Change opening <span aria-hidden="true">→</span></a></div>
+  <div id="todayBoardSlot"></div>
 </section>
 <section class="view" id="viewExplore" hidden>
-  <div class="page-intro"><p class="eyebrow">FIND YOUR NEXT IDEA</p><h2>A world of openings.<br><em>One move at a time.</em></h2><p>Choose a starting point, or play any legal move on the board below.</p></div>
-  <div class="section-heading"><h3>Choose a starting point</h3><div class="segmented" id="openingSide" aria-label="Opening side"><button class="seg is-active" data-side="all" aria-pressed="true">All</button><button class="seg" data-side="white" aria-pressed="false">White</button><button class="seg" data-side="black" aria-pressed="false">Black</button></div></div>
+  <div class="library-heading"><div><h2>Opening library</h2><p id="catalogCount">20 openings · 60 lines to explore</p></div><a class="btn btn-ghost" href="#today">Back to board →</a></div>
+  <div class="catalog-toolbar"><label class="catalog-search"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><span class="sr-only">Search openings by name, moves or ECO code</span><input id="libSearch" type="search" placeholder="Search openings, moves or ECO code" autocomplete="off" /></label><div class="segmented" id="openingSide" aria-label="Opening side"><button class="seg is-active" data-side="all" aria-pressed="true">All</button><button class="seg" data-side="white" aria-pressed="false">White</button><button class="seg" data-side="black" aria-pressed="false">Black</button></div></div>
   <div class="opening-cards" id="exploreOpenings"></div>
-  <div class="explore-heading"><div><p class="eyebrow">THE OPENING BOARD</p><h3 id="openingGuideTitle">Follow your curiosity.</h3><p id="openingGuideText">Tap a piece, then a highlighted square. Or choose a move from the book.</p></div><span class="tag">Free exploration</span></div>
-  <div id="exploreBoardSlot"></div>
+  <div class="database-search"><h3 id="databaseSearchTitle" hidden>From the opening database</h3><ol class="opening-list" id="libResults" aria-live="polite"></ol></div>
 </section>
 <section class="view" id="viewProgress" hidden>
-  <div class="page-intro"><p class="eyebrow">UNDERSTAND YOUR IMPROVEMENT</p><h2>Small steps.<br><em>Lasting understanding.</em></h2><p id="progressSummary">Your saved choices and practice tell different parts of the story.</p></div>
+  <div class="library-heading"><div><h2>Progress</h2><p id="progressSummary">Save a line or practise a position to start keeping a record.</p></div></div>
   <div class="evidence-grid" id="progressEvidence"></div>
   <div id="progressSlot"></div>
   <details class="panel personal-details"><summary>Your opening patterns from games</summary><div id="personalSlot"></div></details>
-  <aside class="quiet-card"><div><h3>Bring your games into the picture</h3><p>Optional game analysis helps you choose what to work on next.</p></div><a class="btn btn-ghost" href="#progress/games">Open game analysis</a></aside>
+  <div class="analysis-link"><span>See how your opening choices hold up in your games.</span><a href="#progress/games">Analyse games →</a></div>
 </section>
         <!-- ================================================ dashboard -->
         <section class="view" id="viewDashboard">
@@ -360,8 +349,7 @@
         <!-- =============================================== repertoire -->
         <!-- the why: what you have committed, how it is moving, and the book -->
         <section class="view" id="viewRepertoire" hidden>
-  <div class="page-intro"><p class="eyebrow">THE MOVES YOU WANT TO PLAY</p><h2>Your repertoire.<br><em>Built with intention.</em></h2><p>Keep useful lines close, and return to the positions that matter.</p></div>
-  <div class="section-heading"><h3>Your saved choices</h3><a class="btn btn-ghost" href="#repertoire/edit">Build a line</a></div>
+  <div class="library-heading"><div><h2>Repertoire</h2><p>Your saved opening lines and notes.</p></div><a class="btn btn-ghost" href="#repertoire/edit">Build a line</a></div>
   <div id="savedLineCards"></div>
   <details class="panel repertoire-details"><summary>Variation tree &amp; game findings</summary><div id="repertoireDetailSlot">          <div class="coverage" id="coverageCard"></div>
 
@@ -441,46 +429,44 @@
             <section class="panel" id="trapPanel" hidden></section>
           </div>
 
-          <section class="panel library-panel">
+          <section class="library-panel" aria-label="Opening study board">
             <div class="library-body">
               <div class="board-col">
-                <div class="board-meta">
-                  <b id="libName">Starting position</b>
-                  <span class="mono muted" id="libTurn" aria-live="polite"></span>
-                </div>
+                <div class="board-meta"><b id="libName">Starting position</b><span id="libTurn" aria-live="polite"></span></div>
                 <div class="board" id="libBoard" aria-label="Explorer board"></div>
-                <p class="board-status" id="libStats"></p>
-                <div class="move-strip mono" id="libLine" aria-live="polite"></div><p id="exploreError" class="notice" role="alert" hidden></p><button class="btn btn-ghost" id="exploreRetry" hidden>Retry loading the board</button>
                 <div class="board-bar">
+                  <button class="btn btn-ghost" id="libRestart" aria-label="First position" title="First position">⇤</button>
+                  <button class="btn btn-ghost" id="libBack" aria-label="Previous move" title="Previous move">←</button>
+                  <button class="btn btn-ghost" id="libForward" aria-label="Next move" title="Next move" disabled>→</button>
+                  <button class="btn btn-ghost" id="libFlip" aria-label="Flip board">Flip</button>
                   <button class="btn btn-primary" id="openSaveLine" disabled>Save line</button>
-                  <button class="btn btn-ghost" id="libBack">Back one move</button>
-                  <button class="btn btn-ghost" id="libReset">Start position</button>
-                  <button class="btn btn-ghost" id="libFlip">Flip</button>
-                  <a class="btn btn-ghost" id="libLichess" target="_blank" rel="noopener">Open on Lichess</a>
-                  <button class="btn btn-ghost" id="libCopyFen" type="button">Copy FEN</button>
                 </div>
+                <div class="move-strip mono" id="libLine" aria-live="polite"></div>
+                <p id="exploreError" class="notice" role="alert" hidden></p><button class="btn btn-ghost" id="exploreRetry" hidden>Retry loading the board</button>
               </div>
-              <div class="library-side">
-
-                <label class="field">
-                  <span>Find any opening<i>by name or ECO code</i></span>
-                  <input id="libSearch" type="search" placeholder="e.g. Sicilian, Nimzo, C50" autocomplete="off" />
-                </label>
-                <ol class="opening-list" id="libResults" aria-live="polite"></ol>
-                <details class="position-tools"><summary>Enter moves or a position</summary><form id="explorePositionForm"><label class="field"><span>Moves in SAN or a FEN position</span><input id="explorePositionInput" placeholder="1. e4 e5 2. Nf3 Nc6" required /></label><button class="btn btn-ghost" type="submit">Show on board</button><p id="explorePositionError" role="alert" class="small"></p></form></details>
-                <div class="pane-block book-pane">
-                  <h4>Common replies</h4>
-                  <div id="libBook"></div>
+              <aside class="library-side" aria-label="Opening study tools">
+                <div class="study-tabs" role="tablist" aria-label="Study panel">
+                  <button id="studyTab" role="tab" aria-controls="studyPane" aria-selected="true" data-panel="study" class="is-active">Study</button>
+                  <button id="movesTab" role="tab" aria-controls="movesPane" aria-selected="false" data-panel="moves">Moves</button>
+                  <button id="savedTab" role="tab" aria-controls="savedPane" aria-selected="false" data-panel="saved">Your lines</button>
                 </div>
-                <details class="pane-block">
-                  <summary>Optional engine analysis</summary>
-                  <div class="pane-head">
-                    <h4>Engine</h4>
-                    <button class="btn btn-ghost" id="libEngineBtn">Ask the engine</button>
-                  </div>
-                  <div id="libEngine"></div>
+                <section id="studyPane" role="tabpanel" aria-labelledby="studyTab">
+                  <p class="study-label" id="studyLineLabel">Opening position</p>
+                  <p id="openingGuideText">Play on the board or choose an opening from the library.</p>
+                  <h3 class="study-section-label">The plan</h3><p id="openingPlan">Develop your pieces, contest the centre and get your king to safety.</p>
+                  <div class="line-heading"><h3>Lines to explore</h3><span id="guideLineCount"></span></div>
+                  <div id="guideLines"></div>
+                  <button class="btn btn-primary" id="guideReplay">Walk through line</button>
+                  <p class="study-credit">Opening study notes · <a href="#explore">Browse the library</a></p>
+                </section>
+                <section id="movesPane" role="tabpanel" aria-labelledby="movesTab" hidden><h3 class="study-section-label">Common replies</h3><div id="libBook"></div><p class="board-status" id="libStats"></p><p class="small muted">Results come from the bundled opening book. Frequency and score describe games played, not the best move.</p></section>
+                <section id="savedPane" role="tabpanel" aria-labelledby="savedTab" hidden><h3 class="study-section-label">Saved responses</h3><div id="sidebarSaved"></div><a class="text-link" href="#repertoire">Open repertoire →</a></section>
+                <details class="board-tools"><summary>Board tools</summary>
+                  <div class="board-tool-actions"><button class="btn btn-ghost" id="libReset">Reset board</button><a class="btn btn-ghost" id="libLichess" target="_blank" rel="noopener">Lichess analysis →</a><button class="btn btn-ghost" id="libCopyFen" type="button">Copy FEN</button></div>
+                  <details class="position-tools"><summary>Enter moves or a position</summary><form id="explorePositionForm"><label class="field"><span>Moves in SAN or a FEN position</span><input id="explorePositionInput" placeholder="1. e4 e5 2. Nf3 Nc6" required /></label><button class="btn btn-ghost" type="submit">Show on board</button><p id="explorePositionError" role="alert" class="small"></p></form></details>
+                  <details class="pane-block"><summary>Engine analysis</summary><button class="btn btn-ghost" id="libEngineBtn">Ask the engine</button><div id="libEngine"></div></details>
                 </details>
-              </div>
+              </aside>
             </div>
           </section>
         </section>
@@ -767,6 +753,7 @@
     <script src="./repertoire.js"></script>
     <script src="./explorer.js"></script>
     <script src="./prep.js"></script>
+    <script src="./opening-guides.js"></script>
     <script src="./workspace.js"></script>
     <script src="./app.js"></script>
   </body>

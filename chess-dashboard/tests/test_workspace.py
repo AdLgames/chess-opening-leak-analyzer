@@ -1,7 +1,6 @@
 """Release journeys for the foundation milestone; chess endpoints are not mocked."""
 import io
 import json
-import re
 
 import pytest
 import chess
@@ -17,8 +16,10 @@ def ready(page, app_url, route='today'):
 
 
 def choose(page, opening='italian'):
+    page.evaluate('App.go("explore")')
     page.locator(f'#exploreOpenings [data-opening="{opening}"]').click()
     expect(page.locator('#libBoard')).to_have_attribute('aria-busy', 'false')
+    page.locator('#movesTab').click()
 
 
 def save(page, name='My Italian', side='white', note='Castle, then challenge the centre.'):
@@ -32,8 +33,7 @@ def save(page, name='My Italian', side='white', note='Castle, then challenge the
 
 def test_guest_explore_save_reload_and_reopen(page, app_url):
     ready(page, app_url)
-    expect(page.locator('#todayStart')).to_have_text(re.compile('Explore openings'))
-    page.locator('#todayStart').click()
+    expect(page.locator('#libBoard')).to_be_visible()
     choose(page)
     expect(page.locator('#libLine')).to_contain_text('Bc4')
     expect(page.locator('#libTurn')).to_have_text('Black to move')
@@ -41,7 +41,7 @@ def test_guest_explore_save_reload_and_reopen(page, app_url):
     expect(page.locator('#libLine')).to_contain_text('Bc5')
     page.locator('#libBack').click()
     expect(page.locator('#libTurn')).to_have_text('Black to move')
-    assert 'Bc5' not in page.locator('#libLine').inner_text()
+    expect(page.locator('#libLine .is-future')).to_contain_text('Bc5')
     save(page)
     page.locator('#saveLineStatus a').click()
     expect(page.locator('#savedLineCards')).to_contain_text('My Italian')
@@ -80,8 +80,8 @@ def test_four_destinations_fit_and_history_works(page, app_url, width, height):
     nav = '#tabbar' if width <= 860 else '#nav'
     assert page.locator(f'{nav} a:visible').all_text_contents() == ['Today','Explore','Repertoire','Progress']
     if width == 360:
-        box = page.locator('#todayStart').bounding_box()
-        assert box['y'] + box['height'] < height - 68
+        box = page.locator('#libBoard').bounding_box()
+        assert box['width'] >= 320 and box['y'] + box['height'] < height - 68
     for view in ['explore','repertoire','progress']:
         page.locator(f'{nav} [data-view="{view}"]').click()
         expect(page.locator('#viewTitle')).to_have_text(view.title())
@@ -130,7 +130,8 @@ def test_account_gate_does_not_block_opening_exploration(page, app_url):
 
 
 def test_keyboard_book_moves_tap_board_and_flip(page, app_url):
-    ready(page, app_url, 'explore')
+    ready(page, app_url, 'today')
+    page.locator('#movesTab').click()
     first = page.get_by_role('button',name='Play e4',exact=True)
     first.focus()
     page.keyboard.press('Enter')
@@ -144,7 +145,8 @@ def test_keyboard_book_moves_tap_board_and_flip(page, app_url):
 
 
 def test_failed_move_keeps_history_and_can_retry(page, app_url):
-    ready(page, app_url, 'explore')
+    ready(page, app_url, 'today')
+    page.locator('#movesTab').click()
     before = page.locator('#libLine').inner_text()
     page.route('**/api/position?*moves=*',lambda route:route.abort())
     page.get_by_role('button',name='Play e4',exact=True).click()
@@ -157,7 +159,8 @@ def test_failed_move_keeps_history_and_can_retry(page, app_url):
 
 
 def test_position_entry_empty_book_and_fen_export(page, app_url):
-    ready(page, app_url, 'explore')
+    ready(page, app_url, 'today')
+    page.locator('.board-tools > summary').click()
     page.locator('.position-tools > summary').click()
     page.locator('#explorePositionInput').fill('1. e4 e5 2. Nf3 Nc6')
     page.get_by_role('button',name='Show on board').click()
@@ -202,7 +205,7 @@ def test_analysis_demo_drills_exports_and_contextual_return(page, app_url):
         page.locator('#exportCsv').click()
     assert download.value.suggested_filename.endswith('.csv')
     page.locator('#nav [data-view="progress"]').click()
-    expect(page.locator('#progressEvidence')).to_contain_text('Your preparation')
+    expect(page.locator('#progressEvidence')).to_contain_text('Repertoire')
 
 
 def test_quota_failure_is_honest_and_keeps_tab_copy(page, app_url):
@@ -230,6 +233,7 @@ def test_phone_touch_board_and_promotion_selection(page, app_url):
     expect(page.locator('#libLine')).to_contain_text('exd5')
     bounds = page.locator('#libBoard').bounding_box()
     assert bounds['width'] <= 360
+    page.locator('.board-tools > summary').click()
     page.locator('.position-tools > summary').click()
     page.locator('#explorePositionInput').fill('8/P7/8/8/8/8/8/K6k w - - 0 1')
     page.get_by_role('button', name='Show on board').click()
@@ -254,3 +258,62 @@ def test_existing_prep_editor_keeps_explored_line_notes(page, app_url):
     page.evaluate('App.go("repertoire")')
     expect(page.locator('#savedLineCards')).to_contain_text('My lasting Italian')
     expect(page.locator('#savedLineCards')).to_contain_text('Keep this note when building more lines.')
+
+
+def test_board_is_primary_and_library_has_real_position_previews(page, app_url):
+    ready(page, app_url)
+    board = page.locator('#libBoard').bounding_box()
+    assert board['width'] > 600
+    assert board['y'] + board['height'] < 1000
+    assert page.locator('#libBoard [role="gridcell"]').count() == 64
+    page.evaluate('App.go("explore")')
+    expect(page.locator('#exploreOpenings .opening-card')).to_have_count(20)
+    expect(page.locator('#exploreOpenings .board-thumbnail')).to_have_count(20)
+    expect(page.locator('#catalogCount')).to_contain_text('60 lines')
+    page.locator('#libSearch').fill('Vienna')
+    expect(page.locator('#exploreOpenings .opening-card')).to_have_count(1)
+    page.locator('[data-opening="vienna"]').click()
+    expect(page.locator('#openingGuideTitle')).to_have_text('Vienna Game')
+    expect(page.locator('#libBoard')).to_be_visible()
+    expect(page.locator('#guideLines .study-line')).to_have_count(3)
+    page.locator('[data-guide-line="1"]').click()
+    expect(page.locator('#libName')).to_contain_text('Vienna')
+    expect(page.locator('#libLine')).to_contain_text('Nxe4')
+
+
+def test_replay_back_forward_and_branching_keep_the_actual_line(page, app_url):
+    ready(page, app_url)
+    page.locator('#guideReplay').click()
+    expect(page.locator('#libForward')).to_be_enabled()
+    expect(page.locator('#libTurn')).to_have_text('White to move')
+    page.locator('#libForward').click()
+    expect(page.locator('#libTurn')).to_have_text('Black to move')
+    page.locator('#libBack').click()
+    expect(page.locator('#libTurn')).to_have_text('White to move')
+    page.locator('#libForward').click()
+    expect(page.locator('#libTurn')).to_have_text('Black to move')
+    page.locator('#movesTab').click()
+    page.get_by_role('button', name='Play c5', exact=True).click()
+    expect(page.locator('#libForward')).to_be_disabled()
+    expect(page.locator('#libLine')).to_contain_text('c5')
+    assert page.locator('#libLine .is-future').count() == 0
+    save(page, name='My Sicilian position', side='black')
+    entry = page.evaluate('Store.repertoire.committed()[0]')
+    assert entry['explorePath'] == ['e4', 'c5']
+    page.locator('#saveLineClose').click()
+    page.locator('#savedTab').click()
+    expect(page.locator('#sidebarSaved')).to_contain_text('My Sicilian position')
+    page.locator('#savedTab').focus()
+    page.keyboard.press('Home')
+    expect(page.locator('#studyTab')).to_have_attribute('aria-selected', 'true')
+    page.keyboard.press('ArrowRight')
+    expect(page.locator('#movesTab')).to_have_attribute('aria-selected', 'true')
+
+
+def test_named_database_search_opens_the_working_board(page, app_url):
+    ready(page, app_url, 'explore')
+    page.locator('#libSearch').fill('C50')
+    page.locator('#libResults .opening-search-hit').first.click()
+    expect(page.locator('#viewTitle')).to_have_text('Today')
+    expect(page.locator('#libBoard')).to_be_visible()
+    expect(page.locator('#guideMeta')).to_have_text('Position study')
