@@ -128,8 +128,9 @@
         Prep is the other half: the move you mean to play in a position, whether
         or not you have ever failed there. Same key, same storage, same drill
         schedule — `source` is what tells them apart afterwards. */
-    commitPrep({ fen, move, color, eco = '', opening = '', line = [], moveNumber = 0, name = '', notes = '', startFen = '', explorePath = [] }) {
+    commitPrep({ fen, move, color, eco = '', opening = '', line = [], moveNumber = 0, name, notes, startFen, explorePath }) {
       if (!fen || !move) return null;
+      const existing = this.byKey(`${positionKey(fen)}|${move}`) || {};
       const entry = {
         key: `${positionKey(fen)}|${move}`,
         position: positionKey(fen),
@@ -138,15 +139,18 @@
         eco,
         opening,
         line: Array.isArray(line) ? line : [],
-        played: '',
+        played: existing.played || '',
         moveNumber: Number(moveNumber) || 0,
-        games: 0,
-        cost: 0,
-        flag: '',
+        games: existing.games || 0,
+        cost: existing.cost || 0,
+        flag: existing.flag || '',
         status: 'committed',
         answer: move,
         source: 'prep',
-        name, notes, startFen, explorePath,
+        name: name ?? existing.name ?? '',
+        notes: notes ?? existing.notes ?? '',
+        startFen: startFen ?? existing.startFen ?? '',
+        explorePath: explorePath ?? existing.explorePath ?? [],
         decidedAt: Date.now(),
       };
       const rest = this.all().filter((e) => e.key !== entry.key);

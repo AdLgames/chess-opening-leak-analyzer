@@ -239,3 +239,18 @@ def test_phone_touch_board_and_promotion_selection(page, app_url):
     expect(page.locator('#libBoard .cb-promo')).to_be_visible()
     page.locator('#libBoard [data-uci="a7a8n"]').click()
     expect(page.locator('#libLine')).to_contain_text('a8=N')
+
+
+def test_existing_prep_editor_keeps_explored_line_notes(page, app_url):
+    ready(page, app_url, 'explore')
+    choose(page)
+    save(page, name='My lasting Italian', note='Keep this note when building more lines.')
+    page.locator('#saveLineClose').click()
+    page.evaluate('App.go("prep")')
+    for move in ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4']:
+        button = page.locator(f'#prepBook button[data-san="{move}"]')
+        button.click()
+        expect(page.locator('#prepLine')).to_contain_text(move)
+    page.evaluate('App.go("repertoire")')
+    expect(page.locator('#savedLineCards')).to_contain_text('My lasting Italian')
+    expect(page.locator('#savedLineCards')).to_contain_text('Keep this note when building more lines.')

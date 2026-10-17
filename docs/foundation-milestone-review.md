@@ -52,11 +52,12 @@ retained. No production deployment or next-phase learning programme is included.
 
 - **202 Python tests passed**, including the assembled hosted bundle and real
   PostgreSQL account/state tests. One upstream Starlette/httpx deprecation warning.
-- **14 Chromium browser journeys passed**, using the real local chess and book
+- **15 Chromium browser journeys passed**, using the real local chess and book
   APIs. Includes no-games exploration, White/Black save and reopen, notes,
   standard/FEN PGN parsing, legacy state backup, account-gated analysis with guest
   Explore access, browser history, keyboard moves, phone touch and promotion,
-  failed requests, storage quota failure, sample analysis and CSV download.
+  failed requests, storage quota failure, sample analysis and CSV download. The
+  existing prep editor also retains names and notes when revisiting a saved choice.
 - Layouts checked at **360×800, 390×844, 768×1024 and 1440×1000**, with no
   horizontal document/main overflow. The Today action is visible on the 360px phone.
 - Axe WCAG 2 A/AA and 2.1 AA scans of all four main screens at desktop and 360px
