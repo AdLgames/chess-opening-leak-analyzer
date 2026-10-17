@@ -265,3 +265,34 @@ def test_same_position_in_sample_and_personal_reports_keeps_distinct_sources(pag
     assert len(cards) == 2 and cards[0]['id'] != cards[1]['id']
     assert {c['report']['demo'] for c in cards} == {False,True}
     assert page.evaluate('(id)=>!!LearningStore.forCourse("personal-v1").schedule(id)',first['id'])
+
+
+def test_coach_explains_checkmate_without_reporting_a_fictitious_pawn_loss(page,app_url):
+    ready(page,app_url)
+    text = page.evaluate('''async()=>{
+      const pos=await LeakBoard.position(null,null,['f3','e5']);
+      const move=pos.legal.find(m=>m.san==='g4');
+      return (await Coach.explain(pos,move,null)).text;
+    }''')
+    assert 'Qh4#' in text and 'checkmate' in text
+    assert 'pawns compared' not in text
+
+
+def test_concurrent_book_positions_and_searches_keep_correct_results(page,app_url):
+    ready(page,app_url)
+    results = page.evaluate('''async()=>{
+      const paths=['/api/position?san=e4%20e5','/api/position?san=d4%20d5',
+        '/api/position?san=e4%20c6','/api/openings?q=Italian'];
+      return Promise.all(Array.from({length:12},()=>paths).flat().map(async(path)=>{
+        const response=await fetch(path);
+        return {path,status:response.status,data:await response.json()};
+      }));
+    }''')
+    for result in results:
+        assert result['status'] == 200
+        if '/position?' in result['path']:
+            assert result['data']['book'] is not None
+            assert result['data']['turn'] == 'white'
+            assert result['data']['legal']
+        else:
+            assert result['data']['results']

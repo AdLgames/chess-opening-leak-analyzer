@@ -104,15 +104,18 @@ games. Findings come from the latest analysis; saved exercises remain available
 after a newer report. Account sync remains a write mirror, without live conflict
 resolution for simultaneous editing of one checkpoint or a durable offline outbox.
 
+Both local and hosted APIs now keep one SQLite book connection per worker thread.
+Concurrent preparation scans and board previews no longer share a statement cache.
+
 ## Validation
 
-- **212 Python tests passed**, including real PostgreSQL account tests, immutable
+- **213 Python tests passed**, including real PostgreSQL account tests, immutable
   game-exercise records, all course positions and anchors, historical move scores,
   the original Italian compatibility check and the Elephant Trap material count.
-- **65 browser journeys passed** across the existing application and expanded
+- **67 browser journeys passed** across the existing application and expanded
   flows: all new chapters, both training colours, real Stockfish sparring and
   explanation, coach continuations, resume, model games, scoped preparation,
-  personal exercises, source labels, invalid responses and service failures.
+  personal exercises, source labels, invalid responses, service failures and concurrent opening-book requests.
 - **20 WCAG A/AA axe scans passed** across course, lesson, review summary,
   preparation and model-game screens, at desktop and phone widths in both themes.
   An additional 360px lesson scan passed. Automated scans are not full human

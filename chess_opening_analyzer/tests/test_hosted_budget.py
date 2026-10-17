@@ -66,3 +66,28 @@ def test_the_budget_leaves_room_to_answer():
     """The deadline must sit inside the function's own limit, not on top of it."""
     assert index.DEADLINE_S < 60.0
     assert float(index.LIMITS["time_budget_s"]) <= index.DEADLINE_S
+
+
+def test_concurrent_board_book_reads_return_the_requested_position():
+    """Preparation scans and previews must not race on SQLite's statement cache."""
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+    import chess
+
+    barrier = threading.Barrier(12)
+
+    def read_book(worker):
+        barrier.wait(timeout=10)
+        for i in range(24):
+            line = ['e4 e5', 'd4 d5', 'e4 c6'][(worker + i) % 3]
+            result = index.position(san=line)
+            board = chess.Board()
+            for san in line.split():
+                board.push_san(san)
+            assert result['fen'] == board.fen()
+            assert result['book'] is not None
+            assert index.openings(q='Italian')['results']
+        return True
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        assert all(pool.map(read_book, range(12)))

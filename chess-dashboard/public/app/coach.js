@@ -29,7 +29,7 @@
     const consequence = reply.mate ? 'delivering checkmate' : captured ? `capturing your ${names[captured.toLowerCase()]} on ${reply.to}` : reply.check ? 'giving check' : 'continuing the position';
     const comparison = loss <= 60
       ? `${move.san} is close to the engine’s preferred move at this depth. It is a different choice from this exercise’s answer.`
-      : `After ${move.san}, the engine finds ${reply.san}, ${consequence}. Its evaluation falls by about ${(loss / 100).toFixed(1)} pawns compared with ${best.san}.`;
+      : `After ${move.san}, the engine finds ${reply.san}, ${consequence}.${Math.abs(best.cp) >= 9800 || Math.abs(response.cp) >= 9800 ? '' : ` Its evaluation falls by about ${(loss / 100).toFixed(1)} pawns compared with ${best.san}.`}`;
     return { text: comparison, moves: [move.uci, reply.uci], source: 'Stockfish · depth 12' };
   }
   window.Coach = { bubble, explain };
