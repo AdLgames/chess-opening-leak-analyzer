@@ -9,7 +9,7 @@
       name="description"
       content="Connect a Chess.com or Lichess account, or upload a PGN. Every opening decision you repeat, checked against an opening book and a bundled Stockfish."
     />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231B2430'/%3E%3Cpath d='M9 23h14M11 20l1.5-7M21 20l-1.5-7M12.5 13h7M16 13V8' stroke='%23B8935A' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="icon" href="/assets/brand/mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="../vendor/fonts.css" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./workspace.css" />
@@ -53,14 +53,7 @@
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
         </button>
         <a class="brand" href="/" title="Back to the front page">
-          <svg class="brand-mark" viewBox="0 0 32 32" aria-label="Opening Leak Lab" role="img">
-            <rect x="0.75" y="0.75" width="30.5" height="30.5" rx="7.5" fill="none" stroke="currentColor" stroke-opacity=".28" />
-            <path d="M9 23.5h14" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" />
-            <path d="M11.6 20.6 13 13.6M20.4 20.6 19 13.6" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" />
-            <path d="M12.4 13.6h7.2" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" />
-            <path d="M16 13.6V7.5" stroke="var(--accent)" stroke-width="2.1" stroke-linecap="round" />
-            <circle cx="16" cy="6" r="2.4" fill="var(--accent)" />
-          </svg>
+          <img class="brand-mark" src="/assets/brand/mark.svg" width="32" height="32" alt="" />
           <span class="brand-text"><strong>Opening Leak Lab</strong></span>
         </a>
 
@@ -472,6 +465,7 @@
                 <details class="board-tools"><summary>Board tools</summary>
                   <div class="board-tool-actions"><button class="btn btn-ghost" id="libReset">Reset board</button><a class="btn btn-ghost" id="libLichess" target="_blank" rel="noopener">Lichess analysis →</a><button class="btn btn-ghost" id="libCopyFen" type="button">Copy FEN</button></div>
                   <label class="board-palette"><span>Board style</span><select id="boardPalette"><option value="green">Classic green</option><option value="wood">Warm wood</option></select></label>
+                  <label class="board-palette"><span>Study guide</span><select id="studyCoach"><option value="maya">Maya</option><option value="theo">Theo</option><option value="inez">Inez</option></select></label>
                   <details class="position-tools"><summary>Enter moves or a position</summary><form id="explorePositionForm"><label class="field"><span>Moves in SAN or a FEN position</span><input id="explorePositionInput" placeholder="1. e4 e5 2. Nf3 Nc6" required /></label><button class="btn btn-ghost" type="submit">Show on board</button><p id="explorePositionError" role="alert" class="small"></p></form></details>
                   <details class="pane-block"><summary>Engine analysis</summary><button class="btn btn-ghost" id="libEngineBtn">Ask the engine</button><div id="libEngine"></div></details>
                 </details>

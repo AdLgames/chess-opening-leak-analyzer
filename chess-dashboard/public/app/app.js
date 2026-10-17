@@ -1282,11 +1282,12 @@ function bootAccount() {
 /* The landing page hands work over in the query string: a username to run, the
    sample archive, or the privacy note. Acted on once, then cleared, so a reload
    does not run it all again. */
-function bootFromQuery() {
+async function bootFromQuery() {
   const q = new URLSearchParams(location.search);
   if (!q.toString()) return;
   const user = (q.get('user') || '').trim();
   const provider = q.get('provider') === 'chesscom' ? 'chesscom' : 'lichess';
+  const opening = q.get('opening');
   const wanted = { demo: q.get('demo'), run: q.get('run'), privacy: q.get('privacy'),
     authError: q.get('auth_error') };
   history.replaceState(null, '', location.pathname + location.hash);
@@ -1294,6 +1295,12 @@ function bootFromQuery() {
   reportAuthError(wanted.authError);
   if (wanted.privacy) openDialog('privacyDialog');
   if (wanted.demo) return runDemo();
+  if (!user && window.OpeningGuides.some((o) => o.id === opening)) {
+    try { await window.Workspace.choose(opening); } catch (error) {
+      $('guideMeta').textContent = 'The opening could not load. Choose it again from Explore.';
+    }
+    return;
+  }
   if (!user) return;
   setProvider(provider);
   $('optUser').value = user;

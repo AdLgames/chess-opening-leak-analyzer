@@ -365,3 +365,14 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
   .header-account .btn { font-size: 10px; padding-inline: 8px; }
   .workspace-tools > summary { min-height: 36px; font-size: 10px; padding: 8px 10px; }
 }
+
+/* The same original cast appears on the public pages and beside the board. */
+.coach-portrait { display:block; background-image:url('/assets/brand/coaches.webp'); background-repeat:no-repeat; background-size:300% 100%; }
+.coach-portrait[data-coach="maya"] { background-position:0 0; }
+.coach-portrait[data-coach="theo"] { background-position:50% 0; }
+.coach-portrait[data-coach="inez"] { background-position:100% 0; }
+.coach-portrait { background-size:326% 100%; }
+.coach-options { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; }
+.coach-choice { display:flex; align-items:center; gap:7px; font-size:10px; color:var(--text-muted); }
+.coach-choice select { color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:4px; font:inherit; padding:5px 3px; }
+.coach-options .coach-toggle { margin-top:0; }

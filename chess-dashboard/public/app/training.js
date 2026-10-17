@@ -111,7 +111,7 @@
       <div class="training-feedback" id="trainingFeedback" role="status" aria-live="polite">${feedback ? window.Coach.bubble(feedback, session.misses ? 'thoughtful' : 'encouraging') : ''}</div>
       ${session.explanation ? `<p class="coach-evidence">${esc(session.explanation.source)}</p>` : ''}
       ${failure ? `<p class="notice" role="alert">${esc(failure)}</p>${button('retry', 'Retry position', true)}` : ''}
-      <div class="training-actions">${controls}</div><p class="training-storage">${L.durable() ? 'Progress saved on this device.' : 'Progress is kept in this tab only. Device storage is unavailable; keep this tab open.'}</p><button class="coach-toggle" data-training="toggle-coach">${window.Store.prefs.get('coachPortraitHidden', false) ? 'Show' : 'Hide'} coach portrait</button>`;
+      <div class="training-actions">${controls}</div><p class="training-storage">${L.durable() ? 'Progress saved on this device.' : 'Progress is kept in this tab only. Device storage is unavailable; keep this tab open.'}</p><div class="coach-options">${window.Coach.picker()}<button class="coach-toggle" data-training="toggle-coach">${window.Store.prefs.get('coachPortraitHidden', false) ? 'Show' : 'Hide'} coach portrait</button></div>`;
     $('trainingPanel').querySelectorAll('button').forEach((b) => {
       const action = b.dataset.training;
       b.disabled = !['pause', 'done'].includes(action) && (busy || saving || (failure && action !== 'retry'));
