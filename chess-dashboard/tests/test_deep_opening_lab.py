@@ -276,6 +276,7 @@ def test_decision_review_draws_verified_capture_then_practises_legal_response(
     expand(page)
     page.locator("[data-decision-practice]").click()
     expect(page.locator("[data-training=hint]")).to_be_visible()
+    expect(page.locator("#playerFocus")).to_be_hidden()
     assert_board(page, chess.Board(data["rows"][0]["fen"]))
     page.locator("#libBoard [data-square=e1]").click()
     page.locator("#libBoard [data-square=g1]").click()

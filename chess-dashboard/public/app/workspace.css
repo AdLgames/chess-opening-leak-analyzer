@@ -446,4 +446,4 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
   .daily-settings label { min-width:0; }
 }
 
-.is-training #branchesPane, .is-training #playerFocus { display:none; }
+.is-training #branchesPane { display:none; }

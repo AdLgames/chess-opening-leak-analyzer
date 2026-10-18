@@ -115,7 +115,7 @@
         rows.find((r) => !reflection(r)) ||
         rows[0],
       nextIndex = rows.indexOf(next);
-    focus.hidden = !rows.length && !p.goal;
+    focus.hidden = window.Training.active() || (!rows.length && !p.goal);
     focus.innerHTML = `<div><span class="journey-eyebrow">${sample() ? "SAMPLE REVIEW" : "YOUR NEXT FOCUS"}</span><strong>${esc(goals[p.goal] || (rows.length ? "Understand one recurring decision" : "Choose what you want to improve"))}</strong><span>${next ? `Revisit ${esc(next.your_move)} in ${esc(next.opening || next.eco || "this opening")} · ${count(next.your_games)} ${sample() ? "sample " : ""}reported occurrences.${reflection(next)?.reason ? " You recorded: " + esc(reasons[reflection(next).reason] || "a reflection") + "." : ""}` : "Your focus is saved. Add games when you are ready."}</span></div><button class="btn btn-ghost" data-player-focus="${nextIndex}">Review ${next ? "this decision" : "decisions"} →</button>`;
     if (view !== "progress") return;
     generation++;
