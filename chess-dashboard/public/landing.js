@@ -26,30 +26,26 @@
     const id = S.prefs.get("studyCoach", "maya");
     return profiles[id] ? id : "maya";
   };
-  const nav = $("publicNav");
-  const toggle = $("navToggle");
-  function closeMenu() {
-    nav.classList.remove("is-open");
-    toggle.setAttribute("aria-expanded", "false");
-  }
-  toggle.addEventListener("click", () => {
-    const open = toggle.getAttribute("aria-expanded") !== "true";
-    nav.classList.toggle("is-open", open);
-    toggle.setAttribute("aria-expanded", String(open));
-  });
-  nav.addEventListener("click", (event) => {
-    if (event.target.closest("a")) closeMenu();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (
-      event.key === "Escape" &&
-      toggle.getAttribute("aria-expanded") === "true"
-    ) {
-      closeMenu();
-      toggle.focus();
-    }
-  });
-
+  const courses =
+    window.PublicCourses ||
+    window.OpeningCourses.map((c) => ({
+      opening: c.opening,
+      side: c.side,
+      chapters: c.chapters.length,
+      positions: c.cards.length,
+    }));
+  const surface =
+    location.pathname === "/"
+      ? "home"
+      : location.pathname.startsWith("/learn/")
+        ? "course"
+        : "guide";
+  const metric = (name) =>
+    window.LeakMetrics?.track(
+      name,
+      { course: preview.id, surface },
+      preview.id,
+    );
   let preview = window.LessonPreviews[0];
   let board;
   let companion;
@@ -59,6 +55,7 @@
     board = new LB.Board($("previewBoard"), {
       onMove(move) {
         if (completed) return;
+        metric("Preview started");
         if (move.uci !== preview.answer) {
           companion.show({ event: "retry", key: preview.id });
           board.clearSelection();
@@ -67,6 +64,7 @@
           return;
         }
         completed = true;
+        metric("Preview completed");
         companion.show({ event: "solved", key: preview.id });
         board.setPosition(preview.after.fen, {
           lastMove: { from: move.from, to: move.to },
@@ -100,7 +98,8 @@
           : `You’re playing Black. Try ${preview.move}, or ask for a little hint.`;
       $("demoSide").textContent =
         `${preview.side === "white" ? "White" : "Black"} to move`;
-      $("demoContinue").href = `/app/?opening=${preview.id}#today`;
+      $("demoContinue").href =
+        `/app/?opening=${preview.id}${document.body.dataset.initialPreview ? "&chapter=essentials" : ""}#today`;
       $("demoContinue").hidden = true;
       $("demoHint").hidden = false;
       document
@@ -124,7 +123,8 @@
       $("demoFeedback").textContent = preview.hint;
       companion.show({ event: "hinted", key: preview.id });
     });
-    showPreview(preview.id);
+    showPreview(document.body.dataset.initialPreview || preview.id);
+    if (surface === "course") metric("Course opened");
   }
   document.querySelectorAll("[data-thumb]").forEach((el) => {
     const p = window.LessonPreviews.find((p) => p.id === el.dataset.thumb);
@@ -142,11 +142,8 @@
       .join("");
   });
   document.querySelectorAll("[data-course-count]").forEach((el) => {
-    const c = window.OpeningCourses.find(
-      (c) => c.opening === el.dataset.courseCount,
-    );
-    if (c)
-      el.textContent = `${c.chapters.length} chapters · ${c.cards.length} positions`;
+    const c = courses.find((c) => c.opening === el.dataset.courseCount);
+    if (c) el.textContent = `${c.chapters} chapters · ${c.positions} positions`;
   });
   document.querySelectorAll("#courseFilter button").forEach((button) =>
     button.addEventListener("click", () => {
@@ -154,14 +151,12 @@
       document
         .querySelectorAll("#courseFilter button")
         .forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
-      const visible = window.OpeningCourses.filter(
-        (c) => side === "all" || c.side === side,
-      );
+      const visible = courses.filter((c) => side === "all" || c.side === side);
       document.querySelectorAll("[data-course-side]").forEach((row) => {
         row.hidden = side !== "all" && row.dataset.courseSide !== side;
       });
       $("courseCount").textContent =
-        `${visible.length} guided ${visible.length === 1 ? "course" : "courses"} · ${visible.reduce((n, c) => n + c.chapters.length, 0)} chapters · ${visible.reduce((n, c) => n + c.cards.length, 0)} training positions`;
+        `${visible.length} guided ${visible.length === 1 ? "course" : "courses"} · ${visible.reduce((n, c) => n + c.chapters, 0)} chapters · ${visible.reduce((n, c) => n + c.positions, 0)} training positions`;
     }),
   );
   function refreshCoach(id, announce = false, persisted = true) {

@@ -234,6 +234,7 @@
     if (!snapshot(task)?.finished) return;
     if (plan.index + 1 === plan.steps.length) {
       plan.finished = true;
+      window.LeakMetrics?.track("Daily completed", {surface:"workspace"}, plan.id);
       plan.ended = Date.now();
       save(plan);
       window.Training.refresh();

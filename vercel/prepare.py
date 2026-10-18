@@ -161,6 +161,8 @@ def main() -> int:
     copy_tree(os.path.join(DASHBOARD, "public"), os.path.join(HERE, "public"))
     copy_demo_report()
     ensure_database()
+    subprocess.run([sys.executable, os.path.join(ANALYZER, "tools", "build_public_site.py"),
+                    "--out", os.path.join(HERE, "public")], check=True)
     build_opening_pages()
     ship_engine_installer()
     say("bundle ready")

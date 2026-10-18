@@ -158,7 +158,9 @@
     if (window.App.currentView() !== 'today') return;
     selectCourse(task.course);
     if (!task.queue?.length || task.queue.some((id)=>!cards.has(id))) throw new Error('A saved training position is no longer available.');
-    session=L.checkpoints().find((s)=>s.id===task.sessionId) || {id:task.sessionId,course:C.id,mode:task.mode,chapter:`daily:${dailyId}:${task.id}`,sourceChapter:task.sourceChapter,practiceCardId:task.practiceCardId,queue:task.queue,index:0,misses:0,helped:false,solved:false,firstPlayed:'',whiteMoves:0,playMoves:[],results:[],focus:true,daily:{id:dailyId,task:task.id},visualIndex:task.mode==='learn' && window.VisualLessons?.[`${C.id}/${task.queue[0]}`] ? 0 : null};
+    const prior = L.checkpoints().find((s)=>s.id===task.sessionId);
+    session=prior || {id:task.sessionId,course:C.id,mode:task.mode,chapter:`daily:${dailyId}:${task.id}`,sourceChapter:task.sourceChapter,practiceCardId:task.practiceCardId,queue:task.queue,index:0,misses:0,helped:false,solved:false,firstPlayed:'',whiteMoves:0,playMoves:[],results:[],focus:true,daily:{id:dailyId,task:task.id},visualIndex:task.mode==='learn' && window.VisualLessons?.[`${C.id}/${task.queue[0]}`] ? 0 : null};
+    if (!prior) window.LeakMetrics?.track('Training started', {course:C.personal?'personal':C.opening,mode:task.mode,surface:'workspace'}, session.id);
     activate();await load();
   }
 
@@ -215,6 +217,7 @@
     selectCourse(courseId);
     const prior = L.saved(mode, chapterId);
     session = prior || { id: L.uid(), mode, course: C.id, focus, chapter: chapterId, queue: ids || chapterById(chapterId).cards, index: 0, misses: 0, helped: false, solved: false, firstPlayed: '', whiteMoves: 0, playMoves: [], results: [] };
+    if (!prior) window.LeakMetrics?.track('Training started', {course:C.personal?'personal':C.opening,mode}, session.id);
     activate(); await load();
   }
   function activate() {
@@ -319,6 +322,7 @@
     if (!session.solved) return;
     if (session.index + 1 >= session.queue.length) {
       session.finished = true;
+      window.LeakMetrics?.track('Training completed', {course:C.personal?'personal':C.opening,mode:session.mode}, session.id);
       if (session.mode === 'learn' && !session.focus && !C.personal) L.complete(session.chapter);
       save(); feedback = ''; render(); overview(); return;
     }
@@ -333,7 +337,10 @@
     const ending = terminal();
     if (ending || (count() >= 5 && pos.turn === learnerSide())) {
       session.finished = true; session.terminal = ending;
-      if (count() >= 5) L.practical(session.id, count());
+      if (count() >= 5) {
+        L.practical(session.id, count());
+        window.LeakMetrics?.track('Training completed', {course:C.personal?'personal':C.opening,mode:'play'}, session.id);
+      }
       save(); feedback = ''; present(pos, { enabled: false }); render(); return;
     }
     if (pos.turn === learnerSide()) return;
@@ -458,6 +465,11 @@
   window.addEventListener('learning:change', () => { if (!active) overview(); });
   window.addEventListener('storage', (event) => { if (event.key?.startsWith('leaklab:pref:learning:')) { if (!active) overview(); progress(); } });
   window.Training = { overview, progress, pause, runDaily, info:()=>session ? JSON.parse(JSON.stringify(session)) : null, refresh:render, active: () => active,
+    openChapter: (opening, id) => {
+      const course = window.OpeningCourses.find((c)=>c.opening===opening);
+      if (!course?.chapters.some((ch)=>ch.id===id)) return Promise.resolve();
+      return start('learn', id, null, course.id);
+    },
     focus: (course, id) => start('learn', 'focus:' + id, [id], course, true),
     personal: (id) => start('learn', 'focus:' + id, [id], 'personal-v1', true),
     leave(view) { if (view !== 'today' && active) pause(); },

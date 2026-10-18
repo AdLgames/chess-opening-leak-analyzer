@@ -1,0 +1,1 @@
+window.PublicCourses = [{"opening":"italian","side":"white","chapters":7,"positions":26},{"opening":"caro","side":"black","chapters":5,"positions":15},{"opening":"queens","side":"black","chapters":5,"positions":18}];

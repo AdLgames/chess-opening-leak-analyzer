@@ -2,7 +2,8 @@
 User-agent: *
 Allow: /
 
-# The API is work, not content: every hit costs an engine pass.
+# The API is work, not search content.
+# /app/ stays crawlable so crawlers can read its noindex meta/header.
 Disallow: /api/
 
 Sitemap: https://chessleaklab.co.uk/sitemap.xml

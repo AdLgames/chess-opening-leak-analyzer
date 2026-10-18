@@ -270,8 +270,8 @@ function renderPrivacy() {
          leaks you fixed, and a line you meet twice a month can never be judged at all.
          It is
          stored in this deployment's database, alongside your email address or your
-         Lichess account id. No passwords are stored, and if you sign in with Lichess the
-         access token is encrypted before it is written.</p>
+         Lichess account id. No passwords are stored. The Lichess sign-in access token is used to identify
+         your account and is not retained.</p>
        <p><b>Download my data</b> in the account menu gives you all of it as one JSON file,
          and <b>Delete my account</b> erases it — the account row and everything that hangs
          off it, with nothing kept back. Your browser also keeps a working copy so the app
@@ -286,6 +286,7 @@ function renderPrivacy() {
          archive fetch you ask for, straight to Chess.com or Lichess.</p>
        <p>Your repertoire decisions, your drill history and your last report are kept in
          this browser only. The local build has no accounts and no database.</p>`;
+  $('privacyBody').insertAdjacentHTML('beforeend', '<p><a href="/privacy/">Read the website privacy policy and optional usage-count controls</a>.</p>');
   const cost = state.costMetric || V.METRICS.cost;
   $('costExplainer').textContent = `${cost.definition} ${cost.why || V.METRICS.cost.why}`;
   $('costFormula').textContent = cost.formula;
@@ -1288,6 +1289,7 @@ async function bootFromQuery() {
   const user = (q.get('user') || '').trim();
   const provider = q.get('provider') === 'chesscom' ? 'chesscom' : 'lichess';
   const opening = q.get('opening');
+  const publicChapter = q.get('chapter');
   const wanted = { demo: q.get('demo'), run: q.get('run'), privacy: q.get('privacy'),
     authError: q.get('auth_error') };
   history.replaceState(null, '', location.pathname + location.hash);
@@ -1296,7 +1298,10 @@ async function bootFromQuery() {
   if (wanted.privacy) openDialog('privacyDialog');
   if (wanted.demo) return runDemo();
   if (!user && window.OpeningGuides.some((o) => o.id === opening)) {
-    try { await window.Workspace.choose(opening); } catch (error) {
+    try {
+      await window.Workspace.choose(opening);
+      if (publicChapter) await window.Training.openChapter(opening, publicChapter);
+    } catch (error) {
       $('guideMeta').textContent = 'The opening could not load. Choose it again from Explore.';
     }
     return;
