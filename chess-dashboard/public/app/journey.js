@@ -64,7 +64,9 @@
     };
   }
   function achievements() {
-    const events = evidence(),
+    const events = evidence().sort(
+        (a, b) => a.at - b.at || a.key.localeCompare(b.key),
+      ),
       awards = [];
     const chapter = events
       .filter((e) => e.key.includes(":chapter:"))
@@ -101,17 +103,19 @@
         "Recalled a position without help on a later day.",
         later.at,
       ]);
-    const distinct = new Set(
-      events
-        .filter((e) => e.card)
-        .map((e) => e.key.split(":")[2] + ":" + e.card),
-    );
+    const distinct = new Map();
+    for (const event of events) {
+      if (event.card) {
+        const key = event.key.split(":")[2] + ":" + event.card;
+        if (!distinct.has(key)) distinct.set(key, event);
+      }
+    }
     if (distinct.size >= 10)
       awards.push([
         "ten-positions",
         "Ten positions explored",
         "Practised ten different positions.",
-        Date.now(),
+        Array.from(distinct.values())[9].at,
       ]);
     for (const [id, title, description, at] of awards)
       if (!get("reward:" + id))

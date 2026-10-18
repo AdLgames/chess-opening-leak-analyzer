@@ -162,10 +162,10 @@ def test_learning_outbox_survives_reload_coalesces_and_retries_without_duplicate
  sessions.saveSession({id:'test-checkpoint',mode:'puzzle',ply:0});
  sessions.saveSession({id:'test-checkpoint',mode:'puzzle',ply:2});
  }''')
- page.wait_for_function('Auth.pendingLearning()===4')
+ page.wait_for_function('Object.keys(Store.sync.pending("alice")).filter(k=>!k.startsWith("learning:v2:journey-v3:")).length===4')
  page.reload();page.wait_for_function('Auth.state.ready')
  assert page.evaluate('LearningStore.forCourse("puzzle-sessions-v1").session().ply')==2
- assert page.evaluate('Auth.pendingLearning()')==4
+ assert page.evaluate('Object.keys(Store.sync.pending("alice")).filter(k=>!k.startsWith("learning:v2:journey-v3:")).length')==4
  page.unroute('**/api/state/pref')
  def pref(route):
   payload=route.request.post_data_json;remote['prefs'][payload['key']]=payload['value'];route.fulfill(json={'ok':True})
