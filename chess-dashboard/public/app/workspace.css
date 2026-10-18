@@ -445,3 +445,5 @@ button, a, input, select, textarea, summary { -webkit-tap-highlight-color: trans
   .daily-settings > div { width:calc(100vw - 40px); right:auto; left:0; }
   .daily-settings label { min-width:0; }
 }
+
+.is-training #branchesPane, .is-training #playerFocus { display:none; }

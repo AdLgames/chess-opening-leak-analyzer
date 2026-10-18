@@ -213,7 +213,7 @@ def test_stale_tab_blocks_learning_before_it_touches_another_accounts_local_copy
  mock_account(page,uid='alice');ready(page,app_url)
  page.unroute('**/api/auth/me');mock_account(page,uid='bob')
  page.evaluate('''()=>{Store.sync.own('bob');LearningStore.forCourse('tactics-v1').attempt('stale-tab','one','independent','Nf3');}''')
- page.wait_for_function('Auth.state.ready && Auth.state.user?.id==="bob"')
+ page.wait_for_function('window.Auth?.state.ready && window.Auth.state.user?.id==="bob"')
  assert not page.evaluate('Store.prefs.get("learning:v2:tactics-v1:attempt:stale-tab")')
 
 

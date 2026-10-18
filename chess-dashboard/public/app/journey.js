@@ -251,12 +251,12 @@
   }
   function render(view = window.App?.currentView?.()) {
     applyPreferences();
-    const exploring = ["explore", "path", "puzzles", "games"].includes(view);
+    const exploring = ["explore", "lines", "path", "puzzles", "games"].includes(view);
     $("exploreSections").hidden = !exploring;
     $("exploreSections")
       .querySelectorAll("a")
       .forEach((a) => {
-        if (a.hash === location.hash) a.setAttribute("aria-current", "page");
+        if (a.hash === location.hash || (view === "lines" && a.hash === "#explore")) a.setAttribute("aria-current", "page");
         else a.removeAttribute("aria-current");
       });
     window.Puzzles?.leave(view);

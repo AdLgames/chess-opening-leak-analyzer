@@ -3,7 +3,11 @@
 18 October 2026 · Research and proposed direction
 
 The first authorised implementation slice is documented in the
-[V4.1 review](docs/v4-italian-plans-review.md). Later slices below remain proposals.
+[V4.1 review](docs/v4-italian-plans-review.md). The subsequent authorised
+[deep opening library and decision review](docs/deep-opening-lab-review.md) adds
+complete pinned named-route coverage, source/clock context and optional player
+reflections. Later longitudinal transfer and broader authored plan units below
+remain proposals.
 
 ## Recommendation
 

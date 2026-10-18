@@ -679,6 +679,25 @@
   }
 
   window.Study = {
+    playMove: uci => {const move=library.pos?.legal.find(m=>m.uci===uci);return move?library.play(move):Promise.reject(new Error('This move is no longer available.'));},
+    snapshot: () => library.pos ? JSON.parse(JSON.stringify({pos:library.pos,fromFen:library.fromFen,moves:library.moves,history:library.history,future:library.future,busy:library.busy})) : null,
+    showFacts: async (fen, {orientation="white",arrows=[],circles=[]}={}) => {
+      const expected=library.seq+1;
+      await library.load(null,{fromFen:fen,moves:[],history:[],future:[]});
+      if(expected!==library.seq||library.controller) throw new Error('The board changed. Open the decision again.');
+      library.board?.setOrientation(orientation);
+      library.board?.setPosition(library.pos.fen,{legal:library.pos.legal,arrows,circles});
+    },
+    knownLine: (san, uci, at=0) => {
+      if(san.length!==uci.length || at<0 || at>san.length) return Promise.reject(new Error('Invalid reference line'));
+      const timeline=san.map((s,i)=>({san:s,uci:uci[i]}));
+      const next=at===library.history.length+1&&!library.fromFen&&library.history.every((m,i)=>m.uci===uci[i])?library.pos?.legal.find(m=>m.uci===uci[at-1]):null;
+      const played=next?{san:next.san,uci:next.uci,before:library.pos.fen,book:library.pos.book?.moves?.find(m=>m.uci===next.uci)||null}:null;
+      const expected=library.seq+1;
+      return library.load(next,{fromFen:null,moves:uci.slice(0,at),history:timeline.slice(0,at),future:timeline.slice(at)},played).then(()=>{
+        if(expected!==library.seq||library.controller) throw new Error('The board changed. Open the route again.');
+      });
+    },
     training: {
       begin(onMove) {
         library.trainingOrientation = library.board?.orientation || 'white';

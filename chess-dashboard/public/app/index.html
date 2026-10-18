@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="./journey.css" />
     <link rel="stylesheet" href="./clubhouse.css" />
     <link rel="stylesheet" href="./plans.css" />
+    <link rel="stylesheet" href="./deep-lab.css" />
 
     <meta name="robots" content="noindex, follow" />
     <script defer src="/site-config.js"></script>
@@ -114,18 +115,27 @@
   <section id="dailyInvite" class="daily-invite" aria-label="Today’s training session"></section>
   <div class="workbench-heading"><div><h2 id="openingGuideTitle">Opening board</h2><p id="guideMeta">Play a move or choose an opening.</p></div><a class="btn btn-ghost" href="#explore">Change opening <span aria-hidden="true">→</span></a></div>
   <div id="todayBoardSlot"></div>
+  <section id="playerFocus" class="player-focus" aria-label="Your decision focus" hidden></section>
   <section id="planToday" class="plan-entry" aria-label="Italian plans"></section>
   <section id="todayJourney" class="today-journey" aria-label="Keep learning"></section>
+</section>
+<section class="view" id="viewLines" hidden>
+  <div class="library-heading"><div><span class="journey-eyebrow">THE DEEP OPENING LIBRARY</span><h2>Take a line further.</h2><p>3,865 named routes · all 500 ECO codes · main choices and alternatives.</p></div><a class="btn btn-ghost" href="#explore">Opening introductions →</a></div>
+  <form id="deepSearchForm" class="deep-search"><label for="deepQuery">Opening, variation, ECO code or moves<input id="deepQuery" type="search" placeholder="Sicilian, C50, e4 e5 Nf3…" autocomplete="off" /></label><label for="deepFirst">First move<select id="deepFirst"><option value="">Any first move</option><option value="e4">1. e4</option><option value="d4">1. d4</option><option value="c4">1. c4</option><option value="Nf3">1. Nf3</option><option value="other">Other first moves</option></select></label><label for="deepOrder">Browse order<select id="deepOrder"><option value="familiar">Familiar openings first</option><option value="depth">Longest routes first</option><option value="eco">ECO code</option></select></label><label class="deep-bookmark-filter"><input id="deepSavedOnly" type="checkbox" /> Saved routes</label></form>
+  <p id="deepScope" class="course-note"></p><div id="deepResults" aria-live="polite"></div><p id="deepCatalogueStatus" role="status"></p>
+  <p class="deep-source">Reference moves and names: <a href="https://github.com/lichess-org/chess-openings/tree/a6189a30dc273ccb21fc2536a9a2fefd5592a67a" target="_blank" rel="noopener">Lichess opening names, CC0</a>. These are named reference routes, not every possible continuation or authored lessons. Explore any legal move on the board.</p>
 </section>
 <section class="view" id="viewExplore" hidden>
   <div class="library-heading"><div><h2>Opening library</h2><p id="catalogCount">20 openings · 60 lines to explore</p></div><a class="btn btn-ghost" href="#today">Back to board →</a></div>
   <section id="planExplore" class="plan-entry" aria-label="From opening moves to plans"></section>
+  <div class="deep-entry"><div><strong>Know the name. Now explore the branches.</strong><span>3,865 reference routes, including sidelines, with a board walkthrough.</span></div><a class="btn btn-primary" href="#explore/lines">Deep opening library →</a></div>
   <div class="catalog-toolbar"><label class="catalog-search"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><span class="sr-only">Search openings by name, moves or ECO code</span><input id="libSearch" type="search" placeholder="Search openings, moves or ECO code" autocomplete="off" /></label><div class="segmented" id="openingSide" aria-label="Opening side"><button class="seg is-active" data-side="all" aria-pressed="true">All</button><button class="seg" data-side="white" aria-pressed="false">White</button><button class="seg" data-side="black" aria-pressed="false">Black</button></div></div>
   <div class="opening-cards" id="exploreOpenings"></div>
   <div class="database-search"><h3 id="databaseSearchTitle" hidden>From the opening database</h3><ol class="opening-list" id="libResults" aria-live="polite"></ol></div>
 </section>
 <section class="view" id="viewProgress" hidden>
   <div class="library-heading"><div><h2>Progress</h2><p id="progressSummary">Save a line or practise a position to start keeping a record.</p></div></div>
+  <section id="playerLab" class="player-lab" aria-label="Your decision review"></section>
   <section id="journeyProgress" aria-label="Practice and milestones"></section>
   <div class="evidence-grid" id="progressEvidence"></div>
   <section id="planProgress" class="plan-entry" aria-label="Italian plan practice record" hidden></section>
@@ -472,6 +482,7 @@
                 <div class="study-tabs" role="tablist" aria-label="Study panel">
                   <button id="studyTab" role="tab" aria-controls="studyPane" aria-selected="true" data-panel="study" class="is-active">Study</button>
                   <button id="movesTab" role="tab" aria-controls="movesPane" aria-selected="false" data-panel="moves">Moves</button>
+                  <button id="branchesTab" role="tab" aria-controls="branchesPane" aria-selected="false" data-panel="branches">Deep lines</button>
                   <button id="savedTab" role="tab" aria-controls="savedPane" aria-selected="false" data-panel="saved">Your lines</button>
                 </div>
                 <section id="studyPane" role="tabpanel" aria-labelledby="studyTab">
@@ -485,6 +496,7 @@
                   <button class="btn btn-primary" id="guideReplay">Walk through line</button>
                   <p class="study-credit">Opening study notes · <a href="#explore">Browse the library</a></p>
                 </section>
+                <section id="branchesPane" role="tabpanel" aria-labelledby="branchesTab" hidden><div id="deepBoardPanel"></div></section>
                 <section id="trainingPanel" aria-label="Training session" hidden></section>
                 <section id="movesPane" role="tabpanel" aria-labelledby="movesTab" hidden><h3 class="study-section-label">Common replies</h3><div id="libBook"></div><p class="board-status" id="libStats"></p><p class="small muted">Results come from the bundled opening book. Frequency and score describe games played, not the best move.</p></section>
                 <section id="savedPane" role="tabpanel" aria-labelledby="savedTab" hidden><h3 class="study-section-label">Saved responses</h3><div id="sidebarSaved"></div><a class="text-link" href="#repertoire">Open repertoire →</a></section>
@@ -814,6 +826,8 @@
     <script src="./clubhouse.js"></script>
     <script src="./italian-plans.js"></script>
     <script src="./plans.js"></script>
+    <script src="./deep-lines.js"></script>
+    <script src="./player-lab.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

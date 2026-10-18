@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import math
+from urllib.parse import urlsplit
 import re
 from dataclasses import dataclass, field
 from typing import Iterator
@@ -34,6 +36,10 @@ class PlyRecord:
     san: str
     line_san: str          # SAN moves up to and including this move, space separated
     line_uci: str          # comma separated UCI history (Lichess explorer `play` param)
+    clock_after: float | None = None
+    spent_seconds: float | None = None
+    spent_source: str = ''
+    time_control: str = ''
 
 
 @dataclass
@@ -148,9 +154,22 @@ def load_games(
                     scores = _RESULT_SCORE[result]
                 player_score = scores[0] if player_color == "white" else scores[1]
 
+                # Site is often just "Chess.com" or a venue name, shared by all
+                # games. Prefer an exported game link; otherwise identify the
+                # source record rather than collapsing unrelated games.
                 gid = f"{base}#{idx}"
+                reference = gid
+                for tag in ("Link", "Site"):
+                    candidate = h.get(tag, "")
+                    try:
+                        url = urlsplit(candidate)
+                        if url.scheme in ("https", "http") and url.netloc and url.path.strip("/"):
+                            reference = candidate
+                            break
+                    except ValueError:
+                        pass
                 summary = GameSummary(
-                    game_id=h.get("Site", gid) if h.get("Site", "?") != "?" else gid,
+                    game_id=reference,
                     source_file=base,
                     white=white,
                     black=black,
@@ -166,12 +185,27 @@ def load_games(
                 board = game.board()
                 history_uci: list[str] = []
                 history_san: list[str] = []
-                for ply, move in enumerate(game.mainline_moves(), start=1):
+                previous_clock = None
+                time_control = h.get('TimeControl', '')
+                increment_match = re.fullmatch(r'\d+\+(\d+)', time_control)
+                increment = int(increment_match.group(1)) if increment_match else 0 if time_control.isdigit() else None
+                for ply, game_node in enumerate(game.mainline(), start=1):
+                    move = game_node.move
                     if ply > max_ply:
                         break
                     san = board.san(move)
                     mover_is_player = (board.turn == chess.WHITE) == (player_color == "white")
                     if mover_is_player:
+                        clock = game_node.clock()
+                        elapsed = game_node.emt()
+                        clock = clock if clock is not None and math.isfinite(clock) and clock >= 0 else None
+                        elapsed = elapsed if elapsed is not None and math.isfinite(elapsed) and elapsed >= 0 else None
+                        elapsed_source = 'pgn-emt' if elapsed is not None else ''
+                        if elapsed is None and previous_clock is not None and clock is not None and increment is not None:
+                            difference = previous_clock + increment - clock
+                            if difference >= 0:
+                                elapsed = difference
+                                elapsed_source = 'clock-difference'
                         summary.plies.append(
                             PlyRecord(
                                 game_id=summary.game_id,
@@ -192,8 +226,13 @@ def load_games(
                                 san=san,
                                 line_san=" ".join(history_san + [san]),
                                 line_uci=",".join(history_uci + [move.uci()]),
+                                clock_after=clock,
+                                spent_seconds=elapsed,
+                                spent_source=elapsed_source,
+                                time_control=time_control,
                             )
                         )
+                        previous_clock = clock
                     history_uci.append(move.uci())
                     history_san.append(san)
                     board.push(move)

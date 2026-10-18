@@ -1,0 +1,440 @@
+/* An editorial catalogue and detailed board tools; no extra primary destination. */
+.deep-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-block: 1px solid var(--line);
+  padding: 20px 0;
+  margin: 20px 0;
+}
+.deep-entry strong,
+.deep-entry span {
+  display: block;
+}
+.deep-entry strong {
+  font:
+    500 22px/1.3 Georgia,
+    serif;
+  margin-bottom: 7px;
+}
+.deep-entry span {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.deep-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 170px auto;
+  gap: 18px;
+  align-items: end;
+  margin: 25px 0 18px;
+}
+.deep-search label {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.deep-search input[type="search"],
+.deep-search select {
+  display: block;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  margin-top: 7px;
+}
+.deep-bookmark-filter {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 46px;
+}
+.deep-route-list {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+}
+.deep-route-list > li {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line);
+}
+.deep-route-list > li > div:first-child {
+  min-width: 0;
+}
+.deep-route-list > li > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: none;
+}
+.deep-eco {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.deep-name {
+  display: block;
+  background: none;
+  border: 0;
+  padding: 3px 0;
+  color: var(--text);
+  font-size: 16px;
+  text-align: left;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.deep-name:hover {
+  text-decoration: underline;
+}
+.deep-route-list p {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+  max-width: 760px;
+  margin-block: 8px;
+}
+.deep-route-list small {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.deep-source,
+.deep-scope {
+  font-size: 10px;
+  line-height: 1.8;
+  color: var(--text-muted);
+  margin-top: 20px;
+}
+.deep-source a {
+  color: inherit;
+}
+.deep-panel-heading {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  align-items: center;
+  margin: 10px 0 16px;
+}
+#deepBoardPanel h3 {
+  font:
+    500 23px/1.2 Georgia,
+    serif;
+  letter-spacing: -0.3px;
+  margin-block: 12px;
+}
+#deepBoardPanel > p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+#deepBoardPanel h4 {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 22px 0 10px;
+}
+.deep-walk-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-block: 16px;
+}
+.deep-walk-controls .btn {
+  min-height: 42px;
+  padding: 9px 12px;
+}
+.deep-move-order {
+  border-block: 1px solid var(--line);
+  padding: 13px 0;
+  margin: 16px 0;
+  font-size: 12px;
+}
+.deep-move-order > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 12px;
+}
+.deep-move-order button {
+  border: 0;
+  border-radius: 5px;
+  padding: 8px;
+  color: var(--text);
+  background: var(--raised);
+  font: 12px/1.5 monospace;
+  cursor: pointer;
+}
+.deep-move-order button.is-current {
+  color: white;
+  background: #7050c4;
+}
+.deep-replies {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.deep-replies > li {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 0;
+}
+.deep-replies > li > button:first-child {
+  display: grid;
+  grid-template-columns: 65px minmax(0, 1fr);
+  gap: 4px 10px;
+  padding: 7px 0;
+  min-height: 44px;
+  width: 100%;
+  background: none;
+  border: 0;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.deep-replies b {
+  font: 500 15px/1.5 monospace;
+  grid-row: span 2;
+}
+.deep-replies span {
+  font-size: 11px;
+}
+.deep-replies small {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.deep-replies button.deep-named {
+  border: 0;
+  background: none;
+  padding: 8px 0;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  min-height: 36px;
+}
+@media (max-width: 650px) {
+  .deep-search {
+    grid-template-columns: minmax(0, 1fr) 130px;
+    gap: 12px;
+  }
+  .deep-search label:first-child {
+    grid-column: 1/-1;
+  }
+  .deep-search input[type="search"],
+  .deep-search select {
+    font-size: 16px;
+  }
+  .deep-route-list > li {
+    display: block;
+    padding: 22px 0;
+  }
+  .deep-route-list > li > div:last-child {
+    flex-direction: row;
+    margin-top: 15px;
+  }
+  .deep-entry {
+    display: block;
+  }
+  .deep-entry .btn {
+    margin-top: 15px;
+  }
+  .study-tabs button {
+    padding-inline: 10px;
+    font-size: 11px;
+  }
+}
+
+.player-lab {
+  border-block: 1px solid var(--line);
+  padding: 25px 0;
+  margin: 10px 0 30px;
+}
+.player-lab-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+.player-lab h3 {
+  font:
+    500 30px/1.2 Georgia,
+    serif;
+  margin: 10px 0;
+}
+.player-lab-heading p,
+.player-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.decision-preferences {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin: 22px 0 16px;
+}
+.decision-preferences label,
+.decision-reflection label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.decision-preferences select,
+.decision-reflection select,
+.decision-reflection textarea {
+  display: block;
+  width: 100%;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 11px 12px;
+  margin-top: 7px;
+  font: inherit;
+}
+.decision-preferences [role="status"],
+.decision-status {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.decision-list {
+  margin-block: 20px;
+}
+.decision-row {
+  border-bottom: 1px solid var(--line);
+}
+.decision-row > summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  padding: 20px 0;
+  cursor: pointer;
+}
+.decision-row summary strong {
+  font-size: 15px;
+  font-weight: 500;
+}
+.decision-row summary small {
+  display: block;
+  color: var(--text-muted);
+  line-height: 1.7;
+  font-size: 11px;
+  margin-top: 5px;
+}
+.decision-body {
+  max-width: 850px;
+  padding: 0 0 25px;
+}
+.decision-body h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 10px 0;
+}
+.decision-facts li,
+.decision-facts p,
+.decision-sources p {
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--text-muted);
+}
+.decision-facts ul {
+  padding-left: 20px;
+}
+.decision-facts li {
+  margin: 8px 0;
+}
+.decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0;
+}
+.decision-sources {
+  padding: 15px 0;
+  border-block: 1px solid var(--line);
+  font-size: 12px;
+}
+.decision-sources ul {
+  padding-left: 18px;
+}
+.decision-sources li {
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.decision-sources li > span:last-child {
+  display: block;
+  color: var(--text-muted);
+  line-height: 1.8;
+  font-size: 11px;
+}
+.decision-reflection {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+.decision-reflection > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.decision-reflection textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+.decision-reflection > small {
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+.player-focus {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  border-block: 1px solid var(--line);
+  margin: 25px 0;
+  padding: 20px 0;
+}
+.player-focus strong {
+  display: block;
+  font:
+    500 23px/1.4 Georgia,
+    serif;
+  margin: 8px 0;
+}
+.player-focus div > span:last-child {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+@media (max-width: 650px) {
+  .player-lab-heading,
+  .player-focus {
+    display: block;
+  }
+  .player-lab-heading .text-link,
+  .player-focus .btn {
+    display: inline-block;
+    margin-top: 14px;
+  }
+  .decision-preferences label {
+    flex: 1 0 100%;
+  }
+  .decision-preferences select,
+  .decision-reflection select,
+  .decision-reflection textarea {
+    font-size: 16px;
+  }
+  .decision-actions .btn {
+    width: 100%;
+  }
+}
