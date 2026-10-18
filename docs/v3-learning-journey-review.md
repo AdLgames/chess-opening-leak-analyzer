@@ -83,7 +83,7 @@ outbox for game reports or repertoire editing.
 
 - 226 Python tests passed, including 16 tests against real PostgreSQL and checks
   of every compiled puzzle transition, source interpretation and teaching frame.
-- The complete browser regression runs in CI; 181 journeys cover both the
+- The complete browser regression runs in CI; 182 journeys cover both the
   established application and new learning, recovery and account-switch flows.
   Exact revision and results are recorded on the pull request.
 - 48 axe WCAG A/AA screen-state scans passed across 360px, 390px and desktop,

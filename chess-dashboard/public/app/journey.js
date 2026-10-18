@@ -10,16 +10,16 @@
   const arrowIcon =
     '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6h12v12"/></svg>';
   const get = (key, fallback) => S.prefs.get(root + key, fallback);
-  const settings = () =>
-    get("preferences", {
-      goal: 3,
-      nickname: "",
-      avatar: "n",
-      timezone: S.prefs.get(
-        "journeyTimezone",
-        Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-      ),
-    });
+  const settings = () => ({
+    goal: 3,
+    nickname: "",
+    avatar: "n",
+    timezone: S.prefs.get(
+      "journeyTimezone",
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    ),
+    ...(get("preferences") || {}),
+  });
   function dateKey(at, timezone = settings().timezone) {
     const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: timezone || "UTC",

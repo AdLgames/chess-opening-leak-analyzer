@@ -264,3 +264,12 @@ def test_pack_download_failure_can_retry_and_navigation_cancels_stale_presentati
  assert pending
  pending[0].fulfill(json=PACKS['pins']);page.wait_for_timeout(100)
  expect(page.locator('#viewPath')).to_be_visible();expect(page.locator('#puzzleSession')).to_be_hidden()
+
+
+def test_cleared_private_profile_boots_cleanly_after_signout_or_account_deletion(page,app_url):
+ ready(page,app_url)
+ page.locator('#openLearningProfile').click();page.locator('[name=nickname]').fill('Private name');page.locator('#learningProfileForm [type=submit]').click()
+ assert page.evaluate('Journey.settings().nickname')=='Private name'
+ page.evaluate('Store.forget()');page.reload();page.wait_for_function('Auth.state.ready && window.Journey')
+ assert page.evaluate('Journey.settings().nickname')==''
+ page.locator('#openLearningProfile').click();expect(page.locator('[name=nickname]')).to_have_value('')
