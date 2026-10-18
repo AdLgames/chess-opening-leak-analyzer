@@ -47,7 +47,7 @@
         if (!session) return put('session', null);
         const value = { ...session, updated: Date.now() };
         put(`checkpoint:${session.id}`, value);
-        put('session', { id: session.id });
+        put('session', { id: session.id, updated: value.updated });
         return value;
       },
       completed: (chapter) => !!get('chapter:' + chapter),

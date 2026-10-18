@@ -150,7 +150,7 @@
   });
   renderOpenings(); renderGuide(); renderSaved(); setPanel('study');
   function boardPalette() {
-    const value = S.prefs.get('boardPalette', 'green') === 'wood' ? 'wood' : 'green';
+    const value = ['green', 'wood', 'slate', 'contrast'].includes(S.prefs.get('boardPalette', 'green')) ? S.prefs.get('boardPalette', 'green') : 'green';
     document.documentElement.dataset.board = value; $('boardPalette').value = value;
   }
   $('boardPalette').addEventListener('change', (event) => { S.prefs.set('boardPalette', event.target.value); boardPalette(); });

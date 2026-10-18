@@ -27,6 +27,9 @@ const ROW_CAP = 25;
 const VIEWS = {
   today: { title: 'Today', route: 'today', parent: 'today' },
   explore: { title: 'Explore', route: 'explore', parent: 'explore' },
+  path: { title: 'Explore', route: 'explore/path', parent: 'explore' },
+  puzzles: { title: 'Explore', route: 'explore/puzzles', parent: 'explore' },
+  games: { title: 'Explore', route: 'explore/games', parent: 'explore' },
   repertoire: { title: 'Repertoire', route: 'repertoire', parent: 'repertoire' },
   progress: { title: 'Progress', route: 'progress', parent: 'progress' },
   dashboard: { title: 'Game analysis', route: 'progress/games', parent: 'progress' },
@@ -133,6 +136,7 @@ function go(view, { replace = false, focus = true } = {}) {
   }
   if (view === 'prep' && window.Prep) window.Prep.render();
   window.Workspace.render(view, reportContext());
+  window.Journey?.render(view);
   $('main').scrollTop = 0;
   if (focus) $('viewTitle').focus({ preventScroll: true });
 }
@@ -152,6 +156,9 @@ function subtitle() {
     return 'Your choices, saved for the next time you play';
   }
   if (state.view === 'today') return 'Study board';
+  if (state.view === 'path') return 'A useful idea, one move at a time';
+  if (state.view === 'puzzles') return 'Spot a pattern. Take your time.';
+  if (state.view === 'games') return 'Great games, explained on the board';
   if (state.view === 'explore') return 'Openings and common continuations';
   if (state.view === 'progress') return 'Practice and game history';
   if (state.view === 'prep') return 'Build your repertoire, one response at a time';
@@ -1589,10 +1596,10 @@ go(location.hash.slice(1) || 'today', { replace: true, focus: false });
 // holds, so the gate is drawn as soon as /api/auth/me answers — and again on
 // any later change, such as signing out from the account menu.
 if (window.Auth) {
-  window.Auth.onChange(() => { renderAuthGate(); window.Workspace.render(state.view, reportContext()); });
+  window.Auth.onChange(() => { renderAuthGate(); window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); });
   window.Auth.boot().then(() => {
     renderAuthGate();
-    window.Workspace.render(state.view, reportContext());
+    window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view);
     if (window.Auth.signedIn() && !state.rows.length) bootReport();
   });
 }

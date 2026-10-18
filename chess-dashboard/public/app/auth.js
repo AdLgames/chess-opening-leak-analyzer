@@ -59,9 +59,9 @@
   }
 
   /* -------------------------------------------------------------- the mirror */
-  /* Each local write is echoed to the server. Failures are swallowed on purpose:
-     the write already happened locally, and losing a sync is not losing data —
-     the next successful run re-sends the lot. */
+  /* Existing repertoire/report mirrors retain their established behaviour.
+     Learning writes use the durable owner-scoped queue below; every UI still
+     reads the local working copy while the network catches up. */
   function leakRows() {
     const report = S.lastReport.load();
     const rows = (report && report.rows) || [];
@@ -142,20 +142,37 @@
     },
   };
 
+  let draining = null;
+  async function flushLearning() {
+    if (draining) return draining;
+    const owner = state.user?.id;
+    if (!owner) return;
+    draining = (async () => {
+      while (state.user?.id === owner) {
+        const payload = Object.values(S.sync.pending(owner))[0];
+        if (!payload) break;
+        await SINKS.pref(payload);
+        S.sync.ack(owner, payload);
+      }
+    })();
+    try { await draining; } finally { draining = null; }
+  }
   function connect() {
-    const learningWrites = new Map();
+    const owner = state.user.id;
+    // A different account must never inherit the previous account's working copy.
+    if (S.sync.owner() && S.sync.owner() !== owner) S.forget();
+    S.sync.own(owner);
     S.connect((kind, payload) => {
       const send = SINKS[kind];
       if (!send) return;
       if (kind === 'pref' && payload.key.startsWith('learning:v2:')) {
-        // Never let a slower older checkpoint arrive after a newer answer.
-        const key = payload.key;
-        const request = (learningWrites.get(key) || Promise.resolve()).then(() => send(payload)).catch(() => {});
-        learningWrites.set(key, request);
-        request.finally(() => { if (learningWrites.get(key) === request) learningWrites.delete(key); });
+        S.sync.put(owner, payload);
+        flushLearning().catch(() => {});
       } else send(payload).catch(() => {});
     });
   }
+  window.addEventListener('online', () => flushLearning().catch(() => {}));
+  window.addEventListener('focus', () => flushLearning().catch(() => {}));
 
   /* ------------------------------------------------------------ session boot */
   async function pull() {
@@ -170,10 +187,10 @@
     // picking their work up, not like starting over, so a first sign-in adopts
     // whatever the browser was already holding.
     if (empty && haveLocal) {
-      S.adopt(await api('/api/state/import', {
+      remote = await api('/api/state/import', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(local),
-      }));
+      });
     } else {
       // Immutable learning events use independent keys, so a guest's completed
       // work can join an existing account without replacing its history.
@@ -182,8 +199,14 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prefs: missing }),
       });
-      S.adopt(remote);
     }
+    // Re-read after network awaits: training can continue while boot is syncing.
+    const current = Object.fromEntries(Object.entries(S.prefs.all()).filter(([k,v])=>k.startsWith('learning:v2:') && v));
+    const newer = Object.fromEntries(Object.entries(current).filter(([k,v])=>Number(v.updated)>Number(remote.prefs?.[k]?.updated||0)));
+    for (const [key,value] of Object.entries(newer)) S.sync.put(state.user.id,{key,value});
+    await flushLearning();
+    remote.prefs = { ...current, ...remote.prefs, ...newer };
+    S.adopt(remote);
     state.progress = remote.progress || null;
   }
 
@@ -202,6 +225,7 @@
     if (state.user) {
       connect();
       try {
+        await flushLearning();
         await pull();
       } catch (err) {
         /* offline, or the state endpoint is unhappy: the local copy still works */
@@ -328,10 +352,14 @@
 
   async function signOut() {
     try {
+      await flushLearning();
       await api('/api/auth/logout', { method: 'POST' });
     } catch (err) {
-      /* the cookie is gone either way as far as this page is concerned */
+      window.alert('Sign-out could not finish. Your work is still on this device. Reconnect and try again so your learning can be saved safely.');
+      return;
     }
+    S.sync.clear(state.user.id);
+    S.sync.own(null);
     S.disconnect();
     // The working copy belongs to the account that just left this browser.
     S.forget();
@@ -354,6 +382,8 @@
       window.alert(`Could not delete the account: ${err.message}`);
       return;
     }
+    S.sync.clear(state.user.id);
+    S.sync.own(null);
     S.disconnect();
     S.forget();
     state.user = null;
@@ -363,6 +393,8 @@
 
   window.Auth = {
     boot,
+    flushLearning,
+    pendingLearning: () => Object.keys(S.sync.pending(state.user?.id)).length,
     state,
     /** What the server has accumulated across runs, or null when signed out. */
     progress: () => state.progress || null,

@@ -305,6 +305,15 @@
   migrate();
 
   window.Store = {
+    // Owner-scoped learning outbox is private transport state, never a preference.
+    sync: {
+      owner: () => read('learningOwner', null),
+      own: (id) => write('learningOwner', id),
+      pending: (id) => read('sync:v1:' + id, {}),
+      put(id, payload) { const queue = this.pending(id); queue[payload.key] = payload; write('sync:v1:' + id, queue); },
+      ack(id, payload) { const queue = this.pending(id); if (JSON.stringify(queue[payload.key]) === JSON.stringify(payload)) { delete queue[payload.key]; write('sync:v1:' + id, queue); } },
+      clear: (id) => write('sync:v1:' + id, {}),
+    },
     repertoire,
     savedLocally: (entry) => {
       try { return !!store() && JSON.parse(store().getItem(PREFIX + 'repertoire') || '[]').some((e) => e.key === entry.key && JSON.stringify(e) === JSON.stringify(entry)); }

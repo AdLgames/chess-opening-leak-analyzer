@@ -157,6 +157,12 @@
       ],
     },
   };
+  const puzzleLines = {
+    maya: { puzzle: ['Take your time. The pieces aren’t going anywhere.', 'Checks, captures, threats. Let’s be nosy.'], pattern: ['One small idea. A whole new way to see the board.'], puzzleRetry: ['A plot twist! Let’s look for the puzzle’s continuation.'] },
+    theo: { puzzle: ['Tiny army. Somewhere here, a big opportunity.', 'Detective hat on. Where’s the tactic?'], pattern: ['A little chess trick for your collection.'], puzzleRetry: ['The board has another plan. Let’s hunt it down.'] },
+    inez: { puzzle: ['Look at the forcing moves first. No rush.', 'Check your king, then look for an opportunity.'], pattern: ['See the relationship. Then make the move.'], puzzleRetry: ['That move is legal. Look for the verified continuation.'] },
+  };
+  for (const id of Object.keys(puzzleLines)) Object.assign(voices[id], puzzleLines[id]);
   function current() {
     const id = S.prefs.get("studyCoach", "maya");
     return Object.hasOwn(voices, id) ? id : "maya";

@@ -454,3 +454,19 @@ def test_explored_lines_keep_source_notes_and_move_order_through_sync():
     assert restored['legacy-choice']['answer'] == 'e4'
     assert client.post('/api/state/import', json={"repertoire": [entry]}).status_code == 200
     assert len(client.get('/api/state').json()['repertoire']) == 2
+
+
+def test_learning_checkpoint_versions_and_earned_rewards_cannot_be_rewound():
+    auth, db, state, TestClient = LOADED
+    client, _uid = _client(auth, db, state, TestClient)
+    key='learning:v2:puzzle-sessions-v1:checkpoint:position-a'
+    latest={'id':'position-a','ply':2,'help':2,'updated':1792200000002}
+    older={**latest,'ply':0,'help':0,'updated':1792200000001}
+    for payload in [latest,older,{'id':'position-a','ply':0},{'updated':'invalid','ply':0}]:
+        assert client.post('/api/state/pref',json={'key':key,'value':payload}).status_code==200
+    assert client.get('/api/state').json()['prefs'][key]==latest
+    # Rewards are stable evidence. A retry may not alter its earned date/details.
+    reward='learning:v2:journey-v3:reward:first-puzzle'
+    client.post('/api/state/pref',json={'key':reward,'value':{'id':'first-puzzle','at':1}})
+    client.post('/api/state/pref',json={'key':reward,'value':{'id':'first-puzzle','at':2}})
+    assert client.get('/api/state').json()['prefs'][reward]['at']==1
