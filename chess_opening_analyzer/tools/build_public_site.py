@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 from public_content import COURSES, GUIDES
-from public_site import SITE, NAME, PUBLIC_PATHS, esc, head, header, footer, crumbs, scripts, preview_board
+from public_site import SITE, NAME, PUBLIC_PATHS, esc, head, header, footer, crumbs, scripts, preview_board, account_banner
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUT = ROOT / 'chess-dashboard/public'
@@ -18,6 +18,8 @@ def read_courses(out):
 
 
 def document(title, description, path, content, *, section='', opening=None, schema=None, noindex=False):
+    if path.startswith('/learn/') and path != '/learn/':
+        content += account_banner()
     attr = f' data-initial-preview="{opening}"' if opening else ''
     return f'<!doctype html>\n<html lang="en">{head(title, description, path, extra_schema=schema, preview=bool(opening), noindex=noindex)}<body{attr}>{header(section)}<main id="main">{content}</main>{footer()}{scripts(bool(opening))}</body></html>\n'
 

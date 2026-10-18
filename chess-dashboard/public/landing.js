@@ -195,8 +195,18 @@
       S.prefs.get("landingProvider", "lichess") === "chesscom"
         ? "chesscom"
         : "lichess";
+    function updateConnect() {
+      const link=$("startConnect");
+      if(!link)return;
+      const query=new URLSearchParams({connect:provider});
+      const user=$("user")?.value.trim();
+      if(user)query.set('user',user);
+      link.href='/app/?'+query.toString()+'#progress/games';
+    }
+    $("user")?.addEventListener('input',updateConnect);
     function setProvider(value) {
       provider = value;
+      updateConnect();
       document
         .querySelectorAll("[data-provider]")
         .forEach((b) =>

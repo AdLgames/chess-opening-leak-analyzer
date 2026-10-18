@@ -10,6 +10,7 @@
   let selectedLine = 0;
   let side = 'all';
   let panel = 'study';
+  let explorationReaction = { event: 'explore', key: 'explore', prompt: 'Pick an opening or play a move. Make yourself at home.' };
   const saved = () => S.repertoire.committed().slice().sort((a, b) => b.decidedAt - a.decidedAt);
   const pathOf = (entry) => entry.explorePath?.length ? entry.explorePath : [...(entry.line || []), entry.answer].filter(Boolean);
   const notation = (moves) => moves.map((m, i) => `${i % 2 ? '' : `${i / 2 + 1}. `}${m}`).join(' ');
@@ -141,7 +142,9 @@
   $('guideReplay').addEventListener('click', () => { if (selected) window.Study.replay(lines()[selectedLine].line, selected.side); });
   window.addEventListener('chess:position', (event) => {
     if (window.Training?.active()) return;
-    const { line, turn, opening } = event.detail;
+    const { line, turn, opening, played, fen } = event.detail;
+    explorationReaction = window.Coach.exploration(played, fen, line);
+    if (window.App?.currentView() === 'today') window.Coach.onBoard(explorationReaction);
     if (selected && line.length && !lines().some((known) => {
       const overlap = Math.min(line.length, known.line.length);
       return line.slice(0, overlap).every((move, index) => move === known.line[index]);
@@ -168,7 +171,7 @@
       window.Training?.leave(view);
       window.DailySession?.render();
       if (!window.Training?.active()) {
-        if (view === 'today') window.Coach.onBoard({ event: 'explore', key: 'explore', prompt: 'Pick an opening or play a move. Make yourself at home.' });
+        if (view === 'today') window.Coach.onBoard(explorationReaction);
         else window.Coach.hideBoard();
       }
       window.Training?.overview(selected?.id || null);

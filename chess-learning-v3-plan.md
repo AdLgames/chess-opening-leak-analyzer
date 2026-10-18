@@ -38,6 +38,19 @@ Later phases below remain a roadmap, rather than shipped capabilities.
 Arrows, speech bubbles, daily planning, game import, opening exploration and
 basic recall are not new v3 features. The additions below build on them.
 
+## V3.1 review additions — 18 October
+
+The review build now also includes themed app/public navigation, evidence-based
+positive book-move reactions, and a prominent provider-aware signup/import
+invitation. Provider and username choices survive sign-in; Chess.com remains a
+public-username import, while Lichess supports OAuth when configured.
+[Review details and the next small delivery slices](docs/v3-header-book-import-review.md).
+
+The useful remaining near-term gaps are explicit provider/import status, durable
+sync for repertoire/report writes, a guided first imported-game finding, and the
+three proposed authored courses. These should be reviewed as small complete
+slices before full bot play or community features.
+
 ## What to take from Chess.com
 
 Chess.com documents both a guided lesson path and a searchable library. Our

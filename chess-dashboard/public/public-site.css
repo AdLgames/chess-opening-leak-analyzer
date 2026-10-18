@@ -816,3 +816,90 @@
     display: none;
   }
 }
+/* The same welcoming clubhouse identity as the workspace. */
+.site-head { position:relative; border-bottom-color:#688674; }
+.site-head:after { content:''; position:absolute; inset-inline:0; bottom:0; height:3px; background:repeating-linear-gradient(90deg,#c7e89b55 0 13px,transparent 13px 26px); pointer-events:none; }
+.brand-motto { display:block; color:#bdd4be; letter-spacing:1.7px; font:700 8px/1.7 Inter,system-ui,sans-serif; margin-top:4px; }
+.site-head .wordmark img { background:#f5f2e80d; border-radius:13px; }
+.site-head nav { gap:20px; }
+.site-head nav>a { min-height:44px; display:inline-flex; align-items:center; }
+.site-head .nav-open { border-radius:10px; color:#173d32; background:#c7e89b; border-color:#c7e89b; font-weight:600; }
+.site-head .nav-open:hover { background:#dcf3bd; }
+.site-head .nav-join { border:1px solid #688674; padding:8px 13px; border-radius:10px; }
+.site-head .nav-join:hover { border-color:#c7e89b; }
+.nav-toggle { border:1px solid #688674; border-radius:10px; padding:9px 12px; color:#f5f2e8; }
+.public-menu-intro { display:none; }
+.connect-home { background:#e7e8cb; color:#173d32; border-radius:24px; padding:44px; position:relative; gap:45px; margin-block:54px; }
+.connect-home h2 { font-size:clamp(38px,4.8vw,58px); letter-spacing:-1.8px; }
+.connect-home .eyebrow { color:#476344; }
+.connect-home p { color:#355139; }
+.connect-home .quiet-link,.connect-home a { color:#173d32; }
+.connect-home .import-form { background:#f5f2e8; color:#173d32; border:1px solid #c4cfb3; border-radius:16px; padding:24px; }
+.connect-home .segmented { border:1px solid #9bac90; border-radius:8px; }
+.connect-home .segmented button { color:#355139; }
+.connect-home .segmented [aria-pressed=true] { color:#f5f2e8; background:#173d32; }
+.connect-home .input-with-button input { color:#173d32; background:white; border:1px solid #8a9c7a; }
+.connect-home .button.primary { background:#173d32; color:#f5f2e8; border-color:#173d32; }
+.connect-home .button.primary:hover { background:#2a5440; }
+.connect-home .import-signup { display:flex; background:#eae3f6; border-color:#c2b1da; color:#372451; margin:12px 0 8px; font-size:12px; }
+.connect-home .import-provider-note { font-size:10px; line-height:1.8; }
+.import-coach { width:125px; height:146px; display:block; float:right; margin:0 -10px 10px 10px; transform:rotate(4deg); }
+.public-connect { display:flex; justify-content:space-between; gap:40px; align-items:center; background:#e7e8cb; color:#173d32; border-radius:24px; padding:42px; margin-block:46px; overflow:hidden; }
+.public-connect .eyebrow { color:#476344; }
+.public-connect h2 { font-size:52px; letter-spacing:-1.5px; margin:16px 0; }
+.public-connect h2 em { color:#476344; }
+.public-connect p { max-width:560px; line-height:1.8; font-size:14px; }
+.public-connect-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:25px; }
+.public-connect .button { font-size:12px; padding:12px 16px; }
+.public-connect .button.primary { background:#173d32; border-color:#173d32; color:#f5f2e8; }
+.public-connect .button.outline { border-color:#7a9072; color:#173d32; }
+.public-connect small { display:block; max-width:600px; font-size:10px; line-height:1.8; margin-top:18px; color:#355139; }
+.public-connect-coach { width:180px; height:210px; flex:none; align-self:end; transform:rotate(-4deg); }
+@media(max-width:1180px) and (min-width:1001px) {
+ .site-head nav { gap:12px; font-size:10px; }
+ .site-head .wordmark>span { font-size:18px; }
+ .site-head .nav-join,.site-head .nav-open { padding:8px; }
+}
+@media(max-width:1000px) {
+ .site-head { min-height:82px; }
+ .site-head .nav-toggle { display:flex; align-items:center; gap:10px; margin-left:auto; }
+ .site-head #publicNav { display:none; position:absolute; inset:81px 0 auto; z-index:30; padding:16px; background:#f5f2e8; color:#173d32; border:1px solid #9aaf91; border-radius:14px; box-shadow:0 15px 35px #071d2330; gap:3px; }
+ .site-head #publicNav.is-open { display:flex; flex-direction:column; align-items:stretch; }
+ #publicNav>a { padding:10px 12px; color:#173d32; border-radius:8px; font-size:13px; }
+ #publicNav>a:hover { background:#e3e9d8; }
+ #publicNav>a[aria-current] { color:#173d32; text-decoration-color:#7050c4; }
+ #publicNav>.nav-open { color:#173d32; background:#c7e89b; justify-content:center; margin-top:8px; }
+ #publicNav>.nav-join { margin-top:10px; justify-content:center; border-color:#a5b69a; }
+ .public-menu-intro { display:flex; align-items:end; gap:15px; margin:0 0 10px; padding-bottom:10px; border-bottom:1px solid #ccd4c0; }
+ .public-menu-intro .coach-art { width:58px; height:68px; flex:none; }
+ .public-menu-intro strong { display:block; font-size:14px; font-weight:600; }
+ .public-menu-intro div>span { display:block; font-size:10px; line-height:1.7; margin-top:3px; }
+ html:not(.js) .site-head { flex-wrap:wrap; padding-block:15px; }
+ html:not(.js) #publicNav { display:flex; position:static; flex-wrap:wrap; flex-direction:row; width:100%; box-shadow:none; }
+ html:not(.js) .site-head #navToggle { display:none; }
+ html:not(.js) .public-menu-intro { display:none; }
+ .connect-home { padding:30px; gap:30px; }
+ .public-connect { padding:30px; }
+ .public-connect-coach { width:130px; height:152px; }
+}
+@media(max-width:650px) {
+ .connect-home { padding:25px 20px; margin-block:30px; width:calc(100% - 24px); }
+ .connect-home h2 { font-size:38px; }
+ .connect-home .import-form { padding:17px; }
+ .import-coach { width:82px; height:96px; margin:15px -4px 0 5px; }
+ .public-connect { padding:28px 22px; display:block; position:relative; }
+ .public-connect h2 { font-size:39px; }
+ .public-connect-coach { display:none; }
+ .public-connect-actions { display:grid; }
+ .public-connect .button { width:100%; }
+}
+.connect-home .username-field input { background:#fff; color:#173d32; border-color:#8a9c7a; }
+.connect-home .username-field input::placeholder { color:#526451; opacity:1; }
+@media(max-width:550px) {
+ .connect-home .username-field { flex-direction:column; }
+ .connect-home .username-field input { font-size:16px; min-height:48px; }
+ .connect-home .username-field .button { justify-content:center; min-height:48px; }
+}
+@media(max-width:1000px) { #publicNav :focus-visible { outline:2px solid #7050c4; outline-offset:3px; } }
+.public-connect .public-connect-copy>p { color:#355139; }
+@media(max-width:650px) { .site-head { gap:14px; } .brand-motto { font-size:7px; letter-spacing:1px; } }

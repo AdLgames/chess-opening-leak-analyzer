@@ -249,7 +249,7 @@
     $('libBoard').removeAttribute('aria-describedby');
     closing = window.Study.training.end().then(() => { if (!active) {
       if (returnHeading) { $('openingGuideTitle').textContent = returnHeading.title; $('guideMeta').textContent = returnHeading.meta; }
-      window.Workspace.refreshGuide(); overview();
+      window.Workspace.refreshGuide(); overview(); window.Clubhouse?.render();
       if (window.App.currentView() === 'today') window.Coach.onBoard({ event: 'explore', key: 'explore', prompt: 'Pick an opening or play a move. Make yourself at home.' });
     } });
     return closing;

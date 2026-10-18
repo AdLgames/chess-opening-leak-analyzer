@@ -157,6 +157,12 @@
       ],
     },
   };
+  const bookLines = {
+    maya: {book: ['{move}. Your pieces have done their homework!', 'Right out of the book. Looking well-read today.'], exploreMove: ['A new little adventure. Let’s see the plan.']},
+    theo: {book: ['{move}! Somewhere, an opening manual just nodded.', 'Book move. Tiny army, excellent preparation.'], exploreMove: ['We’re taking the scenic route. What’s your idea?']},
+    inez: {book: ['{move}. A familiar move with a plan to explore.', 'A book move. Now make the position your own.'], exploreMove: ['A different path. Let’s investigate before judging.']},
+  };
+  for (const id of Object.keys(bookLines)) Object.assign(voices[id], bookLines[id]);
   const puzzleLines = {
     maya: { puzzle: ['Take your time. The pieces aren’t going anywhere.', 'Checks, captures, threats. Let’s be nosy.'], pattern: ['One small idea. A whole new way to see the board.'], puzzleRetry: ['A plot twist! Let’s look for the puzzle’s continuation.'] },
     theo: { puzzle: ['Tiny army. Somewhere here, a big opportunity.', 'Detective hat on. Where’s the tactic?'], pattern: ['A little chess trick for your collection.'], puzzleRetry: ['The board has another plan. Let’s hunt it down.'] },
@@ -200,7 +206,7 @@
       show.textContent = `Show ${voices[id].name}`;
       host.querySelector(".companion-byline").textContent = voices[id].name;
       const options = voices[id][state.event] || voices[id].learn;
-      const text = options[variant % options.length];
+      const text = options[variant % options.length].replaceAll("{move}", state.move || "That move");
       if (quip.textContent !== text) quip.textContent = text;
       host.querySelector(".companion-task").textContent = state.prompt || "";
       if (animate && !quiet) {

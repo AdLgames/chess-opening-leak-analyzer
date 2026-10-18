@@ -17,6 +17,9 @@
   nav.addEventListener("click", (event) => {
     if (event.target.closest("a")) close();
   });
+  document.addEventListener('click', event => {
+    if(!nav.contains(event.target) && !toggle.contains(event.target)) close();
+  });
   document.addEventListener("keydown", (event) => {
     if (
       event.key === "Escape" &&

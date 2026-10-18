@@ -266,7 +266,7 @@
       ? '<p class="auth-or"><span>or</span></p>' : '');
   }
 
-  function wireEmailForm(scope) {
+  function wireEmailForm(scope, redirect = '/app/') {
     const form = scope.querySelector('#authEmailForm');
     if (!form) return;
     form.addEventListener('submit', async (event) => {
@@ -282,7 +282,7 @@
       try {
         const out = await api('/api/auth/email/request', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: input.value.trim(), redirect: '/app/' }),
+          body: JSON.stringify({ email: input.value.trim(), redirect }),
         });
         note.className = 'small ok';
         note.innerHTML = out && out.link
@@ -305,13 +305,11 @@
   }
 
   /** The sign-in card that stands where the run form would be. */
-  function renderGate(host, redirect = '/app/') {
+  function renderGate(host, redirect = '/app/', purpose = 'analysis') {
     host.innerHTML =
       '<div class="auth-card">'
-      + '<h3>Sign in to run an analysis</h3>'
-      + '<p class="muted small">Your leaks are tracked across runs, so the next report can '
-      + 'tell you which ones you actually fixed. No password — and you can export or '
-      + 'delete everything at any time.</p>'
+      + (purpose === 'connect' ? '<h3>Your games. Your next good move.</h3><p class="muted small">Create an Opening Leak Lab account or sign in to keep your analysis, repertoire and learning together. Choose a secure sign-in below; your game provider is selected separately.</p>' : purpose === 'account' ? '<h3>Make this your chess corner.</h3><p class="muted small">Create an account or sign in to keep your learning across devices and bring in your games when you’re ready.</p>' : '<h3>Sign in to run an analysis</h3>')
+      + (purpose === 'analysis' ? '<p class="muted small">Your leaks are tracked across runs, so the next report can tell you which ones you actually fixed. No password — and you can export or delete everything at any time.</p>' : '<p class="muted small">Password-free sign-in. Export or delete your data anytime.</p>')
       + methodMarkup(redirect)
       // Requiring an account costs the try-before-you-sign-up path, so the one
       // thing that needs no account stays one click away: the sample archive is
@@ -319,7 +317,7 @@
       + '<p class="auth-demo small"><a href="/app/?demo=1">Or look around a finished '
       + 'report on the sample archive</a> — no account needed.</p>'
       + '</div>';
-    wireEmailForm(host);
+    wireEmailForm(host, redirect);
   }
 
   function renderHeader(host) {
@@ -329,7 +327,7 @@
     }
     host.hidden = false;
     if (!state.user) {
-      host.innerHTML = '<button class="btn btn-ghost" id="signInBtn">Sign in</button>';
+      host.innerHTML = '<button class="btn btn-ghost" id="signInBtn" aria-label="Create an account or sign in">Sign in</button>';
       host.querySelector('#signInBtn').addEventListener('click', () => openSignIn());
       return;
     }
@@ -348,10 +346,12 @@
     host.querySelector('#deleteAccountBtn').addEventListener('click', deleteAccount);
   }
 
-  function openSignIn() {
+  function openSignIn({redirect = null, purpose = 'account'} = {}) {
     const dialog = $('authDialog');
     if (!dialog) return;
-    renderGate($('authDialogBody'), location.pathname + location.hash);
+    redirect ||= window.App?.currentView() === 'dashboard' && !$('importWelcome').hidden ? window.App.importRedirect() : location.pathname + location.hash;
+    $('authDialogTitle').textContent = purpose === 'account' ? 'Your chess corner' : 'Bring your games';
+    renderGate($('authDialogBody'), redirect, purpose);
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else dialog.setAttribute('open', '');
   }

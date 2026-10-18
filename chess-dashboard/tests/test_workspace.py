@@ -200,6 +200,7 @@ def test_analysis_demo_drills_exports_and_contextual_return(page, app_url):
     expect(page.locator('#fixPanel')).to_be_visible()
     page.locator('#trainingExit').click()
     expect(page.locator('#viewTitle')).to_have_text('Game analysis')
+    page.locator('.workspace-tools > summary').click()
     page.locator('#exportMenu summary').click()
     with page.expect_download() as download:
         page.locator('#exportCsv').click()

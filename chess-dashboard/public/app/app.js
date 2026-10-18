@@ -37,6 +37,8 @@ const VIEWS = {
   prep: { title: 'Build your lines', route: 'repertoire/edit', parent: 'repertoire' },
 };
 let trainingOrigin = 'today';
+let authReady = Promise.resolve();
+let importIntent = null;
 
 const state = {
   view: 'today',
@@ -137,6 +139,7 @@ function go(view, { replace = false, focus = true } = {}) {
   if (view === 'prep' && window.Prep) window.Prep.render();
   window.Workspace.render(view, reportContext());
   window.Journey?.render(view);
+  window.Clubhouse?.render(view);
   $('main').scrollTop = 0;
   if (focus) $('viewTitle').focus({ preventScroll: true });
 }
@@ -1257,7 +1260,7 @@ function renderAuthGate() {
   A.renderHeader($('headerAccount'));
   const blocked = A.required();
   host.hidden = !blocked;
-  if (blocked) A.renderGate(host, '/app/');
+  if (blocked) A.renderGate(host, importIntent ? importRedirect() : '/app/', importIntent ? 'connect' : 'analysis');
   else host.innerHTML = '';
   if (form) form.hidden = blocked;
   // The demo is a canned sample archive, not anybody's games, so it stays open:
@@ -1297,6 +1300,7 @@ async function bootFromQuery() {
   const provider = q.get('provider') === 'chesscom' ? 'chesscom' : 'lichess';
   const opening = q.get('opening');
   const publicChapter = q.get('chapter');
+  const connectProvider = q.get('connect');
   const wanted = { demo: q.get('demo'), run: q.get('run'), privacy: q.get('privacy'),
     authError: q.get('auth_error') };
   history.replaceState(null, '', location.pathname + location.hash);
@@ -1304,6 +1308,10 @@ async function bootFromQuery() {
   reportAuthError(wanted.authError);
   if (wanted.privacy) openDialog('privacyDialog');
   if (wanted.demo) return runDemo();
+  if (['lichess', 'chesscom'].includes(connectProvider)) {
+    await authReady;
+    return openImport(connectProvider, {user});
+  }
   if (!user && window.OpeningGuides.some((o) => o.id === opening)) {
     try {
       await window.Workspace.choose(opening);
@@ -1317,7 +1325,11 @@ async function bootFromQuery() {
   setProvider(provider);
   $('optUser').value = user;
   updateRunLabel();
-  if (wanted.run) startRun('username');
+  if (wanted.run) {
+    await authReady;
+    if (window.Auth?.required()) return openImport(provider, {user});
+    startRun('username');
+  }
   else checkAccount({ quiet: true });
 }
 
@@ -1522,22 +1534,34 @@ function wire() {
   $('privacyDialogClose').addEventListener('click', () => closeDialog('privacyDialog'));
   $('authDialogClose').addEventListener('click', () => closeDialog('authDialog'));
 
-  const setDrawer = (open) => {
+  const setDrawer = (open, restoreFocus = true) => {
     $('sidebar').classList.toggle('is-open', open);
     $('scrim').hidden = !open;
+    $('menuBtn').setAttribute('aria-expanded', String(open));
+    for (const id of ['main', 'tabbar']) $(id).inert = open;
+    if (open) { $('sidebar').setAttribute('role','dialog'); $('sidebar').setAttribute('aria-modal','true'); $('sidebar').setAttribute('aria-label','Navigation'); $('drawerClose').focus(); }
+    else { $('sidebar').removeAttribute('role'); $('sidebar').removeAttribute('aria-modal'); $('sidebar').removeAttribute('aria-label'); if (restoreFocus && $('menuBtn').getClientRects().length) $('menuBtn').focus(); }
   };
+  $('sidebar').addEventListener('keydown', event => {
+    if(event.key !== 'Tab' || !$('sidebar').classList.contains('is-open')) return;
+    const focusable=Array.from($('sidebar').querySelectorAll('a[href], button:not([disabled])')).filter(el=>el.getClientRects().length);
+    const first=focusable[0],last=focusable.at(-1);
+    if(event.shiftKey && document.activeElement===first){event.preventDefault();last.focus();}
+    else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first.focus();}
+  });
+  window.matchMedia('(min-width:861px)').addEventListener('change', event=>{ if(event.matches) setDrawer(false,false); });
   $('menuBtn').addEventListener('click', () => setDrawer(!$('sidebar').classList.contains('is-open')));
   $('drawerClose').addEventListener('click', () => setDrawer(false));
   $('scrim').addEventListener('click', () => setDrawer(false));
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') setDrawer(false);
+    if (e.key === 'Escape' && $('sidebar').classList.contains('is-open')) setDrawer(false);
   });
 
   document.querySelectorAll('.nav-item, .tab-item').forEach((a) =>
     a.addEventListener('click', (e) => {
       e.preventDefault();
+      setDrawer(false,false);
       go(a.dataset.view);
-      setDrawer(false);
     }),
   );
   window.addEventListener('hashchange', () => go(location.hash.slice(1), { replace: true }));
@@ -1563,8 +1587,49 @@ function wire() {
   }
 }
 
+function importRedirect() {
+  const query=new URLSearchParams({connect: importIntent?.provider || state.provider});
+  const user=$('optUser').value.trim();
+  if(user) query.set('user',user);
+  return '/app/?'+query.toString()+'#progress/games';
+}
+function openImport(provider='lichess', {user=''}={}) {
+  // An invitation must not change the settings of an analysis in flight.
+  if(state.app==='running') {
+    go('dashboard');
+    $('runStrip').scrollIntoView({block:'nearest'});
+    return;
+  }
+  provider=provider==='chesscom'?'chesscom':'lichess';
+  const previous=state.provider;
+  setProvider(provider);
+  const linked=(window.Auth?.state.user?.accounts||[]).find(account=>account.provider===provider)?.username;
+  const saved=S.prefs.get('account');
+  if(user || linked || saved?.provider===provider) $('optUser').value=user||linked||saved.username||'';
+  else if(previous!==provider) $('optUser').value='';
+  importIntent={provider};
+  updateRunLabel();
+  go('dashboard');
+  renderAuthGate();
+  window.Clubhouse?.renderImport(provider);
+  if(state.app==='report') {
+    // Keep the current report intact while reusing its existing run dialog.
+    if(window.Auth?.required()) {
+      window.Auth.openSignIn({redirect:importRedirect(),purpose:'connect'});
+      return;
+    }
+    mountRunForm('dialogSlot');
+    openDialog('runDialog');
+  }
+  state.mode='username';
+  $('panelUpload').hidden=true;
+  $('panelAccount').hidden=false;
+  $('uploadToggle').textContent='Upload a PGN instead';
+  if(!window.Auth?.required()) $('optUser').focus({preventScroll:true});
+}
+
 window.App = {
-  go,
+  go, openImport, importRedirect,
   /* study.js asks for the drill tab when "Drill this" is pressed. */
   drill: () => {
     state.clinicMode = 'drill';
@@ -1596,10 +1661,10 @@ go(location.hash.slice(1) || 'today', { replace: true, focus: false });
 // holds, so the gate is drawn as soon as /api/auth/me answers — and again on
 // any later change, such as signing out from the account menu.
 if (window.Auth) {
-  window.Auth.onChange(() => { renderAuthGate(); window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); });
-  window.Auth.boot().then(() => {
+  window.Auth.onChange(() => { renderAuthGate(); window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); window.Clubhouse?.render(state.view); });
+  authReady = window.Auth.boot().then(() => {
     renderAuthGate();
-    window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view);
+    window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); window.Clubhouse?.render(state.view);
     if (window.Auth.signedIn() && !state.rows.length) bootReport();
   });
 }
