@@ -173,6 +173,7 @@
       this.legal = [];
       this.selected = null;
       this.arrows = [];
+      this.circles = [];
       this.marks = [];
       this.lastMove = null;
       this.pending = null;
@@ -239,11 +240,12 @@
     }
 
     /* -- state ----------------------------------------------------------- */
-    setPosition(fen, { legal = [], lastMove = null, arrows = [], marks = [] } = {}) {
+    setPosition(fen, { legal = [], lastMove = null, arrows = [], circles = [], marks = [] } = {}) {
       this.fen = fen;
       this.legal = legal;
       this.lastMove = lastMove;
       this.arrows = arrows;
+      this.circles = circles;
       this.marks = marks;
       this.selected = null;
       this.hidePromo();
@@ -288,6 +290,7 @@
       const targets = this.selected ? this.legal.filter((m) => m.from === this.selected) : [];
       const targetSquares = new Set(targets.map((m) => m.to));
       const movable = new Set(this.legal.map((m) => m.from));
+      const diagramSquares = new Set((this.circles || []).map((c) => c.square));
       const markMap = {};
       (this.marks || []).forEach((m) => {
         markMap[m.square] = m.kind || 'note';
@@ -306,7 +309,7 @@
         // legal destination — that is the whole state a sighted player reads off the dots.
         const role = this.selected === sq ? ', selected'
           : targetSquares.has(sq) ? (piece ? ', can capture here' : ', can move here') : '';
-        cell.setAttribute('aria-label', squareLabel(sq, piece) + role);
+        cell.setAttribute('aria-label', squareLabel(sq, piece) + role + (diagramSquares.has(sq) ? ', marked in the teaching diagram' : ''));
         cell.classList.toggle('is-selected', this.selected === sq);
         cell.classList.toggle('is-target', targetSquares.has(sq));
         cell.classList.toggle('is-capture', targetSquares.has(sq) && !!piece);
@@ -339,19 +342,25 @@
       const shapes = (this.arrows || [])
         .filter((a) => a && a.from && a.to && a.from !== a.to)
         .map((a) => {
-          const kind = a.kind || 'best';
+          const kind = ['played','best','book'].includes(a.kind) ? a.kind : 'best';
           const s = pos(a.from);
           const e = pos(a.to);
-          const dx = e.x - s.x;
-          const dy = e.y - s.y;
+          const bend = /^[a-h][1-8]$/.test(a.via || '') ? pos(a.via) : s;
+          const dx = e.x - bend.x;
+          const dy = e.y - bend.y;
           const len = Math.hypot(dx, dy) || 1;
           const trim = 2.6;
           const x2 = e.x - (dx / len) * trim;
           const y2 = e.y - (dy / len) * trim;
-          return `<line x1="${s.x}" y1="${s.y}" x2="${x2}" y2="${y2}" class="cb-arrow cb-${kind}" marker-end="url(#cb-head-${kind})"/>`;
+          const d = `M${s.x},${s.y} ${a.via ? `L${bend.x},${bend.y} ` : ''}L${x2},${y2}`;
+          return `<path d="${d}" class="cb-arrow-outline"/><path d="${d}" class="cb-arrow cb-${kind}" marker-end="url(#cb-head-${kind})"/>`;
         })
         .join('');
-      this.arrowsEl.innerHTML = defs + shapes;
+      const circles = (this.circles || []).filter((c) => /^[a-h][1-8]$/.test(c.square)).map((c) => {
+        const point = pos(c.square); const kind = ['played','best','book'].includes(c.kind) ? c.kind : 'best';
+        return `<circle cx="${point.x}" cy="${point.y}" r="3.5" class="cb-circle-outline"/><circle data-square="${c.square}" cx="${point.x}" cy="${point.y}" r="3.5" class="cb-circle cb-${kind}"/>`;
+      }).join('');
+      this.arrowsEl.innerHTML = defs + circles + shapes;
       this.arrowsEl.setAttribute('viewBox', '0 0 80 80');
     }
 

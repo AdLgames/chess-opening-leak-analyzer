@@ -22,7 +22,9 @@ def unused_port():
 @pytest.fixture(scope='session')
 def app_url():
     port = unused_port()
-    env = {**os.environ, 'LEAKLAB_READS_PER_MINUTE': '10000', 'PYTHONPATH': str(ROOT / 'chess-dashboard')}
+    # A release run performs many sessions in minutes. Rate-limit policy has its
+    # own unit tests; isolated browser journeys must not exhaust the hourly budget.
+    env = {**os.environ, 'LEAKLAB_READS_PER_MINUTE': '10000', 'LEAKLAB_ANALYZE_PER_HOUR': '10000', 'PYTHONPATH': str(ROOT / 'chess-dashboard')}
     command = (
         'from api_server import app; '
         'from fastapi.staticfiles import StaticFiles; '
