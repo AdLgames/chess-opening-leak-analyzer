@@ -142,12 +142,20 @@ def test_week_boundaries_use_profile_timezone_and_rewards_never_duplicate(page,a
 def mock_account(page,uid='alice',fail=False):
  remote={'runs':[],'drills':{},'repertoire':[],'prefs':{},'progress':{}}
  page.route('**/api/auth/me',lambda r:r.fulfill(json={'database':True,'user':{'id':uid,'name':uid},'methods':{}}))
- page.route('**/api/state',lambda r:r.fulfill(json=remote))
+ def state_response(route):
+  if route.request.headers.get('x-account-owner')!=uid:
+   route.fulfill(status=409,json={'detail':'Account changed'});return
+  route.fulfill(json=remote)
+ page.route('**/api/state',state_response)
  def importing(route):
+  if route.request.headers.get('x-account-owner')!=uid:
+   route.fulfill(status=409,json={'detail':'Account changed'});return
   for k,v in route.request.post_data_json.get('prefs',{}).items():remote['prefs'].setdefault(k,v)
   route.fulfill(json=remote)
  page.route('**/api/state/import',importing)
  def pref(route):
+  if route.request.headers.get('x-account-owner')!=uid:
+   route.fulfill(status=409,json={'detail':'Account changed'});return
   if fail:route.abort();return
   payload=route.request.post_data_json;remote['prefs'][payload['key']]=payload['value'];route.fulfill(json={'ok':True})
  page.route('**/api/state/pref',pref)
@@ -199,3 +207,60 @@ def test_later_day_pattern_recall_and_milestone_are_real_and_idempotent(page,app
  assert any(a['id']=='later-recall' for a in page.evaluate('Journey.achievements()'))
  before=page.evaluate('Journey.achievements()')
  page.reload();assert page.evaluate('Journey.achievements()')==before
+
+
+def test_stale_tab_blocks_learning_before_it_touches_another_accounts_local_copy(page,app_url):
+ mock_account(page,uid='alice');ready(page,app_url)
+ page.unroute('**/api/auth/me');mock_account(page,uid='bob')
+ page.evaluate('''()=>{Store.sync.own('bob');LearningStore.forCourse('tactics-v1').attempt('stale-tab','one','independent','Nf3');}''')
+ page.wait_for_function('Auth.state.ready && Auth.state.user?.id==="bob"')
+ assert not page.evaluate('Store.prefs.get("learning:v2:tactics-v1:attempt:stale-tab")')
+
+
+def test_completed_guided_revisits_count_as_work_but_reopening_recaps_does_not(page,app_url):
+ ready(page,app_url)
+ result=page.evaluate('''()=>{
+ const l=LearningStore.forCourse('patterns-v1'), originalNow=Date.now;
+ const completed=l.saveSession({id:'guided-revisit',mode:'lesson',stage:'recap',finished:true});
+ const first=Journey.weekly().count;
+ try {Date.now=()=>originalNow()+86400000;l.saveSession({...completed,completedAt:undefined});}
+ finally{Date.now=originalNow;}
+ return {first,count:Journey.weekly().count,saved:l.checkpoints()[0],at:completed.completedAt};
+ }''')
+ assert result['first']==result['count']==1
+ assert result['saved']['completedAt']==result['at']
+
+
+def test_content_update_restarts_the_same_lesson_without_erasing_earlier_attempts(page,app_url):
+ ready(page,app_url)
+ idea=CATALOG['lessons'][0];puzzle=PUZZLES[idea['puzzle']]
+ # Seed a checkpoint from a previous content version and genuine older evidence.
+ page.evaluate('''([puzzle,idea])=>{
+ const l=LearningStore.forCourse('puzzle-sessions-v1');
+ l.saveSession({id:'older-content',puzzle:puzzle.id,version:0,mode:'lesson',lesson:idea.id,queue:'theme',stage:'frame1',ply:0,help:0,misses:0,played:[]});
+ LearningStore.forCourse('tactics-v1').attempt('past-attempt',puzzle.id,'hinted','');
+ }''',[puzzle,idea])
+ page.reload();page.locator('[data-puzzle-action=resume]').click()
+ expect(page.locator('[data-puzzle-action=select-piece]')).to_be_visible()
+ info=page.evaluate('Puzzles.info()')
+ assert info['mode']=='lesson' and info['lesson']==idea['id'] and info['version']==1
+ assert info['id']!='older-content'
+ assert len(page.evaluate('(id)=>LearningStore.forCourse("tactics-v1").records()',puzzle['id']))==1
+ expect(page.locator('#puzzleFeedback')).to_contain_text('earlier practice record is safe')
+
+
+def test_pack_download_failure_can_retry_and_navigation_cancels_stale_presentation(page,app_url):
+ ready(page,app_url)
+ page.route('**/puzzle-packs/forks.json',lambda r:r.abort())
+ page.locator('[data-puzzle-theme=forks]').click()
+ expect(page.locator('#puzzleLibrary [role=alert]')).to_contain_text('fetch')
+ page.unroute('**/puzzle-packs/forks.json')
+ page.locator('[data-puzzle-action=retry-load]').click();expect(page.locator('#puzzleSession')).to_be_visible()
+ # Hold a different pack while the user navigates away from its loading screen.
+ pending=[];page.route('**/puzzle-packs/pins.json',lambda r:pending.append(r))
+ page.evaluate('void Puzzles.start(PuzzleCatalog.puzzles.find(p=>p.theme==="pins").id)')
+ page.wait_for_timeout(100)
+ page.locator('#exploreSections a[href="#explore/path"]').click()
+ assert pending
+ pending[0].fulfill(json=PACKS['pins']);page.wait_for_timeout(100)
+ expect(page.locator('#viewPath')).to_be_visible();expect(page.locator('#puzzleSession')).to_be_hidden()

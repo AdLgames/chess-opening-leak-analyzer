@@ -50,9 +50,26 @@
       .map(([key, value]) => ({ key, ...value }));
   }
   function weekly(now = Date.now()) {
+    // Count finished guided work on replay too. Opening enrolments are written
+    // after a move is learned; tactical enrolments are written at start, so do
+    // not count those as completed activity.
+    const activity = Object.entries(S.prefs.all())
+      .filter(
+        ([key, v]) =>
+          key.startsWith("learning:v2:") &&
+          v &&
+          ((key.includes(":enrol:") &&
+            !key.startsWith("learning:v2:tactics-v1:")) ||
+            (key.includes(":checkpoint:") &&
+              v.finished &&
+              v.completedAt &&
+              ((v.mode === "learn" && v.solved) ||
+                (v.mode === "lesson" && v.stage === "recap")))),
+      )
+      .map(([, v]) => ({ at: v.completedAt || v.at }));
     const dates = week(now),
       days = new Set(
-        evidence()
+        [...evidence(), ...activity]
           .filter((e) => e.at)
           .map((e) => dateKey(e.at)),
       );

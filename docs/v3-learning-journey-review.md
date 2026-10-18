@@ -32,7 +32,8 @@ The public website and daily-session foundations (#34 and #35) are now released.
    prevent duplicate awards. There is no invented rating or mastery percentage.
 8. Use the profile piece in the header to choose a nickname, avatar, guide,
    flexible 1–7-day weekly goal, green/walnut/slate/high-contrast board, quiet
-   bubbles and reduced motion. Weekly boundaries use a stable IANA timezone;
+   bubbles and reduced motion. Completed guided revisits count as work; reopening a recap does not add a day.
+   Weekly boundaries use a stable IANA timezone;
    the daily puzzle changes at midnight UTC.
 9. Games provides a clear entrance to the three existing annotated model games.
    Openings keeps the existing searchable 20-opening library and move explorer.
@@ -69,8 +70,10 @@ For equal timestamps, the last accepted delivery wins. Device clock skew remains
 a limitation of this policy; it is not collaborative editing.
 
 Boot merges missing guest learning and newer local checkpoints before adopting
-account state. Pending writes remain owned by their original account and cannot
-be uploaded into another account. Sign-out first flushes learning and requires a
+account state. Pending writes remain owned by their original account. State requests carry
+an expected account owner; the server rejects a stale tab’s reads, imports and
+writes after an account switch. The local store blocks writes into a working
+copy owned by another account and reloads the old tab. Sign-out first flushes learning and requires a
 successful logout; a failed connection leaves the working copy intact and gives
 an explanation. Account deletion removes its queue. Existing non-learning
 mirrors keep their established behaviour; this milestone does not introduce an
@@ -78,9 +81,11 @@ outbox for game reports or repertoire editing.
 
 ## Verification
 
-- 225 Python tests passed, including 15 tests against real PostgreSQL and checks
+- 226 Python tests passed, including 16 tests against real PostgreSQL and checks
   of every compiled puzzle transition, source interpretation and teaching frame.
-- Browser regression and release checks are recorded on the pull request.
+- The complete browser regression runs in CI; 181 journeys cover both the
+  established application and new learning, recovery and account-switch flows.
+  Exact revision and results are recorded on the pull request.
 - 48 axe WCAG A/AA screen-state scans passed across 360px, 390px and desktop,
   in light and dark themes (path, profile, library, puzzle, hint, recap, progress
   and games). Automated checks supplement visual and keyboard inspection.

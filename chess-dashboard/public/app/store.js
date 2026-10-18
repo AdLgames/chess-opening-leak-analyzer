@@ -18,6 +18,7 @@
   const PREFIX = 'leaklab:';
   const memory = new Map();
   let backing = null;
+  let boundOwner = null;
 
   function store() {
     if (backing !== null) return backing;
@@ -43,6 +44,13 @@
   }
 
   function write(key, value) {
+    // Another tab may have changed accounts while this tab still shows its old
+    // board. Block private writes before they touch the shared working copy.
+    const privateKey = key.startsWith('pref:learning:v2:') || ['repertoire', 'runs', 'drills', 'report', 'backup:v0'].includes(key);
+    if (privateKey && boundOwner && read('learningOwner', null) !== boundOwner) {
+      window.dispatchEvent(new CustomEvent('account:changed'));
+      return false;
+    }
     const raw = JSON.stringify(value);
     memory.set(key, raw);
     if (!store()) return false;
@@ -327,8 +335,8 @@
     leakKey,
     lineBefore,
     persistent: () => store() !== false,
-    connect: (fn) => { sink = fn; },
-    disconnect: () => { sink = null; },
+    connect: (fn, owner = null) => { sink = fn; boundOwner = owner; },
+    disconnect: () => { sink = null; boundOwner = null; },
     snapshot,
     adopt,
     forget,

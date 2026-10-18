@@ -46,6 +46,10 @@
       saveSession(session) {
         if (!session) return put('session', null);
         const value = { ...session, updated: Date.now() };
+        if (value.finished) {
+          const prior = get(`checkpoint:${session.id}`);
+          value.completedAt = session.completedAt || prior?.completedAt || (prior?.finished ? prior.updated : value.updated);
+        }
         put(`checkpoint:${session.id}`, value);
         put('session', { id: session.id, updated: value.updated });
         return value;

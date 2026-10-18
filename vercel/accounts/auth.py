@@ -125,6 +125,9 @@ def require_user(request: Request) -> dict[str, Any]:
     user = current_user(request)
     if not user:
         raise HTTPException(401, "Sign in to do that")
+    expected_owner = request.headers.get("X-Account-Owner")
+    if expected_owner and expected_owner != str(user["id"]):
+        raise HTTPException(409, "The signed-in account changed. Reload before saving more work.")
     return user
 
 

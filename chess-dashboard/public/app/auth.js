@@ -31,7 +31,9 @@
   const listeners = [];
 
   async function api(path, options) {
-    const res = await fetch(path, { credentials: 'same-origin', ...options });
+    const headers = { ...options?.headers };
+    if (state.user && path.startsWith('/api/state')) headers['X-Account-Owner'] = state.user.id;
+    const res = await fetch(path, { credentials: 'same-origin', ...options, headers });
     const text = await res.text();
     let body = null;
     try {
@@ -148,7 +150,7 @@
     const owner = state.user?.id;
     if (!owner) return;
     draining = (async () => {
-      while (state.user?.id === owner) {
+      while (state.user?.id === owner && S.sync.owner() === owner) {
         const payload = Object.values(S.sync.pending(owner))[0];
         if (!payload) break;
         await SINKS.pref(payload);
@@ -169,8 +171,12 @@
         S.sync.put(owner, payload);
         flushLearning().catch(() => {});
       } else send(payload).catch(() => {});
-    });
+    }, owner);
   }
+  window.addEventListener('account:changed', () => location.reload());
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'leaklab:learningOwner' && state.user && S.sync.owner() !== state.user.id) location.reload();
+  });
   window.addEventListener('online', () => flushLearning().catch(() => {}));
   window.addEventListener('focus', () => flushLearning().catch(() => {}));
 

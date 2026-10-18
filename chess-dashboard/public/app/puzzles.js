@@ -116,6 +116,11 @@
           s.mode === mode &&
           (s.lesson || null) === lessonId,
       ) || null;
+    if (resume) {
+      mode = resume.mode;
+      lessonId = resume.lesson || null;
+      queue = resume.queue || queue;
+    }
     const token = ++sequence;
     loading = true;
     active = false;

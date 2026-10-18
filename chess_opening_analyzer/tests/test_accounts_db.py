@@ -470,3 +470,15 @@ def test_learning_checkpoint_versions_and_earned_rewards_cannot_be_rewound():
     client.post('/api/state/pref',json={'key':reward,'value':{'id':'first-puzzle','at':1}})
     client.post('/api/state/pref',json={'key':reward,'value':{'id':'first-puzzle','at':2}})
     assert client.get('/api/state').json()['prefs'][reward]['at']==1
+
+
+def test_old_tab_cannot_read_import_or_save_into_a_different_signed_in_account():
+    auth, db, state, TestClient = LOADED
+    client, uid = _client(auth, db, state, TestClient)
+    stale = {'X-Account-Owner': str(uuid.uuid4())}
+    key='learning:v2:tactics-v1:attempt:private'
+    assert client.get('/api/state',headers=stale).status_code==409
+    assert client.post('/api/state/pref',headers=stale,json={'key':key,'value':{'id':'private'}}).status_code==409
+    assert client.post('/api/state/import',headers=stale,json={'prefs':{key:{'id':'private'}}}).status_code==409
+    assert key not in client.get('/api/state').json()['prefs']
+    assert client.post('/api/state/pref',headers={'X-Account-Owner':uid},json={'key':key,'value':{'id':'private'}}).status_code==200
