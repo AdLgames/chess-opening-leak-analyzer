@@ -140,6 +140,7 @@ function go(view, { replace = false, focus = true } = {}) {
   window.Workspace.render(view, reportContext());
   window.Journey?.render(view);
   window.Clubhouse?.render(view);
+  window.Plans?.render(view);
   $('main').scrollTop = 0;
   if (focus) $('viewTitle').focus({ preventScroll: true });
 }
@@ -1301,6 +1302,7 @@ async function bootFromQuery() {
   const opening = q.get('opening');
   const publicChapter = q.get('chapter');
   const connectProvider = q.get('connect');
+  const wantedPlan = q.get('plan') === 'italian';
   const wanted = { demo: q.get('demo'), run: q.get('run'), privacy: q.get('privacy'),
     authError: q.get('auth_error') };
   history.replaceState(null, '', location.pathname + location.hash);
@@ -1308,6 +1310,7 @@ async function bootFromQuery() {
   reportAuthError(wanted.authError);
   if (wanted.privacy) openDialog('privacyDialog');
   if (wanted.demo) return runDemo();
+  if (wantedPlan) { await authReady; return window.Plans.start(); }
   if (['lichess', 'chesscom'].includes(connectProvider)) {
     await authReady;
     return openImport(connectProvider, {user});
@@ -1661,10 +1664,10 @@ go(location.hash.slice(1) || 'today', { replace: true, focus: false });
 // holds, so the gate is drawn as soon as /api/auth/me answers — and again on
 // any later change, such as signing out from the account menu.
 if (window.Auth) {
-  window.Auth.onChange(() => { renderAuthGate(); window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); window.Clubhouse?.render(state.view); });
+  window.Auth.onChange(() => { renderAuthGate(); window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); window.Clubhouse?.render(state.view); window.Plans?.render(state.view); });
   authReady = window.Auth.boot().then(() => {
     renderAuthGate();
-    window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); window.Clubhouse?.render(state.view);
+    window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); window.Clubhouse?.render(state.view); window.Plans?.render(state.view);
     if (window.Auth.signedIn() && !state.rows.length) bootReport();
   });
 }

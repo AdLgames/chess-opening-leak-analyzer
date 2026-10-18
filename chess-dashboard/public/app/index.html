@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="../companion.css" />
     <link rel="stylesheet" href="./journey.css" />
     <link rel="stylesheet" href="./clubhouse.css" />
+    <link rel="stylesheet" href="./plans.css" />
 
     <meta name="robots" content="noindex, follow" />
     <script defer src="/site-config.js"></script>
@@ -113,10 +114,12 @@
   <section id="dailyInvite" class="daily-invite" aria-label="Today’s training session"></section>
   <div class="workbench-heading"><div><h2 id="openingGuideTitle">Opening board</h2><p id="guideMeta">Play a move or choose an opening.</p></div><a class="btn btn-ghost" href="#explore">Change opening <span aria-hidden="true">→</span></a></div>
   <div id="todayBoardSlot"></div>
+  <section id="planToday" class="plan-entry" aria-label="Italian plans"></section>
   <section id="todayJourney" class="today-journey" aria-label="Keep learning"></section>
 </section>
 <section class="view" id="viewExplore" hidden>
   <div class="library-heading"><div><h2>Opening library</h2><p id="catalogCount">20 openings · 60 lines to explore</p></div><a class="btn btn-ghost" href="#today">Back to board →</a></div>
+  <section id="planExplore" class="plan-entry" aria-label="From opening moves to plans"></section>
   <div class="catalog-toolbar"><label class="catalog-search"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><span class="sr-only">Search openings by name, moves or ECO code</span><input id="libSearch" type="search" placeholder="Search openings, moves or ECO code" autocomplete="off" /></label><div class="segmented" id="openingSide" aria-label="Opening side"><button class="seg is-active" data-side="all" aria-pressed="true">All</button><button class="seg" data-side="white" aria-pressed="false">White</button><button class="seg" data-side="black" aria-pressed="false">Black</button></div></div>
   <div class="opening-cards" id="exploreOpenings"></div>
   <div class="database-search"><h3 id="databaseSearchTitle" hidden>From the opening database</h3><ol class="opening-list" id="libResults" aria-live="polite"></ol></div>
@@ -125,6 +128,7 @@
   <div class="library-heading"><div><h2>Progress</h2><p id="progressSummary">Save a line or practise a position to start keeping a record.</p></div></div>
   <section id="journeyProgress" aria-label="Practice and milestones"></section>
   <div class="evidence-grid" id="progressEvidence"></div>
+  <section id="planProgress" class="plan-entry" aria-label="Italian plan practice record" hidden></section>
   <section id="courseProgress" aria-label="Opening training record"></section>
   <section id="personalTraining" aria-label="Exercises from games"></section>
   <div id="progressSlot"></div>
@@ -364,6 +368,7 @@
         <!-- =============================================== repertoire -->
         <!-- the why: what you have committed, how it is moving, and the book -->
         <section class="view" id="viewRepertoire" hidden>
+          <section id="planRepertoire" class="plan-entry" aria-label="Your saved Italian plan" hidden></section>
   <section id="repertoirePatterns" aria-label="Learned tactical patterns" hidden></section>
   <div class="library-heading"><div><h2>Repertoire</h2><p>Your saved opening lines and notes.</p></div><a class="btn btn-ghost" href="#repertoire/edit">Build a line</a></div>
   <div id="repertoireCourse" class="repertoire-course" hidden></div>
@@ -807,6 +812,8 @@
     <script src="./journey.js"></script>
     <script src="./puzzles.js"></script>
     <script src="./clubhouse.js"></script>
+    <script src="./italian-plans.js"></script>
+    <script src="./plans.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

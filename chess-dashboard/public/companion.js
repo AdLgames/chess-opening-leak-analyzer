@@ -169,6 +169,12 @@
     inez: { puzzle: ['Look at the forcing moves first. No rush.', 'Check your king, then look for an opportunity.'], pattern: ['See the relationship. Then make the move.'], puzzleRetry: ['That move is legal. Look for the verified continuation.'] },
   };
   for (const id of Object.keys(puzzleLines)) Object.assign(voices[id], puzzleLines[id]);
+  const planLines = {
+    maya: {plan: ['The script changed. Your brain gets the starring role.', 'A little less autopilot. A little more plan.'], planRetry: ['A detour! What does the position need now?']},
+    theo: {plan: ['Opening manual closed. Thinking cap very much open.', 'Tiny army. Time for a real decision.'], planRetry: ['New plot. Same pieces. Check their threat.']},
+    inez: {plan: ['Read the board. Let the plan follow.', 'One position. A few good questions.'], planRetry: ['Take another look at the relationship on the board.']},
+  };
+  for (const id of Object.keys(planLines)) Object.assign(voices[id], planLines[id]);
   function current() {
     const id = S.prefs.get("studyCoach", "maya");
     return Object.hasOwn(voices, id) ? id : "maya";
