@@ -329,38 +329,30 @@
         const row = this.orientation === 'white' ? 7 - rankIdx : rankIdx;
         return { x: col * unit + unit / 2, y: row * unit + unit / 2 };
       };
-      const defs =
-        '<defs>' +
-        ['played', 'best', 'book']
-          .map(
-            (kind) =>
-              `<marker id="cb-head-${kind}" markerWidth="3.4" markerHeight="3.4" refX="2.2" refY="1.7" orient="auto">` +
-              `<path d="M0,0 L3.2,1.7 L0,3.4 z" class="cb-head cb-${kind}"/></marker>`
-          )
-          .join('') +
-        '</defs>';
+      const valid = sq => /^[a-h][1-8]$/.test(sq || '');
       const shapes = (this.arrows || [])
-        .filter((a) => a && a.from && a.to && a.from !== a.to)
-        .map((a) => {
+        .filter(a => a && valid(a.from) && valid(a.to) && a.from !== a.to)
+        .map(a => {
           const kind = ['played','best','book'].includes(a.kind) ? a.kind : 'best';
-          const s = pos(a.from);
-          const e = pos(a.to);
-          const bend = /^[a-h][1-8]$/.test(a.via || '') ? pos(a.via) : s;
-          const dx = e.x - bend.x;
-          const dy = e.y - bend.y;
-          const len = Math.hypot(dx, dy) || 1;
-          const trim = 2.6;
-          const x2 = e.x - (dx / len) * trim;
-          const y2 = e.y - (dy / len) * trim;
-          const d = `M${s.x},${s.y} ${a.via ? `L${bend.x},${bend.y} ` : ''}L${x2},${y2}`;
-          return `<path d="${d}" class="cb-arrow-outline"/><path d="${d}" class="cb-arrow cb-${kind}" marker-end="url(#cb-head-${kind})"/>`;
-        })
-        .join('');
+          const s = pos(a.from), e = pos(a.to);
+          const via = valid(a.via) && a.via !== a.to && a.via !== a.from ? pos(a.via) : null;
+          const bend = via || s;
+          const length = Math.hypot(e.x-bend.x,e.y-bend.y);
+          const ux = (e.x-bend.x)/length, uy = (e.y-bend.y)/length;
+          // Direct geometry avoids document-wide marker IDs. Hidden preview,
+          // drill and study boards can never steal another board's arrowheads.
+          const tip = {x:e.x-ux*0.8,y:e.y-uy*0.8};
+          const base = {x:tip.x-ux*2.8,y:tip.y-uy*2.8};
+          const end = {x:base.x+ux*0.3,y:base.y+uy*0.3};
+          const shaft = `M${s.x},${s.y} ${via ? `L${via.x},${via.y} ` : ''}L${end.x},${end.y}`;
+          const head = `M${tip.x},${tip.y} L${base.x-uy*1.8},${base.y+ux*1.8} L${base.x+uy*1.8},${base.y-ux*1.8} Z`;
+          return `<g class="cb-arrow-group" data-from="${a.from}" data-to="${a.to}"><path d="${shaft}" class="cb-arrow-outline"/><path d="${shaft}" class="cb-arrow cb-${kind}" fill="none"/><path d="${head}" class="cb-head cb-${kind}" stroke-linejoin="round"/></g>`;
+        }).join('');
       const circles = (this.circles || []).filter((c) => /^[a-h][1-8]$/.test(c.square)).map((c) => {
         const point = pos(c.square); const kind = ['played','best','book'].includes(c.kind) ? c.kind : 'best';
         return `<circle cx="${point.x}" cy="${point.y}" r="3.5" class="cb-circle-outline"/><circle data-square="${c.square}" cx="${point.x}" cy="${point.y}" r="3.5" class="cb-circle cb-${kind}"/>`;
       }).join('');
-      this.arrowsEl.innerHTML = defs + circles + shapes;
+      this.arrowsEl.innerHTML = circles + shapes;
       this.arrowsEl.setAttribute('viewBox', '0 0 80 80');
     }
 
@@ -537,6 +529,8 @@
     engine,
     searchOpenings,
     renderBook,
+    decisionContext: (fen,played,best='') => fetch(`${apiBase}/api/decision-context?${new URLSearchParams({fen,played,best})}`).then(jsonOrThrow),
+    meta: () => fetch(`${apiBase}/api/meta`).then(jsonOrThrow),
     renderEngine,
     parseFen,
     cpText,

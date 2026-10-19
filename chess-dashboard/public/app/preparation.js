@@ -107,6 +107,7 @@
   });
   window.addEventListener('chess:report', (event) => { ctx = event.detail; renderPersonal(); });
   window.Preparation = { personalCourse,
+    practice(row, button) { const at = findings().findIndex(r => S.leakKey(r) === S.leakKey(row)); return at >= 0 ? createExercise(at, button) : Promise.reject(new Error("This finding is no longer in the current report.")); },
     invalidate() { scan += 1; gaps = []; if ($('gapResults')) $('gapResults').textContent = 'Your repertoire changed. Check again to refresh these gaps.'; },
     render(view, context) { ctx = context || ctx; if (['today','progress','repertoire'].includes(view)) renderPersonal(); if (view === 'repertoire') renderGaps(); },
   };

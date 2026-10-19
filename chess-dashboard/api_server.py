@@ -33,6 +33,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 
 from chessopening.analyze import COST_EXPLAINER, analyze
 from chessopening.demo import load_or_build_demo
+from chessopening.decision_evidence import decision_context
 from chessopening.board import BoardError, cp_text, engine_lines, position_payload
 from chessopening.engine import find_engine
 from chessopening.ingest import (DEFAULT_CACHE, FetchOptions, IngestError, fetch_games,
@@ -462,6 +463,14 @@ def lookup(provider: str = "chesscom", username: str = "") -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------- board panes
+@app.get("/api/decision-context")
+def decision_facts(fen: str = "", played: str = "", best: str = "") -> dict[str, Any]:
+    try:
+        return decision_context(fen, played, best)
+    except BoardError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.get("/api/position")
 def position(fen: str = "", moves: str = "", san: str = "", book: str = "true") -> dict[str, Any]:
     """Legal moves, naming and book statistics for one position.

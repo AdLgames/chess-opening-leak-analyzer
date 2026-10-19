@@ -107,6 +107,7 @@ from accounts import auth, db, state  # noqa: E402
 
 from chessopening.analyze import COST_EXPLAINER, analyze
 from chessopening.demo import load_or_build_demo  # noqa: E402
+from chessopening.decision_evidence import decision_context
 from chessopening.board import (BoardError, cp_text, engine_lines,  # noqa: E402
                                 position_payload)
 from chessopening.engine import find_engine  # noqa: E402
@@ -508,6 +509,14 @@ def lookup(provider: str = "chesscom", username: str = "") -> dict[str, Any]:
         return {"found": True, "profile": lookup_player(provider, username, timeout=12.0)}
     except IngestError as exc:
         return {"found": False, "error": str(exc), "hint": exc.hint}
+
+
+@app.get("/api/decision-context")
+def decision_facts(fen: str = "", played: str = "", best: str = "") -> dict[str, Any]:
+    try:
+        return decision_context(fen, played, best)
+    except BoardError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.get("/api/position")
