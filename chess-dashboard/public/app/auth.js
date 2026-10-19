@@ -31,7 +31,9 @@
   const listeners = [];
 
   async function api(path, options) {
-    const res = await fetch(path, { credentials: 'same-origin', ...options });
+    const headers = { ...options?.headers };
+    if (state.user && path.startsWith('/api/state')) headers['X-Account-Owner'] = state.user.id;
+    const res = await fetch(path, { credentials: 'same-origin', ...options, headers });
     const text = await res.text();
     let body = null;
     try {
@@ -59,9 +61,9 @@
   }
 
   /* -------------------------------------------------------------- the mirror */
-  /* Each local write is echoed to the server. Failures are swallowed on purpose:
-     the write already happened locally, and losing a sync is not losing data —
-     the next successful run re-sends the lot. */
+  /* Existing repertoire/report mirrors retain their established behaviour.
+     Learning writes use the durable owner-scoped queue below; every UI still
+     reads the local working copy while the network catches up. */
   function leakRows() {
     const report = S.lastReport.load();
     const rows = (report && report.rows) || [];
@@ -142,20 +144,41 @@
     },
   };
 
+  let draining = null;
+  async function flushLearning() {
+    if (draining) return draining;
+    const owner = state.user?.id;
+    if (!owner) return;
+    draining = (async () => {
+      while (state.user?.id === owner && S.sync.owner() === owner) {
+        const payload = Object.values(S.sync.pending(owner))[0];
+        if (!payload) break;
+        await SINKS.pref(payload);
+        S.sync.ack(owner, payload);
+      }
+    })();
+    try { await draining; } finally { draining = null; }
+  }
   function connect() {
-    const learningWrites = new Map();
+    const owner = state.user.id;
+    // A different account must never inherit the previous account's working copy.
+    if (S.sync.owner() && S.sync.owner() !== owner) S.forget();
+    S.sync.own(owner);
     S.connect((kind, payload) => {
       const send = SINKS[kind];
       if (!send) return;
       if (kind === 'pref' && payload.key.startsWith('learning:v2:')) {
-        // Never let a slower older checkpoint arrive after a newer answer.
-        const key = payload.key;
-        const request = (learningWrites.get(key) || Promise.resolve()).then(() => send(payload)).catch(() => {});
-        learningWrites.set(key, request);
-        request.finally(() => { if (learningWrites.get(key) === request) learningWrites.delete(key); });
+        S.sync.put(owner, payload);
+        flushLearning().catch(() => {});
       } else send(payload).catch(() => {});
-    });
+    }, owner);
   }
+  window.addEventListener('account:changed', () => location.reload());
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'leaklab:learningOwner' && state.user && S.sync.owner() !== state.user.id) location.reload();
+  });
+  window.addEventListener('online', () => flushLearning().catch(() => {}));
+  window.addEventListener('focus', () => flushLearning().catch(() => {}));
 
   /* ------------------------------------------------------------ session boot */
   async function pull() {
@@ -170,10 +193,10 @@
     // picking their work up, not like starting over, so a first sign-in adopts
     // whatever the browser was already holding.
     if (empty && haveLocal) {
-      S.adopt(await api('/api/state/import', {
+      remote = await api('/api/state/import', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(local),
-      }));
+      });
     } else {
       // Immutable learning events use independent keys, so a guest's completed
       // work can join an existing account without replacing its history.
@@ -182,8 +205,14 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prefs: missing }),
       });
-      S.adopt(remote);
     }
+    // Re-read after network awaits: training can continue while boot is syncing.
+    const current = Object.fromEntries(Object.entries(S.prefs.all()).filter(([k,v])=>k.startsWith('learning:v2:') && v));
+    const newer = Object.fromEntries(Object.entries(current).filter(([k,v])=>Number(v.updated)>Number(remote.prefs?.[k]?.updated||0)));
+    for (const [key,value] of Object.entries(newer)) S.sync.put(state.user.id,{key,value});
+    await flushLearning();
+    remote.prefs = { ...current, ...remote.prefs, ...newer };
+    S.adopt(remote);
     state.progress = remote.progress || null;
   }
 
@@ -202,6 +231,7 @@
     if (state.user) {
       connect();
       try {
+        await flushLearning();
         await pull();
       } catch (err) {
         /* offline, or the state endpoint is unhappy: the local copy still works */
@@ -236,7 +266,7 @@
       ? '<p class="auth-or"><span>or</span></p>' : '');
   }
 
-  function wireEmailForm(scope) {
+  function wireEmailForm(scope, redirect = '/app/') {
     const form = scope.querySelector('#authEmailForm');
     if (!form) return;
     form.addEventListener('submit', async (event) => {
@@ -252,7 +282,7 @@
       try {
         const out = await api('/api/auth/email/request', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: input.value.trim(), redirect: '/app/' }),
+          body: JSON.stringify({ email: input.value.trim(), redirect }),
         });
         note.className = 'small ok';
         note.innerHTML = out && out.link
@@ -275,13 +305,11 @@
   }
 
   /** The sign-in card that stands where the run form would be. */
-  function renderGate(host, redirect = '/app/') {
+  function renderGate(host, redirect = '/app/', purpose = 'analysis') {
     host.innerHTML =
       '<div class="auth-card">'
-      + '<h3>Sign in to run an analysis</h3>'
-      + '<p class="muted small">Your leaks are tracked across runs, so the next report can '
-      + 'tell you which ones you actually fixed. No password — and you can export or '
-      + 'delete everything at any time.</p>'
+      + (purpose === 'connect' ? '<h3>Your games. Your next good move.</h3><p class="muted small">Create an Opening Leak Lab account or sign in to keep your analysis, repertoire and learning together. Choose a secure sign-in below; your game provider is selected separately.</p>' : purpose === 'account' ? '<h3>Make this your chess corner.</h3><p class="muted small">Create an account or sign in to keep your learning across devices and bring in your games when you’re ready.</p>' : '<h3>Sign in to run an analysis</h3>')
+      + (purpose === 'analysis' ? '<p class="muted small">Your leaks are tracked across runs, so the next report can tell you which ones you actually fixed. No password — and you can export or delete everything at any time.</p>' : '<p class="muted small">Password-free sign-in. Export or delete your data anytime.</p>')
       + methodMarkup(redirect)
       // Requiring an account costs the try-before-you-sign-up path, so the one
       // thing that needs no account stays one click away: the sample archive is
@@ -289,7 +317,7 @@
       + '<p class="auth-demo small"><a href="/app/?demo=1">Or look around a finished '
       + 'report on the sample archive</a> — no account needed.</p>'
       + '</div>';
-    wireEmailForm(host);
+    wireEmailForm(host, redirect);
   }
 
   function renderHeader(host) {
@@ -299,7 +327,7 @@
     }
     host.hidden = false;
     if (!state.user) {
-      host.innerHTML = '<button class="btn btn-ghost" id="signInBtn">Sign in</button>';
+      host.innerHTML = '<button class="btn btn-ghost" id="signInBtn" aria-label="Create an account or sign in">Sign in</button>';
       host.querySelector('#signInBtn').addEventListener('click', () => openSignIn());
       return;
     }
@@ -318,20 +346,26 @@
     host.querySelector('#deleteAccountBtn').addEventListener('click', deleteAccount);
   }
 
-  function openSignIn() {
+  function openSignIn({redirect = null, purpose = 'account'} = {}) {
     const dialog = $('authDialog');
     if (!dialog) return;
-    renderGate($('authDialogBody'), location.pathname + location.hash);
+    redirect ||= window.App?.currentView() === 'dashboard' && !$('importWelcome').hidden ? window.App.importRedirect() : location.pathname + location.hash;
+    $('authDialogTitle').textContent = purpose === 'account' ? 'Your chess corner' : 'Bring your games';
+    renderGate($('authDialogBody'), redirect, purpose);
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else dialog.setAttribute('open', '');
   }
 
   async function signOut() {
     try {
+      await flushLearning();
       await api('/api/auth/logout', { method: 'POST' });
     } catch (err) {
-      /* the cookie is gone either way as far as this page is concerned */
+      window.alert('Sign-out could not finish. Your work is still on this device. Reconnect and try again so your learning can be saved safely.');
+      return;
     }
+    S.sync.clear(state.user.id);
+    S.sync.own(null);
     S.disconnect();
     // The working copy belongs to the account that just left this browser.
     S.forget();
@@ -354,6 +388,8 @@
       window.alert(`Could not delete the account: ${err.message}`);
       return;
     }
+    S.sync.clear(state.user.id);
+    S.sync.own(null);
     S.disconnect();
     S.forget();
     state.user = null;
@@ -363,6 +399,8 @@
 
   window.Auth = {
     boot,
+    flushLearning,
+    pendingLearning: () => Object.keys(S.sync.pending(state.user?.id)).length,
     state,
     /** What the server has accumulated across runs, or null when signed out. */
     progress: () => state.progress || null,

@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 from public_content import COURSES, GUIDES
-from public_site import SITE, NAME, PUBLIC_PATHS, esc, head, header, footer, crumbs, scripts, preview_board
+from public_site import SITE, NAME, PUBLIC_PATHS, esc, head, header, footer, crumbs, scripts, preview_board, account_banner
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUT = ROOT / 'chess-dashboard/public'
@@ -18,6 +18,8 @@ def read_courses(out):
 
 
 def document(title, description, path, content, *, section='', opening=None, schema=None, noindex=False):
+    if path.startswith('/learn/') and path != '/learn/':
+        content += account_banner()
     attr = f' data-initial-preview="{opening}"' if opening else ''
     return f'<!doctype html>\n<html lang="en">{head(title, description, path, extra_schema=schema, preview=bool(opening), noindex=noindex)}<body{attr}>{header(section)}<main id="main">{content}</main>{footer()}{scripts(bool(opening))}</body></html>\n'
 
@@ -35,6 +37,8 @@ def course_page(info, course):
 <section class="shell course-method"><div><span class="eyebrow">A LITTLE AT A TIME</span><h2>See it.<br />Remember it.<br /><em>Put it to work.</em></h2></div><ol class="practice-steps"><li><span>01</span><div><h3>Understand the position</h3><p>Board arrows, marked squares and a short explanation show what the move does.</p></div></li><li><span>02</span><div><h3>Find it without help</h3><p>Scheduled recall keeps first-attempt answers separate from hints and retries.</p></div></li><li><span>03</span><div><h3>Play beyond the line</h3><p>Try five learner moves against Stockfish from a position you have studied.</p></div></li></ol></section>
 <section class="cream"><div class="shell course-faq"><div><span class="eyebrow">BEFORE YOUR FIRST MOVE</span><h2>A few good questions.</h2></div><div>{faqs}</div></div></section>
 <section class="closing shell"><div><span class="eyebrow">MAKE THE FIRST MOVE</span><h2>A plan you can<br /><em>take to the board.</em></h2><a class="button primary" href="/app/?opening={info['opening']}&amp;chapter=essentials#today">Start the first chapter →</a><p>Guest progress stays on this device when storage is available.</p></div><span class="coach-art closing-coach" data-coach="maya" aria-hidden="true"></span></section>'''
+    if info['opening'] == 'italian':
+        content += '<section class="shell public-plan-link"><span class="eyebrow">AFTER THE OPENING MOVES</span><h2>What if they change the plan?</h2><p>Try three Italian situations and a fresh-position challenge. Get your king safe, support the centre and respond to a new threat.</p><a class="button primary" href="/app/?plan=italian#today">Practise the Italian plan →</a></section>'
     course_schema = {'@type':'Course','@id':SITE+path+'#course','name':info['name']+' opening course','description':info['intro'],'url':SITE+path,'provider':{'@id':SITE+'/#organization'},'isAccessibleForFree':True,'inLanguage':'en-GB','coursePrerequisites':'Know how the chess pieces move.'}
     return document({'italian':'Italian Game course: learn the plans | Opening Leak Lab','caro':'Learn the Caro–Kann Defence | Opening Leak Lab','queens':'Queen’s Gambit Declined course | Opening Leak Lab'}[info['opening']], info['description'], path, content, section='/learn/', opening=info['opening'], schema=[schema, course_schema])
 
@@ -94,7 +98,7 @@ def build(out):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(markup)
     # Keep the three existing, hand-authored layouts; share their SEO and shell.
-    existing = [('/', 'Learn chess openings. Understand every move | Opening Leak Lab', 'Learn chess openings with free interactive board lessons, illustrated guides and spaced practice. Try the Italian, Caro–Kann or Queen’s Gambit Declined.'), ('/learn/', 'Free chess opening courses for White & Black | Opening Leak Lab', 'Choose an Italian Game, Caro–Kann or Queen’s Gambit Declined course. Learn plans on the board, practise recall and play against Stockfish. No import needed.'), ('/coaches/', 'Meet Maya, Theo & Inez: your illustrated chess study guides', 'Choose a fictional illustrated chess study guide: Maya, Theo or Inez. Friendly board-side explanations and reactions accompany the same checked opening lessons.')]
+    existing = [('/', 'Chess opening plans & practice | Opening Leak Lab', 'Learn chess openings and practise what comes next. Try a free Italian decision session, visual lessons and spaced practice. No account or game import needed.'), ('/learn/', 'Free chess opening courses for White & Black | Opening Leak Lab', 'Choose an Italian Game, Caro–Kann or Queen’s Gambit Declined course. Learn plans on the board, practise recall and play against Stockfish. No import needed.'), ('/coaches/', 'Meet Maya, Theo & Inez: your illustrated chess study guides', 'Choose a fictional illustrated chess study guide: Maya, Theo or Inez. Friendly board-side explanations and reactions accompany the same checked opening lessons.')]
     for path, title, description in existing:
         target = out/path.strip('/')/'index.html'
         markup = target.read_text()

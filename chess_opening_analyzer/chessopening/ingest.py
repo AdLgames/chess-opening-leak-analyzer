@@ -410,7 +410,7 @@ def _fetch_lichess(opts: FetchOptions, progress: Progress) -> FetchResult:
     params: dict[str, str] = {
         "max": str(opts.max_games),
         "perfType": ",".join(sorted({_LICHESS_PERF[s] for s in opts.speeds})),
-        "clocks": "false",
+        "clocks": "true",
         "evals": "false",
         "opening": "true",
         "sort": "dateDesc",
@@ -431,7 +431,7 @@ def _fetch_lichess(opts: FetchOptions, progress: Progress) -> FetchResult:
     # The filters are part of what this file contains, so they belong in its
     # name. Without them, widening the time controls re-served the old, narrower
     # export — the same bug the Chess.com month cache had.
-    path = _cache_path(opts, f"lichess-{stamp}-{opts.max_games}-{_filter_tag(opts)}.pgn")
+    path = _cache_path(opts, f"lichess-clocks-v1-{stamp}-{opts.max_games}-{_filter_tag(opts)}.pgn")
     result = FetchResult(provider="lichess", username=opts.username,
                          pgn_dir=_cache_path(opts, ""))
     if os.path.isfile(path) and not opts.refresh:

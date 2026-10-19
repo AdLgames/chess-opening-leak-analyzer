@@ -10,6 +10,7 @@
   let selectedLine = 0;
   let side = 'all';
   let panel = 'study';
+  let explorationReaction = { event: 'explore', key: 'explore', prompt: 'Pick an opening or play a move. Make yourself at home.' };
   const saved = () => S.repertoire.committed().slice().sort((a, b) => b.decidedAt - a.decidedAt);
   const pathOf = (entry) => entry.explorePath?.length ? entry.explorePath : [...(entry.line || []), entry.answer].filter(Boolean);
   const notation = (moves) => moves.map((m, i) => `${i % 2 ? '' : `${i / 2 + 1}. `}${m}`).join(' ');
@@ -45,6 +46,7 @@
       $(`${button.dataset.panel}Pane`).hidden = !active;
       if (active && focus) button.focus();
     });
+    if (next === "branches") window.DeepLines?.render();
   }
   function renderGuide() {
     window.Training?.overview(selected?.id || null);
@@ -132,16 +134,18 @@
   $('libSearch').addEventListener('input', renderOpenings);
   document.querySelectorAll('[data-panel]').forEach((button) => button.addEventListener('click', () => setPanel(button.dataset.panel)));
   document.querySelector('.study-tabs').addEventListener('keydown', (event) => {
-    const keys = ['study','moves','saved'];
+    const keys = ['study','moves','branches','saved'];
     if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
     event.preventDefault();
-    const index = keys.indexOf(panel);
-    setPanel(event.key === 'Home' ? 'study' : event.key === 'End' ? 'saved' : keys[(index + (event.key === 'ArrowRight' ? 1 : 2)) % 3], true);
+    const index = keys.indexOf(event.target.closest('[data-panel]')?.dataset.panel || panel);
+    setPanel(event.key === 'Home' ? 'study' : event.key === 'End' ? 'saved' : keys[(index + (event.key === 'ArrowRight' ? 1 : keys.length-1)) % keys.length], true);
   });
   $('guideReplay').addEventListener('click', () => { if (selected) window.Study.replay(lines()[selectedLine].line, selected.side); });
   window.addEventListener('chess:position', (event) => {
     if (window.Training?.active()) return;
-    const { line, turn, opening } = event.detail;
+    const { line, turn, opening, played, fen } = event.detail;
+    explorationReaction = window.Coach.exploration(played, fen, line);
+    if (window.App?.currentView() === 'today') window.Coach.onBoard(explorationReaction);
     if (selected && line.length && !lines().some((known) => {
       const overlap = Math.min(line.length, known.line.length);
       return line.slice(0, overlap).every((move, index) => move === known.line[index]);
@@ -150,13 +154,14 @@
   });
   renderOpenings(); renderGuide(); renderSaved(); setPanel('study');
   function boardPalette() {
-    const value = S.prefs.get('boardPalette', 'green') === 'wood' ? 'wood' : 'green';
+    const value = ['green', 'wood', 'slate', 'contrast'].includes(S.prefs.get('boardPalette', 'green')) ? S.prefs.get('boardPalette', 'green') : 'green';
     document.documentElement.dataset.board = value; $('boardPalette').value = value;
   }
   $('boardPalette').addEventListener('change', (event) => { S.prefs.set('boardPalette', event.target.value); boardPalette(); });
   boardPalette(); window.Coach.refresh();
   window.Workspace = {
     choose, reopen, custom, setPanel, refreshGuide: renderGuide,
+    explain(text,key) { explorationReaction={event:'explain',key,prompt:text}; if(window.App.currentView()==='today')window.Coach.onBoard(explorationReaction); },
     async position(line, side, title) {
       await window.Training.pause(); window.App.go('today'); custom(title);
       $('saveLineSide').value = side; $('saveLineName').value = title;
@@ -168,7 +173,7 @@
       window.Training?.leave(view);
       window.DailySession?.render();
       if (!window.Training?.active()) {
-        if (view === 'today') window.Coach.onBoard({ event: 'explore', key: 'explore', prompt: 'Pick an opening or play a move. Make yourself at home.' });
+        if (view === 'today') window.Coach.onBoard(explorationReaction);
         else window.Coach.hideBoard();
       }
       window.Training?.overview(selected?.id || null);

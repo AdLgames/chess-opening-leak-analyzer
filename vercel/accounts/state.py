@@ -253,8 +253,16 @@ async def put_pref(request: Request) -> dict[str, Any]:
     # not replace a recorded attempt, enrolment or completed practical session.
     parts = key.split(":")
     immutable = key.startswith("learning:v2:") and len(parts) > 3 and parts[3] in (
-        "attempt", "enrol", "chapter", "practical", "exercise")
+        "attempt", "enrol", "chapter", "practical", "exercise", "reward")
     conflict = " DO NOTHING" if immutable else " DO UPDATE SET value = EXCLUDED.value"
+    if key.startswith("learning:v2:") and not immutable:
+        # New checkpoints/preferences carry a millisecond version. Older offline
+        # delivery cannot rewind a newer session. Legacy unversioned values still
+        # update one another, preserving older clients.
+        conflict += (" WHERE CASE WHEN COALESCE(EXCLUDED.value->>'updated', '0') ~ '^[0-9]+$'"
+                     " AND COALESCE(user_prefs.value->>'updated', '0') ~ '^[0-9]+$'"
+                     " THEN COALESCE(EXCLUDED.value->>'updated', '0')::numeric"
+                     " >= COALESCE(user_prefs.value->>'updated', '0')::numeric ELSE false END")
     db.execute("INSERT INTO user_prefs (user_id, key, value) VALUES (%s, %s, %s)"
                " ON CONFLICT (user_id, key)" + conflict,
                (user["id"], key, json.dumps(body.get("value"))))

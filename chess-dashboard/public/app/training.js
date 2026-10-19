@@ -45,7 +45,7 @@
     const course = window.OpeningCourses.find((c) => c.opening === opening);
     const host = $('italianCourse');
     host.hidden = !course;
-    if (!active && course) {
+    if (!active && !window.Plans?.active() && course) {
       selectCourse(course.id);
       const summary = L.summary(C.cards); const pending = L.session();
       const elsewhere = catalog().filter((other) => other.id !== C.id).map((other) => ({ course: other, session: window.LearningStore.forCourse(other.id).session() })).filter((other) => other.session).sort((a, b) => b.session.updated - a.session.updated)[0];
@@ -240,7 +240,8 @@
     await pause(); session = prior; activate(); await load();
   }
   function pause() {
-    if (!active) return closing;
+    if (window.Plans?.active()) return window.Plans.pause();
+    if (!active) return Promise.all([closing, window.Plans?.settled()]);
     active = false; generation += 1; busy = false; window.Coach.hideBoard();
     save();
     document.querySelector('.library-panel').classList.remove('is-training');
@@ -249,7 +250,7 @@
     $('libBoard').removeAttribute('aria-describedby');
     closing = window.Study.training.end().then(() => { if (!active) {
       if (returnHeading) { $('openingGuideTitle').textContent = returnHeading.title; $('guideMeta').textContent = returnHeading.meta; }
-      window.Workspace.refreshGuide(); overview();
+      window.Workspace.refreshGuide(); overview(); window.Clubhouse?.render(); window.Plans?.render();
       if (window.App.currentView() === 'today') window.Coach.onBoard({ event: 'explore', key: 'explore', prompt: 'Pick an opening or play a move. Make yourself at home.' });
     } });
     return closing;
@@ -464,7 +465,7 @@
   });
   window.addEventListener('learning:change', () => { if (!active) overview(); });
   window.addEventListener('storage', (event) => { if (event.key?.startsWith('leaklab:pref:learning:')) { if (!active) overview(); progress(); } });
-  window.Training = { overview, progress, pause, runDaily, info:()=>session ? JSON.parse(JSON.stringify(session)) : null, refresh:render, active: () => active,
+  window.Training = { overview, progress, pause, runDaily, info:()=>session ? JSON.parse(JSON.stringify(session)) : null, refresh:render, active: () => active || !!window.Plans?.active(),
     openChapter: (opening, id) => {
       const course = window.OpeningCourses.find((c)=>c.opening===opening);
       if (!course?.chapters.some((ch)=>ch.id===id)) return Promise.resolve();
@@ -472,7 +473,7 @@
     },
     focus: (course, id) => start('learn', 'focus:' + id, [id], course, true),
     personal: (id) => start('learn', 'focus:' + id, [id], 'personal-v1', true),
-    leave(view) { if (view !== 'today' && active) pause(); },
+    leave(view) { if (view !== 'today' && (active || window.Plans?.active())) pause(); },
   };
   overview(); progress();
 }());

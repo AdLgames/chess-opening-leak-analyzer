@@ -79,4 +79,5 @@ def summarise(rows: list[dict[str, str]], stats: dict[str, Any]) -> dict[str, An
         "white_leaks": sum(1 for r in rows if r["player_color"] == "white"),
         "black_leaks": sum(1 for r in rows if r["player_color"] == "black"),
         "top": rows[0] if rows else None,
+        "decision_evidence": stats.get("decision_evidence"),
     }

@@ -18,6 +18,7 @@
   const PREFIX = 'leaklab:';
   const memory = new Map();
   let backing = null;
+  let boundOwner = null;
 
   function store() {
     if (backing !== null) return backing;
@@ -43,6 +44,13 @@
   }
 
   function write(key, value) {
+    // Another tab may have changed accounts while this tab still shows its old
+    // board. Block private writes before they touch the shared working copy.
+    const privateKey = key.startsWith('pref:learning:v2:') || ['repertoire', 'runs', 'drills', 'report', 'backup:v0'].includes(key);
+    if (privateKey && boundOwner && read('learningOwner', null) !== boundOwner) {
+      window.dispatchEvent(new CustomEvent('account:changed'));
+      return false;
+    }
     const raw = JSON.stringify(value);
     memory.set(key, raw);
     if (!store()) return false;
@@ -305,6 +313,15 @@
   migrate();
 
   window.Store = {
+    // Owner-scoped learning outbox is private transport state, never a preference.
+    sync: {
+      owner: () => read('learningOwner', null),
+      own: (id) => write('learningOwner', id),
+      pending: (id) => read('sync:v1:' + id, {}),
+      put(id, payload) { const queue = this.pending(id); queue[payload.key] = payload; write('sync:v1:' + id, queue); },
+      ack(id, payload) { const queue = this.pending(id); if (JSON.stringify(queue[payload.key]) === JSON.stringify(payload)) { delete queue[payload.key]; write('sync:v1:' + id, queue); } },
+      clear: (id) => write('sync:v1:' + id, {}),
+    },
     repertoire,
     savedLocally: (entry) => {
       try { return !!store() && JSON.parse(store().getItem(PREFIX + 'repertoire') || '[]').some((e) => e.key === entry.key && JSON.stringify(e) === JSON.stringify(entry)); }
@@ -318,8 +335,8 @@
     leakKey,
     lineBefore,
     persistent: () => store() !== false,
-    connect: (fn) => { sink = fn; },
-    disconnect: () => { sink = null; },
+    connect: (fn, owner = null) => { sink = fn; boundOwner = owner; },
+    disconnect: () => { sink = null; boundOwner = null; },
     snapshot,
     adopt,
     forget,

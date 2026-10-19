@@ -488,7 +488,7 @@
       $('exploreError').textContent = `The board could not update. Your line is unchanged. ${err.message}`;
       $('exploreRetry').hidden = false;
     },
-    async load(lastMove = null, candidate = {}) {
+    async load(lastMove = null, candidate = {}, played = null) {
       const seq = ++this.seq;
       const next = { fromFen: this.fromFen, moves: this.moves, history: this.history, future: this.future, ...candidate };
       this.busy = true;
@@ -516,7 +516,7 @@
         wireStrip($('libLine'), timeline, (i) => this.run(() => this.jump(i)));
         $('libForward').disabled = !this.future.length;
         $('libRestart').disabled = !this.history.length;
-        window.dispatchEvent(new CustomEvent('chess:position', { detail: { line: this.history.map((m) => m.san), turn: pos.turn, opening: pos.opening } }));
+        window.dispatchEvent(new CustomEvent('chess:position', { detail: { line: this.history.map((m) => m.san), turn: pos.turn, opening: pos.opening, fen: pos.fen, played } }));
         $('libBack').disabled = this.moves.length === 0;
         LB.renderBook($('libBook'), pos.book, {
           onPlay: (uci) => { const move = this.pos.legal.find((m) => m.uci === uci); if (move) this.run(() => this.play(move)); },
@@ -539,7 +539,10 @@
     async play(move) {
       if (this.busy) return;
       if (this.controller) return this.controller(move);
-      await this.load(move, { moves: [...this.moves, move.uci], history: [...this.history, { san: move.san, uci: move.uci }], future: this.future[0]?.uci === move.uci ? this.future.slice(1) : [] });
+      const entry = this.pos.book?.moves?.find((item) => item.uci === move.uci && item.games > 0);
+      const played = { uci: move.uci, san: move.san, before: this.pos.fen,
+        book: entry ? { games: entry.games, share: entry.share } : null };
+      await this.load(move, { moves: [...this.moves, move.uci], history: [...this.history, { san: move.san, uci: move.uci }], future: this.future[0]?.uci === move.uci ? this.future.slice(1) : [] }, played);
     },
     async back() { if (this.history.length) await this.jump(this.history.length - 1); },
     async forward() { if (this.future.length) await this.jump(this.history.length + 1); },
@@ -676,6 +679,25 @@
   }
 
   window.Study = {
+    playMove: uci => {const move=library.pos?.legal.find(m=>m.uci===uci);return move?library.play(move):Promise.reject(new Error('This move is no longer available.'));},
+    snapshot: () => library.pos ? JSON.parse(JSON.stringify({pos:library.pos,fromFen:library.fromFen,moves:library.moves,history:library.history,future:library.future,busy:library.busy})) : null,
+    showFacts: async (fen, {orientation="white",arrows=[],circles=[]}={}) => {
+      const expected=library.seq+1;
+      await library.load(null,{fromFen:fen,moves:[],history:[],future:[]});
+      if(expected!==library.seq||library.controller) throw new Error('The board changed. Open the decision again.');
+      library.board?.setOrientation(orientation);
+      library.board?.setPosition(library.pos.fen,{legal:library.pos.legal,arrows,circles});
+    },
+    knownLine: (san, uci, at=0) => {
+      if(san.length!==uci.length || at<0 || at>san.length) return Promise.reject(new Error('Invalid reference line'));
+      const timeline=san.map((s,i)=>({san:s,uci:uci[i]}));
+      const next=at===library.history.length+1&&!library.fromFen&&library.history.every((m,i)=>m.uci===uci[i])?library.pos?.legal.find(m=>m.uci===uci[at-1]):null;
+      const played=next?{san:next.san,uci:next.uci,before:library.pos.fen,book:library.pos.book?.moves?.find(m=>m.uci===next.uci)||null}:null;
+      const expected=library.seq+1;
+      return library.load(next,{fromFen:null,moves:uci.slice(0,at),history:timeline.slice(0,at),future:timeline.slice(at)},played).then(()=>{
+        if(expected!==library.seq||library.controller) throw new Error('The board changed. Open the route again.');
+      });
+    },
     training: {
       begin(onMove) {
         library.trainingOrientation = library.board?.orientation || 'white';

@@ -14,6 +14,10 @@
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./workspace.css" />
     <link rel="stylesheet" href="../companion.css" />
+    <link rel="stylesheet" href="./journey.css" />
+    <link rel="stylesheet" href="./clubhouse.css" />
+    <link rel="stylesheet" href="./plans.css" />
+    <link rel="stylesheet" href="./deep-lab.css" />
 
     <meta name="robots" content="noindex, follow" />
     <script defer src="/site-config.js"></script>
@@ -61,19 +65,19 @@
 <a href="#repertoire" class="nav-item" data-view="repertoire"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4zM13 7a3 3 0 0 1 3-3h4v14h-3a4 4 0 0 0-4 3"/></svg><span>Repertoire</span></a>
 <a href="#progress" class="nav-item" data-view="progress"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16M8 15l4-5 4 2 4-7"/></svg><span>Progress</span></a></nav>
 
+        <div class="rail-welcome"><span class="rail-coach" data-coach="maya" aria-hidden="true"><span class="companion-art"></span></span><p>A good move starts<br />with a little curiosity.</p><button type="button" data-connect-provider="lichess">Bring your games →</button></div>
       </aside>
 
       <!-- ------------------------------------------------------------- header -->
-      <header class="header">
-        <button class="icon-btn only-mobile" id="menuBtn" aria-label="Toggle navigation">
+      <header class="header clubhouse-head">
+        <button class="icon-btn only-mobile" id="menuBtn" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
         </button>
-        <div class="header-title">
+        <div class="header-title"><span class="header-kicker">YOUR CHESS CORNER</span>
           <h1 id="viewTitle" tabindex="-1">Today</h1>
           <p id="viewSub"></p>
         </div>
-        <details class="menu workspace-tools"><summary class="btn btn-ghost">Tools</summary><div class="menu-body"><a class="menu-item" href="#progress/games">Analyse games</a><a class="menu-item" href="#repertoire/edit">Build your lines</a><button class="menu-item" type="button" id="workspaceHelp">Help &amp; data</button></div></details>
-        <div class="header-actions" id="headerActions" hidden>
+        <details class="menu workspace-tools"><summary class="btn btn-ghost"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 7h14M8 12h8M5 17h14"/></svg><span>Tools</span></summary><div class="menu-body"><p class="menu-note menu-eyebrow">MAKE YOUR NEXT MOVE</p><button type="button" class="menu-item" data-connect-provider="lichess">Bring your games →</button><a class="menu-item" href="#progress/games">Analyse games</a><a class="menu-item" href="#repertoire/edit">Build your lines</a><button class="menu-item" type="button" id="workspaceHelp">Help &amp; data</button>        <div class="header-actions" id="headerActions" hidden>
           <details class="menu" id="exportMenu">
             <summary class="btn btn-ghost">Export</summary>
             <div class="menu-body">
@@ -85,27 +89,56 @@
           </details>
           <button class="btn btn-ghost" id="runAgainBtn">Run again</button>
         </div>
+</div></details>
+        <button class="btn header-connect" type="button" data-connect-provider="lichess">Bring my games <span aria-hidden="true">↗</span></button>
         <!-- the account menu sits outside headerActions: it is there before a
              report exists, which is exactly when signing in matters -->
+        <button class="profile-trigger icon-btn" type="button" id="openLearningProfile" aria-label="Your profile and appearance"><span id="profileAvatar" aria-hidden="true">♞</span></button>
         <div class="header-account" id="headerAccount" hidden></div>
       </header>
 
       <!-- --------------------------------------------------------------- main -->
       <main class="main" id="main" tabindex="-1">
+<nav class="explore-sections" id="exploreSections" aria-label="Explore sections" hidden>
+  <a href="#explore/path">Path</a><a href="#explore">Openings</a><a href="#explore/puzzles">Puzzles</a><a href="#explore/games">Games</a>
+</nav>
+<section class="view" id="viewPath" hidden><div id="learningPath"></div></section>
+<section class="view" id="viewPuzzles" hidden>
+  <div id="puzzleLibrary"></div>
+  <section id="puzzleSession" aria-label="Puzzle practice" hidden>
+    <div class="puzzle-heading"><button type="button" class="btn btn-ghost" data-puzzle-action="exit">← Puzzle library</button><span id="puzzleLabel"></span><button type="button" class="btn btn-ghost" data-puzzle-action="flip">Flip board</button></div>
+    <div class="puzzle-workspace"><div class="puzzle-board-column"><p id="puzzlePrompt" class="puzzle-prompt" aria-live="polite"></p><div id="puzzleBoard" class="board"></div><div id="puzzleCompanion"></div></div><div class="puzzle-instruction" id="puzzleInstruction"></div></div>
+  </section>
+</section>
+<section class="view" id="viewGames" hidden><div id="journeyGames"></div></section>
 <section class="view" id="viewToday" hidden>
   <section id="dailyInvite" class="daily-invite" aria-label="Today’s training session"></section>
   <div class="workbench-heading"><div><h2 id="openingGuideTitle">Opening board</h2><p id="guideMeta">Play a move or choose an opening.</p></div><a class="btn btn-ghost" href="#explore">Change opening <span aria-hidden="true">→</span></a></div>
   <div id="todayBoardSlot"></div>
+  <section id="playerFocus" class="player-focus" aria-label="Your decision focus" hidden></section>
+  <section id="planToday" class="plan-entry" aria-label="Italian plans"></section>
+  <section id="todayJourney" class="today-journey" aria-label="Keep learning"></section>
+</section>
+<section class="view" id="viewLines" hidden>
+  <div class="library-heading"><div><span class="journey-eyebrow">THE DEEP OPENING LIBRARY</span><h2>Take a line further.</h2><p>3,865 named routes · all 500 ECO codes · main choices and alternatives.</p></div><a class="btn btn-ghost" href="#explore">Opening introductions →</a></div>
+  <form id="deepSearchForm" class="deep-search"><label for="deepQuery">Opening, variation, ECO code or moves<input id="deepQuery" type="search" placeholder="Sicilian, C50, e4 e5 Nf3…" autocomplete="off" /></label><label for="deepFirst">First move<select id="deepFirst"><option value="">Any first move</option><option value="e4">1. e4</option><option value="d4">1. d4</option><option value="c4">1. c4</option><option value="Nf3">1. Nf3</option><option value="other">Other first moves</option></select></label><label for="deepOrder">Browse order<select id="deepOrder"><option value="familiar">Familiar openings first</option><option value="depth">Longest routes first</option><option value="eco">ECO code</option></select></label><label class="deep-bookmark-filter"><input id="deepSavedOnly" type="checkbox" /> Saved routes</label></form>
+  <p id="deepScope" class="course-note"></p><div id="deepResults" aria-live="polite"></div><p id="deepCatalogueStatus" role="status"></p>
+  <p class="deep-source">Reference moves and names: <a href="https://github.com/lichess-org/chess-openings/tree/a6189a30dc273ccb21fc2536a9a2fefd5592a67a" target="_blank" rel="noopener">Lichess opening names, CC0</a>. These are named reference routes, not every possible continuation or authored lessons. Explore any legal move on the board.</p>
 </section>
 <section class="view" id="viewExplore" hidden>
   <div class="library-heading"><div><h2>Opening library</h2><p id="catalogCount">20 openings · 60 lines to explore</p></div><a class="btn btn-ghost" href="#today">Back to board →</a></div>
+  <section id="planExplore" class="plan-entry" aria-label="From opening moves to plans"></section>
+  <div class="deep-entry"><div><strong>Know the name. Now explore the branches.</strong><span>3,865 reference routes, including sidelines, with a board walkthrough.</span></div><a class="btn btn-primary" href="#explore/lines">Deep opening library →</a></div>
   <div class="catalog-toolbar"><label class="catalog-search"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><span class="sr-only">Search openings by name, moves or ECO code</span><input id="libSearch" type="search" placeholder="Search openings, moves or ECO code" autocomplete="off" /></label><div class="segmented" id="openingSide" aria-label="Opening side"><button class="seg is-active" data-side="all" aria-pressed="true">All</button><button class="seg" data-side="white" aria-pressed="false">White</button><button class="seg" data-side="black" aria-pressed="false">Black</button></div></div>
   <div class="opening-cards" id="exploreOpenings"></div>
   <div class="database-search"><h3 id="databaseSearchTitle" hidden>From the opening database</h3><ol class="opening-list" id="libResults" aria-live="polite"></ol></div>
 </section>
 <section class="view" id="viewProgress" hidden>
   <div class="library-heading"><div><h2>Progress</h2><p id="progressSummary">Save a line or practise a position to start keeping a record.</p></div></div>
+  <section id="playerLab" class="player-lab" aria-label="Your decision review"></section>
+  <section id="journeyProgress" aria-label="Practice and milestones"></section>
   <div class="evidence-grid" id="progressEvidence"></div>
+  <section id="planProgress" class="plan-entry" aria-label="Italian plan practice record" hidden></section>
   <section id="courseProgress" aria-label="Opening training record"></section>
   <section id="personalTraining" aria-label="Exercises from games"></section>
   <div id="progressSlot"></div>
@@ -114,6 +147,7 @@
 </section>
         <!-- ================================================ dashboard -->
         <section class="view" id="viewDashboard">
+          <section id="importWelcome" class="import-welcome" hidden aria-labelledby="importWelcomeTitle"></section>
           <div class="gate" id="gate">
             <div class="gate-inner">
               <h2 class="gate-title">Find the opening moves that cost you points</h2>
@@ -344,6 +378,8 @@
         <!-- =============================================== repertoire -->
         <!-- the why: what you have committed, how it is moving, and the book -->
         <section class="view" id="viewRepertoire" hidden>
+          <section id="planRepertoire" class="plan-entry" aria-label="Your saved Italian plan" hidden></section>
+  <section id="repertoirePatterns" aria-label="Learned tactical patterns" hidden></section>
   <div class="library-heading"><div><h2>Repertoire</h2><p>Your saved opening lines and notes.</p></div><a class="btn btn-ghost" href="#repertoire/edit">Build a line</a></div>
   <div id="repertoireCourse" class="repertoire-course" hidden></div>
   <section id="preparationGaps" aria-label="Preparation gaps"></section>
@@ -446,6 +482,7 @@
                 <div class="study-tabs" role="tablist" aria-label="Study panel">
                   <button id="studyTab" role="tab" aria-controls="studyPane" aria-selected="true" data-panel="study" class="is-active">Study</button>
                   <button id="movesTab" role="tab" aria-controls="movesPane" aria-selected="false" data-panel="moves">Moves</button>
+                  <button id="branchesTab" role="tab" aria-controls="branchesPane" aria-selected="false" data-panel="branches">Deep lines</button>
                   <button id="savedTab" role="tab" aria-controls="savedPane" aria-selected="false" data-panel="saved">Your lines</button>
                 </div>
                 <section id="studyPane" role="tabpanel" aria-labelledby="studyTab">
@@ -459,12 +496,13 @@
                   <button class="btn btn-primary" id="guideReplay">Walk through line</button>
                   <p class="study-credit">Opening study notes · <a href="#explore">Browse the library</a></p>
                 </section>
+                <section id="branchesPane" role="tabpanel" aria-labelledby="branchesTab" hidden><div id="deepBoardPanel"></div></section>
                 <section id="trainingPanel" aria-label="Training session" hidden></section>
                 <section id="movesPane" role="tabpanel" aria-labelledby="movesTab" hidden><h3 class="study-section-label">Common replies</h3><div id="libBook"></div><p class="board-status" id="libStats"></p><p class="small muted">Results come from the bundled opening book. Frequency and score describe games played, not the best move.</p></section>
                 <section id="savedPane" role="tabpanel" aria-labelledby="savedTab" hidden><h3 class="study-section-label">Saved responses</h3><div id="sidebarSaved"></div><a class="text-link" href="#repertoire">Open repertoire →</a></section>
                 <details class="board-tools"><summary>Board tools</summary>
                   <div class="board-tool-actions"><button class="btn btn-ghost" id="libReset">Reset board</button><a class="btn btn-ghost" id="libLichess" target="_blank" rel="noopener">Lichess analysis →</a><button class="btn btn-ghost" id="libCopyFen" type="button">Copy FEN</button></div>
-                  <label class="board-palette"><span>Board style</span><select id="boardPalette"><option value="green">Classic green</option><option value="wood">Warm wood</option></select></label>
+                  <label class="board-palette"><span>Board style</span><select id="boardPalette"><option value="green">Classic green</option><option value="slate">Slate</option><option value="contrast">High contrast</option><option value="wood">Warm wood</option></select></label>
                   <label class="board-palette"><span>Study guide</span><select id="studyCoach"><option value="maya">Maya</option><option value="theo">Theo</option><option value="inez">Inez</option></select></label>
                   <details class="position-tools"><summary>Enter moves or a position</summary><form id="explorePositionForm"><label class="field"><span>Moves in SAN or a FEN position</span><input id="explorePositionInput" placeholder="1. e4 e5 2. Nf3 Nc6" required /></label><button class="btn btn-ghost" type="submit">Show on board</button><p id="explorePositionError" role="alert" class="small"></p></form></details>
                   <details class="pane-block"><summary>Engine analysis</summary><button class="btn btn-ghost" id="libEngineBtn">Ask the engine</button><div id="libEngine"></div></details>
@@ -516,6 +554,7 @@
         </section>
 
 
+        <section id="accountInvite" class="connect-banner" aria-labelledby="connectBannerTitle" hidden></section>
         <!-- ==================================================== footer -->
         <footer class="appfoot">
           <button class="status" id="statusBtn" type="button" aria-haspopup="dialog">
@@ -586,9 +625,9 @@
       </div>
     </dialog>
 
-    <dialog class="dialog dialog-narrow" id="authDialog">
+    <dialog class="dialog dialog-narrow" id="authDialog" aria-labelledby="authDialogTitle">
       <div class="dialog-head">
-        <h2>Sign in</h2>
+        <h2 id="authDialogTitle">Sign in</h2>
         <button class="icon-btn is-visible" id="authDialogClose" aria-label="Close">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
         </button>
@@ -748,6 +787,19 @@
       </form>
     </template>
 
+    <dialog id="learningProfile" class="learning-profile" aria-labelledby="learningProfileTitle">
+      <form id="learningProfileForm"><div class="line-heading"><h2 id="learningProfileTitle">Make yourself at home</h2><button type="button" class="icon-btn" id="closeLearningProfile" aria-label="Close profile">×</button></div>
+        <p class="muted">Your learning stays private. Choose a board and a guide you enjoy.</p>
+        <label>Nickname <input name="nickname" maxlength="30" autocomplete="nickname" placeholder="What should we call you?" /></label>
+        <label>Your piece <select name="avatar"><option value="n">Knight</option><option value="p">Pawn</option><option value="r">Rook</option><option value="b">Bishop</option></select></label>
+        <label>Favourite guide <select name="guide"><option value="maya">Maya</option><option value="theo">Theo</option><option value="inez">Inez</option></select></label>
+        <label>Board <select name="palette"><option value="green">Garden green</option><option value="wood">Warm walnut</option><option value="slate">Slate blue</option><option value="contrast">High contrast</option></select></label>
+        <label>Training days each week <select name="goal"><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option><option value="4">4 days</option><option value="5">5 days</option><option value="6">6 days</option><option value="7">7 days</option></select></label>
+        <label class="check"><input name="quiet" type="checkbox" /> Quiet coach bubbles</label>
+        <label class="check"><input name="motion" type="checkbox" /> Reduce motion</label>
+        <p class="small muted" id="profileStorage"></p><button type="submit" class="btn btn-primary">Save preferences</button>
+      </form>
+    </dialog>
     <script src="./vocab.js"></script>
     <script src="./store.js"></script>
     <script src="./auth.js"></script>
@@ -760,6 +812,7 @@
     <script src="./italian-course.js"></script>
     <script src="./opening-courses.js"></script>
     <script src="./model-games.js"></script>
+    <script src="./puzzle-catalog.js"></script>
     <script src="./learning-store.js"></script>
     <script src="./visual-lessons.js"></script>
     <script src="../companion.js"></script>
@@ -768,6 +821,13 @@
     <script src="./preparation.js"></script>
     <script src="./training.js"></script>
     <script src="./daily-session.js"></script>
+    <script src="./journey.js"></script>
+    <script src="./puzzles.js"></script>
+    <script src="./clubhouse.js"></script>
+    <script src="./italian-plans.js"></script>
+    <script src="./plans.js"></script>
+    <script src="./deep-lines.js"></script>
+    <script src="./player-lab.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

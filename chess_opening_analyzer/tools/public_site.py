@@ -63,9 +63,13 @@ def header(current=''):
         active = ' aria-current="page"' if current == href else ''
         nav += f'<a href="{href}"{active}>{label}</a>'
     return f'''<a class="skip" href="#main">Skip to content</a><header class="site-head shell">
-<a class="wordmark" href="/" aria-label="Opening Leak Lab home"><img src="/assets/brand/mark.svg" width="42" height="42" alt="" /><span>Opening <span class="brand-second">Leak Lab</span></span></a>
-<button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="publicNav">Menu <span aria-hidden="true">☰</span></button>
-<nav id="publicNav" aria-label="Main navigation">{nav}<a class="nav-open" href="/app/">Open workspace →</a></nav></header>'''
+<a class="wordmark" href="/" aria-label="Opening Leak Lab home"><img src="/assets/brand/mark.svg" width="42" height="42" alt="" /><span>Opening <span class="brand-second">Leak Lab</span><small class="brand-motto">GOOD PLANS. GOOD COMPANY.</small></span></a>
+<button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="publicNav">Menu <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+<nav id="publicNav" aria-label="Main navigation"><div class="public-menu-intro"><span class="coach-art" data-coach="maya" aria-hidden="true"></span><div><strong>Make yourself at home.</strong><span>Your next good move is waiting.</span></div></div>{nav}<a class="nav-join" href="/app/?connect=lichess#progress/games">Bring my games</a><a class="nav-open" href="/app/">Open workspace →</a></nav></header>'''
+
+
+def account_banner():
+    return '''<section class="public-connect shell" aria-labelledby="publicConnectTitle"><div class="public-connect-copy"><span class="eyebrow">YOUR GAMES. YOUR NEXT GOOD MOVE.</span><h2 id="publicConnectTitle">Make this your<br /><em>chess corner.</em></h2><p>Create an account, bring in your games and find the opening decisions worth practising.</p><div class="public-connect-actions"><a class="button primary" href="/app/?connect=lichess#progress/games">Bring my Lichess games →</a><a class="button outline" href="/app/?connect=chesscom#progress/games">Bring my Chess.com games →</a></div><small>Lichess supports sign-in. Chess.com games are imported by public username. No chess-site password needed.</small></div><span class="coach-art public-connect-coach" data-coach="maya" aria-hidden="true"></span></section>'''
 
 
 def footer():

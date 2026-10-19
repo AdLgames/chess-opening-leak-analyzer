@@ -129,7 +129,7 @@ class LocalOpeningDatabase:
         if not self._banded_schema:
             rows = self.con.execute(
                 "SELECT uci, san, white, draws, black, rating_sum FROM moves WHERE pos = ? "
-                "ORDER BY (white + draws + black) DESC LIMIT 40",
+                "ORDER BY (white + draws + black) DESC",
                 (pos,),
             ).fetchall()
             used = ALL
@@ -139,7 +139,7 @@ class LocalOpeningDatabase:
             for candidate in neighbours(wanted):
                 rows = self.con.execute(
                     "SELECT uci, san, white, draws, black, rating_sum FROM moves "
-                    "WHERE pos = ? AND band = ? ORDER BY (white + draws + black) DESC LIMIT 40",
+                    "WHERE pos = ? AND band = ? ORDER BY (white + draws + black) DESC",
                     (pos, candidate),
                 ).fetchall()
                 total = sum(r["white"] + r["draws"] + r["black"] for r in rows)
