@@ -27,6 +27,7 @@ const ROW_CAP = 25;
 const VIEWS = {
   today: { title: 'Today', route: 'today', parent: 'today' },
   explore: { title: 'Explore', route: 'explore', parent: 'explore' },
+  lines: { title: 'Deep opening library', route: 'explore/lines', parent: 'explore' },
   path: { title: 'Explore', route: 'explore/path', parent: 'explore' },
   puzzles: { title: 'Explore', route: 'explore/puzzles', parent: 'explore' },
   games: { title: 'Explore', route: 'explore/games', parent: 'explore' },
@@ -140,13 +141,16 @@ function go(view, { replace = false, focus = true } = {}) {
   window.Workspace.render(view, reportContext());
   window.Journey?.render(view);
   window.Clubhouse?.render(view);
+  window.Plans?.render(view);
+  window.DeepLines?.render(view);
+  window.PlayerLab?.render(view, reportContext());
   $('main').scrollTop = 0;
   if (focus) $('viewTitle').focus({ preventScroll: true });
 }
 
 function reportContext() {
   // `tree` is everything you play; `rows` is the subset that leaks.
-  return { rows: state.rows, tree: state.tree, summary: state.summary, player: state.player, demo: state.demo, source: state.source };
+  return { rows: state.rows, tree: state.tree, summary: state.summary, player: state.player, demo: state.demo, source: state.source, gameIds: state.gameIds };
 }
 
 function renderViewHead() {
@@ -665,7 +669,7 @@ function setBusy(busy) {
 function applyReport(data, job, { cached = false } = {}) {
   state.rows = data.rows || [];
   state.tree = data.tree || [];
-  state.gameIds = data.game_ids || [];
+  state.gameIds = data.game_ids || data.gameIds || [];
   state.summary = data.summary;
   state.player = data.player;
   state.options = (job && job.options) || data.options || null;
@@ -1301,6 +1305,7 @@ async function bootFromQuery() {
   const opening = q.get('opening');
   const publicChapter = q.get('chapter');
   const connectProvider = q.get('connect');
+  const wantedPlan = q.get('plan') === 'italian';
   const wanted = { demo: q.get('demo'), run: q.get('run'), privacy: q.get('privacy'),
     authError: q.get('auth_error') };
   history.replaceState(null, '', location.pathname + location.hash);
@@ -1308,6 +1313,7 @@ async function bootFromQuery() {
   reportAuthError(wanted.authError);
   if (wanted.privacy) openDialog('privacyDialog');
   if (wanted.demo) return runDemo();
+  if (wantedPlan) { await authReady; return window.Plans.start(); }
   if (['lichess', 'chesscom'].includes(connectProvider)) {
     await authReady;
     return openImport(connectProvider, {user});
@@ -1661,10 +1667,10 @@ go(location.hash.slice(1) || 'today', { replace: true, focus: false });
 // holds, so the gate is drawn as soon as /api/auth/me answers — and again on
 // any later change, such as signing out from the account menu.
 if (window.Auth) {
-  window.Auth.onChange(() => { renderAuthGate(); window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); window.Clubhouse?.render(state.view); });
+  window.Auth.onChange(() => { renderAuthGate(); window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); window.Clubhouse?.render(state.view); window.Plans?.render(state.view); window.PlayerLab?.render(state.view, reportContext()); });
   authReady = window.Auth.boot().then(() => {
     renderAuthGate();
-    window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); window.Clubhouse?.render(state.view);
+    window.Workspace.render(state.view, reportContext()); window.Journey?.render(state.view); window.Clubhouse?.render(state.view); window.Plans?.render(state.view); window.PlayerLab?.render(state.view, reportContext());
     if (window.Auth.signedIn() && !state.rows.length) bootReport();
   });
 }

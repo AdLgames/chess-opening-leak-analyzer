@@ -268,3 +268,20 @@ def test_unknown_provider_is_refused(tmp_path):
 def test_bad_date_is_refused(responder, tmp_path):
     with pytest.raises(IngestError):
         fetch_games(opts(tmp_path, since="15/05/2026"))
+
+
+def test_lichess_requests_clocks_preserves_comments_and_caches_separately(responder, tmp_path):
+    from pathlib import Path
+    from urllib.parse import parse_qs, urlsplit
+    from chessopening.pgn_loader import load_games
+    annotated=GAME.replace('[Result "1-0"]','[Result "1-0"]\n[TimeControl "300+2"]').replace('1. e4 e5','1. e4 {[%clk 0:05:00]} e5').replace('2. Nf3 Nc6','2. Nf3 {[%clk 0:04:55]} Nc6')
+    responder.routes["lichess.org/api/games/user"]=annotated.encode()
+    res=fetch_games(opts(tmp_path,provider="lichess",username="alice"))
+    query=parse_qs(urlsplit(responder.calls[-1]).query)
+    assert query['clocks']==['true'] and query['evals']==['false']
+    assert 'clocks-v1' in res.files[0]
+    assert '[%clk' in Path(res.files[0]).read_text()
+    loaded=list(load_games(res.files[0],'alice'))
+    assert loaded[0].plies[1].spent_seconds==7
+    cached=fetch_games(opts(tmp_path,provider="lichess",username="alice"))
+    assert cached.cached_months==1 and cached.files==res.files

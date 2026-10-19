@@ -903,3 +903,7 @@
 @media(max-width:1000px) { #publicNav :focus-visible { outline:2px solid #7050c4; outline-offset:3px; } }
 .public-connect .public-connect-copy>p { color:#355139; }
 @media(max-width:650px) { .site-head { gap:14px; } .brand-motto { font-size:7px; letter-spacing:1px; } }
+
+.public-plan-link { padding-block:28px 40px; border-top:1px solid #688674; }
+.public-plan-link h2 { font-size:clamp(29px,4vw,42px); margin:15px 0; }
+.public-plan-link p { max-width:650px; font-size:14px; line-height:1.8; margin-bottom:22px; }

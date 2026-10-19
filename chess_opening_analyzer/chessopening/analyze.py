@@ -14,6 +14,7 @@ from .evalstore import DEFAULT_EVALS, open_store
 from .explorer import OpeningExplorer, PositionStats
 from .localdb import DEFAULT_DB, LocalOpeningDatabase
 from .profiles import build_profiles
+from .decision_evidence import build_decision_evidence
 from .traps import scan_games
 from .pgn_loader import GameSummary, PlyRecord, load_games
 
@@ -635,6 +636,7 @@ def analyze(
         "summary": summary_path,
         "profiles": profiles_path,
         "opening_profiles": profile_report,
+        "decision_evidence": build_decision_evidence(rows, games),
         "traps": trap_report,
         "explorer_stats": explorer.stats,
         "notes": notes,

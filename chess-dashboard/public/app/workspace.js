@@ -46,6 +46,7 @@
       $(`${button.dataset.panel}Pane`).hidden = !active;
       if (active && focus) button.focus();
     });
+    if (next === "branches") window.DeepLines?.render();
   }
   function renderGuide() {
     window.Training?.overview(selected?.id || null);
@@ -133,11 +134,11 @@
   $('libSearch').addEventListener('input', renderOpenings);
   document.querySelectorAll('[data-panel]').forEach((button) => button.addEventListener('click', () => setPanel(button.dataset.panel)));
   document.querySelector('.study-tabs').addEventListener('keydown', (event) => {
-    const keys = ['study','moves','saved'];
+    const keys = ['study','moves','branches','saved'];
     if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
     event.preventDefault();
-    const index = keys.indexOf(panel);
-    setPanel(event.key === 'Home' ? 'study' : event.key === 'End' ? 'saved' : keys[(index + (event.key === 'ArrowRight' ? 1 : 2)) % 3], true);
+    const index = keys.indexOf(event.target.closest('[data-panel]')?.dataset.panel || panel);
+    setPanel(event.key === 'Home' ? 'study' : event.key === 'End' ? 'saved' : keys[(index + (event.key === 'ArrowRight' ? 1 : keys.length-1)) % keys.length], true);
   });
   $('guideReplay').addEventListener('click', () => { if (selected) window.Study.replay(lines()[selectedLine].line, selected.side); });
   window.addEventListener('chess:position', (event) => {
@@ -160,6 +161,7 @@
   boardPalette(); window.Coach.refresh();
   window.Workspace = {
     choose, reopen, custom, setPanel, refreshGuide: renderGuide,
+    explain(text,key) { explorationReaction={event:'explain',key,prompt:text}; if(window.App.currentView()==='today')window.Coach.onBoard(explorationReaction); },
     async position(line, side, title) {
       await window.Training.pause(); window.App.go('today'); custom(title);
       $('saveLineSide').value = side; $('saveLineName').value = title;
